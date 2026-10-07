@@ -30,10 +30,8 @@ Cuando el usuario delega una tarea en modo 100% autónomo ("yo casi no toco el c
 ```
 
 ### Paso 1: Diagnóstico y Pre-vuelo
-- Consultar [`PRD.md`](../../PRD.md) y la especificación asociada en [`specs/`](../../specs/README.md).
-- Revisar [`STATE.md`](../../STATE.md) para conocer el estado actual y pendientes inmediatos.
-- Ejecutar `git status` para ver el estado actual del árbol de trabajo.
-- Si hay dudas sobre tipos o DTOs, consultar primero `packages/shared/src`.
+- **Si es Tier 1 (Architectural)**: Consultar [`PRD.md`](../../PRD.md), spec asociada en [`specs/`](../../specs/README.md) y [`STATE.md`](../../STATE.md).
+- **Si es Tier 2 (Standard)** o **Tier 3 (Fast-Track)**: Enfocarse directamente en el objetivo, tipos en `packages/shared/src` y `git status`. (Para bugs o fallos de CI, apoyarse en `debug-flujo`).
 - Si se requiere consultar datos reales de prueba, usar el MCP `postgres-dev` o `docker compose -f docker-compose.dev-db.yml exec ...`.
 
 ### Paso 2: Implementación (TDD & SDD)
@@ -72,7 +70,8 @@ Este comando valida de forma atómica:
   - Ancho de viewport móvil (375px) sin desbordamientos horizontales.
   - Consola limpia de errores de React o promesas no resueltas.
 
-### Paso 5: Reporte de Entrega y Actualización de STATE
-- Verificar el cumplimiento completo de la Definition of Done (DoD) en [`AGENTS.md`](../../AGENTS.md).
-- Actualizar [`STATE.md`](../../STATE.md) registrando el trabajo realizado, evidencia de tests y siguiente acción.
-- Resumir de forma concisa y profesional qué se implementó, qué archivos se modificaron y el resultado de las pruebas de verificación.
+### Paso 5: Reporte de Entrega y Trazabilidad
+- Verificar el cumplimiento del DoD en [`AGENTS.md`](../../AGENTS.md).
+- **En Tier 1 (Architectural)**: Actualizar [`STATE.md`](../../STATE.md) registrando el avance en el roadmap.
+- **En Tier 2 y Tier 3**: Reportar de forma concisa qué se resolvió, evidencia de tests y commit sugerido (evitando merge conflicts en `STATE.md`).
+- Resumir de forma profesional qué se implementó, qué archivos se modificaron y el resultado de las pruebas de verificación.

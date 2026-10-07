@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "../scripts/guard-dev-db.sh",
+            "command": "./scripts/guard-dev-db.sh",
             "timeout": 10
           }
         ]

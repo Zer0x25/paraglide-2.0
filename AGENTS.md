@@ -19,6 +19,12 @@ El desarrollo en este repositorio sigue una disciplina estricta de 7 capas que g
 | **DoD** | [`AGENTS.md`](AGENTS.md) (Sección 6) | Condiciones comunes de calidad y cierre del proyecto |
 | **Seguimiento** | [`STATE.md`](STATE.md) y aprendizaje | Evidencia, pendientes y siguiente acción |
 
+### Niveles de Rigor Operativo (Governance Tiering)
+Para balancear rigor técnico con agilidad operativa, las tareas se clasifican en:
+- **Tier 1 (Architectural)**: Cambios en `schema.prisma`, pagos, concurrencia o nuevos módulos. Exige el ciclo completo de 7 capas (PRD/Spec/STATE).
+- **Tier 2 (Standard)**: Nuevos endpoints CRUD, modales UI o componentes. Exige DTOs en `packages/shared`, BDD integrado en tests y gate `npm run check:quick`.
+- **Tier 3 (Fast-Track)**: Bugfixes, fallos de CI, ajustes CSS o refactors locales. Diagnóstico con `debug-flujo`, fix mínimo y gate `npm run check:quick`. Cero burocracia documental.
+
 > Manual detallado del marco en [`docs/gobernanza.md`](docs/gobernanza.md).
 
 ---

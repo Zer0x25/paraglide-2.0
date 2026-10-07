@@ -165,6 +165,12 @@ function main() {
   );
 
   try {
+    if (!existsSync(prettierBin)) {
+      console.warn(
+        '[format] Advertencia: node_modules/.bin/prettier no encontrado. Ejecuta npm install para habilitar formateo.',
+      );
+      return;
+    }
     const out = execFileSync(prettierBin, args, { cwd: root, encoding: 'utf8', stdio: 'pipe' });
     if (out.trim()) console.log(out.trim());
   } catch (err) {

@@ -8,8 +8,8 @@ Este documento mantiene el estado de ejecución, trazabilidad de sesiones, evide
 
 | Dimensión | Valor / Estado | Notas |
 |---|---|---|
-| **Fase Activa del Roadmap** | Fase 5 & Gobernanza 2.0 | Ver [`docs/roadmap.md`](docs/roadmap.md) y [`PRD.md`](PRD.md). |
-| **Arquitectura de Gobernanza** | Activa (7 Pilares) | PRD ➔ ADR ➔ Prompt Maestro ➔ SDD+BDD ➔ TDD ➔ DoD ➔ STATE. |
+| **Fase Activa del Roadmap** | Fase 5 & Gobernanza Lean | Ver [`docs/roadmap.md`](docs/roadmap.md) y [`PRD.md`](PRD.md). |
+| **Arquitectura de Gobernanza** | Activa (Lean 3-Tier + 7 Pilares) | Tier 1 Architectural, Tier 2 Standard, Tier 3 Fast-Track. |
 | **Bases de Datos** | Dev `:5679` / Staging `:5680` | Producción `:5678` aislado y protegido. |
 | **Módulos Core** | 6 Módulos Operativos | `/`, `/pilotos`, `/reservas`, `/calendario`, `/analiticas`, `/auditoria`. |
 | **Módulos Premium** | Runtime Toggleable | Controlados vía `modules.config.json` y SSE. |
@@ -19,18 +19,19 @@ Este documento mantiene el estado de ejecución, trazabilidad de sesiones, evide
 ## 2. Última Sesión de Trabajo
 
 - **Fecha:** 2026-10-07
-- **Objetivo:** Integración del Marco Integral de Gobernanza del Monorepo.
+- **Objetivo:** Auditoría de Gobernanza, Detección de Sobreingeniería e Implementación Lean.
 - **Autor / Ejecutor:** Agente Asistente de IA (Antigravity) en coordinación con el Desarrollador.
 - **Entregables Realizados:**
-  1. [`PRD.md`](PRD.md): Documento de requisitos de producto de la escuela de parapente (visión, personas, RFs, RNFs).
-  2. [`PROMPT-MAESTRO.md`](PROMPT-MAESTRO.md): Invocación estandarizada para agentes, niveles de autonomía L1-L4 y guardrails inmutables.
-  3. [`specs/`](specs/README.md): Creación del framework de especificaciones con metodología SDD (contratos) + BDD (Gherkin Dado/Cuando/Entonces), [`specs/TEMPLATE.md`](specs/TEMPLATE.md) y [`specs/SPEC-001-RESERVAS-CONCURRENCIA.md`](specs/SPEC-001-RESERVAS-CONCURRENCIA.md).
-  4. [`docs/gobernanza.md`](docs/gobernanza.md): Manual operativo de los 7 pilares de gobernanza.
-  5. Actualización de [`AGENTS.md`](AGENTS.md) con la matriz de gobernanza y la Definición de Terminado (DoD) formalizada.
-  6. [`STATE.md`](STATE.md): Inicialización del sistema de seguimiento y aprendizaje.
+  1. **Governance Tiering**: Introducción de 3 niveles de rigor en [`docs/gobernanza.md`](docs/gobernanza.md) y [`AGENTS.md`](AGENTS.md) (Tier 1 Architectural, Tier 2 Standard, Tier 3 Fast-Track), eliminando burocracia para cambios pequeños.
+  2. **Invocación Ágil**: Rediseño de [`PROMPT-MAESTRO.md`](PROMPT-MAESTRO.md) a 3 líneas (`Objetivo`, `Tier`, `Autonomía`), preservando la plantilla formal para Tier 1.
+  3. **Living Spec Template**: Compactación de [`specs/TEMPLATE.md`](specs/TEMPLATE.md) (de 103 a ~48 líneas) eliminando código Zod duplicado y apuntando a fuentes canónicas.
+  4. **Corrección de Hook de Seguridad**: Fix de la ruta relativa en `.agents/hooks.json` a `./scripts/guard-dev-db.sh`.
+  5. **Desincronización Espejo Resuelta**: Conversión de `.agents/agents/` en symlinks hacia `.github/agents/`.
+  6. **Resiliencia Operativa en Scripts**: Guarda en `scripts/format.mjs` para evitar fallos si `node_modules` aún no está instalado.
 - **Evidencia de Calidad:**
-  - Estructura de gobernanza alineada con ADRs 001 a 015.
-  - Guardrails de base de datos verificados (Dev `:5679`, Staging `:5680`, Prod `:5678`).
+  - Sintaxis JSON verificada en `.agents/hooks.json`.
+  - Hook y scripts probados en local.
+  - Formato incremental y reglas inmutables de seguridad preservadas al 100%.
 
 ---
 
