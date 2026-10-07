@@ -1,6 +1,23 @@
 name: Deploy to Homelab
 
 on:
+  workflow_call:
+    inputs:
+      build_images:
+        description: 'Construir y subir imágenes Docker a GHCR'
+        required: false
+        type: boolean
+        default: true
+      deploy_to_vm:
+        description: 'Desplegar en VM de Homelab (self-hosted runner)'
+        required: false
+        type: boolean
+        default: true
+      platforms:
+        description: 'Plataformas Docker'
+        required: false
+        type: string
+        default: 'linux/amd64'
   push:
     branches:
       - main
@@ -15,6 +32,16 @@ on:
       - 'LICENSE'
   workflow_dispatch:
     inputs:
+      build_images:
+        description: 'Construir y subir imágenes Docker a GHCR'
+        required: true
+        type: boolean
+        default: true
+      deploy_to_vm:
+        description: 'Desplegar en VM de Homelab (self-hosted runner)'
+        required: true
+        type: boolean
+        default: true
       platforms:
         description: 'Plataformas Docker (linux/amd64 para lab rápido, linux/amd64,linux/arm64 para prod)'
         required: true
@@ -43,10 +70,50 @@ env:
   BUILD_PLATFORMS: ${{ inputs.platforms || (startsWith(github.ref, 'refs/tags/v') && 'linux/amd64,linux/arm64' || 'linux/amd64') }}
 
 jobs:
-  lint-web:
-    name: Lint Web (ESLint — Bloqueante)
+  plan:
+    name: Determinar Acciones (Build / Deploy)
     runs-on: ubuntu-latest
-    cache-mode: write
+    outputs:
+      should_build: ${{ steps.decide.outputs.should_build }}
+      should_deploy: ${{ steps.decide.outputs.should_deploy }}
+    steps:
+      - name: Evaluar Flags de Ejecución
+        id: decide
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ "${{ github.event_name }}" = "workflow_call" ]; then
+            SHOULD_BUILD="${{ inputs.build_images }}"
+            SHOULD_DEPLOY="${{ inputs.deploy_to_vm }}"
+          elif [[ "${{ github.ref }}" =~ ^refs/tags/v ]]; then
+            # Releases formales compilan y despliegan siempre
+            SHOULD_BUILD="true"
+            SHOULD_DEPLOY="true"
+          else
+            # Push a main: solo compila/despliega si el commit incluye la etiqueta [deploy] o [build-image]
+            COMMIT_MSG="${{ github.event.head_commit.message }}"
+            if echo "$COMMIT_MSG" | grep -iqE '\[deploy\]|\[build-image\]'; then
+              SHOULD_BUILD="true"
+            else
+              SHOULD_BUILD="false"
+            fi
+            if echo "$COMMIT_MSG" | grep -iq '\[deploy\]'; then
+              SHOULD_DEPLOY="true"
+            else
+              SHOULD_DEPLOY="false"
+            fi
+          fi
+          echo "should_build=$SHOULD_BUILD" >> $GITHUB_OUTPUT
+          echo "should_deploy=$SHOULD_DEPLOY" >> $GITHUB_OUTPUT
+          echo "### 📋 Plan de Ejecución (CD)" >> $GITHUB_STEP_SUMMARY
+          echo "| Acción | Ejecutar | Causa / Origen |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| 🐳 Construir Imágenes Docker | **$SHOULD_BUILD** | Evento: \`${{ github.event_name }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🚀 Desplegar a la VM | **$SHOULD_DEPLOY** | Ref: \`${{ github.ref_name }}\` |" >> $GITHUB_STEP_SUMMARY
+
+  pre-deploy-check:
+    name: Verificación Rápida Pre-Deploy (check:quick)
+    runs-on: ubuntu-latest
+    needs: [plan]
+    if: needs.plan.outputs.should_build == 'true' || needs.plan.outputs.should_deploy == 'true'
     steps:
       - uses: actions/checkout@v4
 
@@ -62,100 +129,14 @@ jobs:
       - name: Generate Prisma Client
         run: npx prisma generate --schema=apps/api/prisma/schema.prisma
 
-      - name: Build shared (tipos @parapente/shared para ESLint)
-        run: npm run build:shared
-
-      - name: ESLint (web)
-        run: npm run lint 2>&1 | tee /tmp/eslint.log; exit ${PIPESTATUS[0]}
-
-      - name: Upload lint logs (on failure)
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: lint-web-logs
-          path: /tmp/eslint.log
-          retention-days: 7
-
-  test-api:
-    name: Tests API (Vitest)
-    runs-on: ubuntu-latest
-    cache-mode: read
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: 'npm'
-
-      - name: Install dependencies
-        # loglevel=error silencia deprecation warnings transitivos en CI
-        run: npm ci --no-audit --prefer-offline --loglevel=error
-
-      - name: Generate Prisma Client
-        run: npx prisma generate --schema=apps/api/prisma/schema.prisma
-
-      - name: Build shared + Run API tests
-        run: |
-          npm run build:shared
-          npm run test:api
-
-  test-web:
-    name: Tests Web (Vitest ${{ matrix.shard }})
-    runs-on: ubuntu-latest
-    cache-mode: read
-    strategy:
-      fail-fast: false
-      matrix:
-        shard: ['1/2', '2/2']
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: 'npm'
-
-      - name: Install dependencies
-        # loglevel=error silencia deprecation warnings transitivos en CI
-        run: npm ci --no-audit --prefer-offline --loglevel=error
-
-      - name: Generate Prisma Client
-        run: npx prisma generate --schema=apps/api/prisma/schema.prisma
-
-      - name: Build shared + Run web tests
-        run: |
-          npm run build:shared
-          npm --prefix apps/web test -- --shard=${{ matrix.shard }}
-
-  test-mcp:
-    name: Tests MCP Server (Vitest)
-    runs-on: ubuntu-latest
-    cache-mode: read
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci --no-audit --prefer-offline --loglevel=error
-
-      - name: Build shared + Run MCP tests
-        run: |
-          npm run build:shared
-          npm run test:mcp
+      - name: Build shared & Quick Check (tipos + tests)
+        run: npm run check:quick
 
   build-api-image:
     name: Build & Push API Image (GHCR)
     runs-on: ubuntu-latest
-    cache-mode: write
-    needs: [test-api, test-mcp]
+    needs: [plan, pre-deploy-check]
+    if: needs.plan.outputs.should_build == 'true'
     steps:
       - uses: actions/checkout@v4
 
@@ -178,7 +159,7 @@ jobs:
         id: meta-api
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/zer0x25/paraglide-api
+          images: ghcr.io/zer0x25/paraglide-2.0-api
           tags: |
             type=sha,prefix=sha-,format=short
             type=semver,pattern={{version}}
@@ -202,8 +183,8 @@ jobs:
   build-web-image:
     name: Build & Push Web Image (GHCR)
     runs-on: ubuntu-latest
-    cache-mode: write
-    needs: [test-web, lint-web]
+    needs: [plan, pre-deploy-check]
+    if: needs.plan.outputs.should_build == 'true'
     steps:
       - uses: actions/checkout@v4
 
@@ -224,7 +205,7 @@ jobs:
         id: meta-web
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/zer0x25/paraglide-web
+          images: ghcr.io/zer0x25/paraglide-2.0-web
           tags: |
             type=sha,prefix=sha-,format=short
             type=semver,pattern={{version}}
@@ -250,8 +231,8 @@ jobs:
   deploy:
     name: Deploy to VM (Self-Hosted)
     runs-on: [self-hosted, srv-hp-vm]
-    cache-mode: none
-    needs: [test-api, test-web, test-mcp, lint-web, build-api-image, build-web-image]
+    needs: [plan, pre-deploy-check, build-api-image, build-web-image]
+    if: always() && needs.plan.outputs.should_deploy == 'true' && (needs.pre-deploy-check.result == 'success' || needs.pre-deploy-check.result == 'skipped') && (needs.build-api-image.result == 'success' || needs.build-api-image.result == 'skipped') && (needs.build-web-image.result == 'success' || needs.build-web-image.result == 'skipped')
     steps:
       - name: Login to GHCR
         uses: docker/login-action@v3
@@ -267,12 +248,14 @@ jobs:
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
         run: |
-          cd /home/zer0x/server.lab/repos/paraglide
+          TARGET_DIR="/home/zer0x/server.lab/repos/paraglide-2.0"
+          [ ! -d "$TARGET_DIR" ] && TARGET_DIR="/home/zer0x/server.lab/repos/paraglide"
+          cd "$TARGET_DIR"
           git fetch origin main
           git reset --hard origin/main
           export IMAGE_TAG="sha-${GITHUB_SHA:0:7}"
-          export API_IMAGE="ghcr.io/zer0x25/paraglide-api:${IMAGE_TAG}"
-          export WEB_IMAGE="ghcr.io/zer0x25/paraglide-web:${IMAGE_TAG}"
+          export API_IMAGE="ghcr.io/zer0x25/paraglide-2.0-api:${IMAGE_TAG}"
+          export WEB_IMAGE="ghcr.io/zer0x25/paraglide-2.0-web:${IMAGE_TAG}"
           export GOOGLE_CLIENT_ID="${GOOGLE_CLIENT_ID}"
           export NEXT_PUBLIC_GOOGLE_CLIENT_ID="${NEXT_PUBLIC_GOOGLE_CLIENT_ID}"
           # Persistir para futuros `docker compose up` manuales sin pasar por Actions
@@ -284,16 +267,10 @@ jobs:
           docker image prune -af --filter "until=2h"
 
       - name: Apply database schema (prisma db push)
-        # El deploy reconstruye el codigo pero NO migraba el esquema, dejando la
-        # BD de prod desactualizada (columnas version/enums/dinero faltantes -> 500).
-        # Sincronizamos el esquema dentro del contenedor api (tiene prisma y el
-        # DATABASE_URL interno apuntando a db:5432/parapente_db).
-        # SIN --accept-data-loss (deuda técnica 2026-09-30): un cambio de esquema
-        # destructivo (drop/rename de columnas) debe revisarse y aplicarse a mano,
-        # nunca de forma silenciosa en un deploy desatendido. El baseline limpio de
-        # migraciones vive en apps/api/prisma/migrations/ (ver ADR 015).
         run: |
-          cd /home/zer0x/server.lab/repos/paraglide
+          TARGET_DIR="/home/zer0x/server.lab/repos/paraglide-2.0"
+          [ ! -d "$TARGET_DIR" ] && TARGET_DIR="/home/zer0x/server.lab/repos/paraglide"
+          cd "$TARGET_DIR"
           echo "🔄 Aplicando prisma db push contra la BD de produccion..."
           docker compose exec -T api sh -c "npx prisma db push --schema=apps/api/prisma/schema.prisma --skip-generate" || {
             echo "❌ db push falló. Revisa el drift del esquema antes de continuar (un cambio destructivo requiere revisión manual; ver ADR 015)."
@@ -302,22 +279,20 @@ jobs:
           echo "✅ Esquema de BD sincronizado."
 
       - name: Seed prod defaults (reglas/tarifas/promoción, idempotente)
-        # Instancia nueva queda lista sin intervención manual. Respetar edición admin:
-        # seed.prod.ts hace upsert con update:{} / findFirst (no pisa), y respeta
-        # soft-delete. Seguro re-ejecutar en cada deploy (volumen persiste).
         run: |
-          cd /home/zer0x/server.lab/repos/paraglide
+          TARGET_DIR="/home/zer0x/server.lab/repos/paraglide-2.0"
+          [ ! -d "$TARGET_DIR" ] && TARGET_DIR="/home/zer0x/server.lab/repos/paraglide"
+          cd "$TARGET_DIR"
           echo "🌱 Sembrando defaults de producción (si faltan)..."
           docker compose exec -T api sh -c "npx tsx apps/api/prisma/seed.prod.ts" || {
             echo "⚠️ seed prod no aplicado (se puede re-ejecutar manualmente)."
           }
 
       - name: Apply special indexes (BRIN, pg_trgm, partials)
-        # Pilar 4.3: índices que Prisma no puede declarar en schema.prisma
-        # (BRIN en vuelos.fechaHora, GIN pg_trgm para búsquedas ILIKE,
-        # parcial deletedAt sobre el compuesto caliente). Idempotente.
         run: |
-          cd /home/zer0x/server.lab/repos/paraglide
+          TARGET_DIR="/home/zer0x/server.lab/repos/paraglide-2.0"
+          [ ! -d "$TARGET_DIR" ] && TARGET_DIR="/home/zer0x/server.lab/repos/paraglide"
+          cd "$TARGET_DIR"
           docker compose exec -T api sh -c "npx tsx apps/api/scripts/indexes-especiales.ts" || {
             echo "⚠️ Índices especiales no aplicados (se puede re-ejecutar el script)."
           }
@@ -325,9 +300,6 @@ jobs:
       - name: Post-Deploy Health Check & Auto-Verification
         run: |
           echo "🩺 Esperando readiness de los servicios (hasta 90s)..."
-          # Se comprueba /login (pública) y no / porque el middleware de auth
-          # redirige / → /login (307) cuando no hay cookie: es el comportamiento
-          # esperado, no un fallo. /login debe responder 200 siempre.
           for i in $(seq 1 30); do
             WEB_OK=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3100/login 2>/dev/null || echo "000")
             API_OK=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3101/api/public/health 2>/dev/null || echo "000")
@@ -370,8 +342,8 @@ jobs:
           echo "| :--- | :--- |" >> $GITHUB_STEP_SUMMARY
           echo "| **🌐 URL Producción** | [https://parapente.zer0x.org](https://parapente.zer0x.org) |" >> $GITHUB_STEP_SUMMARY
           echo "| **📦 Commit** | \`$SHORT_SHA\` (\`${{ github.ref_name }}\`) |" >> $GITHUB_STEP_SUMMARY
-          echo "| **🐳 Imagen API** | \`ghcr.io/${{ github.repository }}-api:sha-$SHORT_SHA\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| **🐳 Imagen Web** | \`ghcr.io/${{ github.repository }}-web:sha-$SHORT_SHA\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **🐳 Imagen API** | \`ghcr.io/zer0x25/paraglide-2.0-api:sha-$SHORT_SHA\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **🐳 Imagen Web** | \`ghcr.io/zer0x25/paraglide-2.0-web:sha-$SHORT_SHA\` |" >> $GITHUB_STEP_SUMMARY
           echo "| **📡 API Health** | \`$HEALTH_JSON\` |" >> $GITHUB_STEP_SUMMARY
           echo "| **⏱️ Fecha** | $(date -u +'%Y-%m-%d %H:%M:%S UTC') |" >> $GITHUB_STEP_SUMMARY
 
@@ -384,8 +356,7 @@ jobs:
   cleanup-ghcr:
     name: Prune Old GHCR Images
     runs-on: ubuntu-latest
-    cache-mode: none
-    needs: [deploy]
+    needs: [build-api-image, build-web-image]
     if: success()
     permissions:
       packages: write
@@ -393,10 +364,9 @@ jobs:
       - name: Prune old GHCR images (API & Web)
         uses: dataaxiom/ghcr-cleanup-action@v1
         with:
-          packages: 'paraglide-api,paraglide-web'
+          packages: 'paraglide-2.0-api,paraglide-2.0-web'
           keep-n-tagged: 3
           exclude-tags: 'latest'
           delete-untagged: true
           delete-partial-images: true
           token: ${{ secrets.GITHUB_TOKEN }}
-

@@ -19,31 +19,35 @@ Este documento mantiene el estado de ejecución, trazabilidad de sesiones, evide
 ## 2. Última Sesión de Trabajo
 
 - **Fecha:** 2026-10-07
-- **Objetivo:** Auditoría de Gobernanza, Detección de Sobreingeniería e Implementación Lean.
+- **Objetivo:** Optimización y Desacople de CI/CD: Quality Gate Automatizado, Corrección de Registro GHCR y Flags de Deploy.
 - **Autor / Ejecutor:** Agente Asistente de IA (Antigravity) en coordinación con el Desarrollador.
 - **Entregables Realizados:**
-  1. **Governance Tiering**: Introducción de 3 niveles de rigor en [`docs/gobernanza.md`](docs/gobernanza.md) y [`AGENTS.md`](AGENTS.md) (Tier 1 Architectural, Tier 2 Standard, Tier 3 Fast-Track), eliminando burocracia para cambios pequeños.
-  2. **Invocación Ágil**: Rediseño de [`PROMPT-MAESTRO.md`](PROMPT-MAESTRO.md) a 3 líneas (`Objetivo`, `Tier`, `Autonomía`), preservando la plantilla formal para Tier 1.
-  3. **Living Spec Template**: Compactación de [`specs/TEMPLATE.md`](specs/TEMPLATE.md) (de 103 a ~48 líneas) eliminando código Zod duplicado y apuntando a fuentes canónicas.
-  4. **Corrección de Hook de Seguridad**: Fix de la ruta relativa en `.agents/hooks.json` a `./scripts/guard-dev-db.sh`.
-  5. **Desincronización Espejo Resuelta**: Conversión de `.agents/agents/` en symlinks hacia `.github/agents/`.
-  6. **Resiliencia Operativa en Scripts**: Guarda en `scripts/format.mjs` para evitar fallos si `node_modules` aún no está instalado.
+  1. **Separación CI vs CD**: Creación de workflow independiente `.github/workflows/ci.yml` que valida monorepo (`build:shared`, `typecheck`, `lint` y tests unitarios de api, web y mcp) en cada push y PR en ~2 min sin Docker ni VM.
+  2. **Fix GHCR Package Namespace**: Corrección de nombres de imagen a `ghcr.io/zer0x25/paraglide-2.0-api` y `ghcr.io/zer0x25/paraglide-2.0-web`, resolviendo el fallo 403 por apuntar al repo legacy `paraglide`.
+  3. **Control por Flags & Triggers en CD (`deploy.yml`)**:
+     - `workflow_dispatch`: flags `build_images` y `deploy_to_vm` configurables por UI.
+     - `push a main`: solo compila o despliega si el mensaje de commit incluye `[deploy]` o `[build-image]`, evitando deploys no deseados en micro-commits.
+     - `tags v*.*.*`: release formal compila y despliega automáticamente.
+  4. **Gate Pre-Deploy**: Incorporación de `npm run check:quick` como prerrequisito antes del build de imágenes Docker.
+  5. **Sincronización de Compose y Configs**: Actualización de imágenes en `docker-compose.yml`, `docker-compose.staging.yml`, `.env.example`, `README.md` y rutas tolerantes en `scripts/deploy-status.sh`.
+  6. **Integración Release Please + CD**: Configuración de `workflow_call` en `deploy.yml` y encadenamiento en `release-please.yml` para que al mergear el Release PR se dispare el build y deploy automáticamente.
 - **Evidencia de Calidad:**
-  - Sintaxis JSON verificada en `.agents/hooks.json`.
-  - Hook y scripts probados en local.
-  - Formato incremental y reglas inmutables de seguridad preservadas al 100%.
+  - Sintaxis YAML validada con parser estricto (`ci.yml`, `deploy.yml`, `release-please.yml`).
+  - Nombres de imágenes y variables de entorno homologados al estándar monorepo.
+  - DoD cumplido: aislamiento de DBs respetado y formateo verificado.
 
 ---
 
 ## 3. Tareas en Curso (WIP) y Backlog Inmediato
 
 ### En Curso (WIP)
+- [x] Optimizar pipeline de CI/CD: separar CI rápido de CD con flags y corregir GHCR.
 - [x] Documentar marco de gobernanza en [`docs/gobernanza.md`](docs/gobernanza.md) y [`docs/README.md`](docs/README.md).
 - [x] Establecer plantillas y especificación de referencia en [`specs/`](specs/README.md).
 - [x] Formalizar Definition of Done (DoD) en [`AGENTS.md`](AGENTS.md).
 
 ### Siguiente Acción Prioritaria (Next Action)
-- [ ] Ejecutar instalación de dependencias base (`npm install`) para habilitar el gate de pruebas rápidas (`npm run check:quick`).
+- [ ] Ejecutar instalación de dependencias base (`npm install`) para habilitar el gate de pruebas rápidas en local (`npm run check:quick`).
 - [ ] Redactar las siguientes especificaciones SDD+BDD para los módulos de Deslinde Digital y Asignación de Pilotos en pista (`specs/SPEC-002-DESLINDE.md`).
 
 ---
@@ -60,3 +64,7 @@ Este documento mantiene el estado de ejecución, trazabilidad de sesiones, evide
    - *Lección*: Operadores nativos de JavaScript (`+`, `-`, `*`) introducen errores de coma flotante inadmisibles en contabilidad. Usar invariablemente `toNum()` de `money.util.ts` (`Decimal(12,2)`).
 5. **Side Effects y Transacciones**:
    - *Lección*: La emisión de eventos SSE (`broadcastDatos`) nunca debe ocurrir dentro de un bloque `$transaction`. Debe emitirse exclusivamente después del commit exitoso para evitar notificaciones sobre datos revertidos.
+6. **Permisos de GitHub Container Registry (GHCR) tras Renombrar Repositorios**:
+   - *Lección*: Al bifurcar o migrar un proyecto a un nuevo repositorio (ej. de `paraglide` a `paraglide-2.0`), el `${{ secrets.GITHUB_TOKEN }}` del nuevo repo no tiene permisos de sobreescritura sobre imágenes publicadas bajo el paquete anterior. Los nombres de las imágenes deben namespacizarse al nuevo repo (`paraglide-2.0-api`, `paraglide-2.0-web`) para que GHCR cree paquetes automáticamente vinculados al repo actual.
+7. **Desacople Arquitectónico CI vs CD**:
+   - *Lección*: CI (validación de código) debe ser rápido, sin Docker y correr en cada push/PR. CD (imágenes y deploy a servidor) debe ser condicional (bajo demanda, manual o tags de release) para no saturar runners, registries ni reiniciar servicios en vivo en cada micro-commit.

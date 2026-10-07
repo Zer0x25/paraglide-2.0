@@ -213,8 +213,8 @@ sequenceDiagram
 
 * **Rollback Instantáneo**: Permite revertir a cualquier versión anterior apuntando a los tags inmutables de GHCR:
   ```bash
-  API_IMAGE=ghcr.io/zer0x25/paraglide-api:sha-<hash> \
-  WEB_IMAGE=ghcr.io/zer0x25/paraglide-web:sha-<hash> \
+  API_IMAGE=ghcr.io/zer0x25/paraglide-2.0-api:sha-<hash> \
+  WEB_IMAGE=ghcr.io/zer0x25/paraglide-2.0-web:sha-<hash> \
   docker compose up -d --no-build
   ```
 

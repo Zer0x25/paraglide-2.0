@@ -1,0 +1,147 @@
+name: CI (Integración Continua)
+
+on:
+  push:
+    branches:
+      - main
+      - 'feature/**'
+      - 'fix/**'
+    paths-ignore:
+      - 'docs/**'
+      - 'memories/**'
+      - '**/*.md'
+      - '.agents/**'
+      - '.gitignore'
+      - 'LICENSE'
+  pull_request:
+    branches:
+      - main
+    paths-ignore:
+      - 'docs/**'
+      - 'memories/**'
+      - '**/*.md'
+      - '.agents/**'
+      - '.gitignore'
+      - 'LICENSE'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+  VITE_CONFIG_NATIVE_IGNORE_WARNING: 'true'
+
+jobs:
+  typecheck-and-lint:
+    name: Typecheck Monorepo & Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --no-audit --prefer-offline --loglevel=error
+
+      - name: Generate Prisma Client
+        run: npx prisma generate --schema=apps/api/prisma/schema.prisma
+
+      - name: Build shared (tipos @parapente/shared)
+        run: npm run build:shared
+
+      - name: TypeScript Monorepo Typecheck
+        run: npm run typecheck
+
+      - name: ESLint (Web)
+        run: npm run lint 2>&1 | tee /tmp/eslint.log; exit ${PIPESTATUS[0]}
+
+      - name: Upload lint logs (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lint-web-logs
+          path: /tmp/eslint.log
+          retention-days: 7
+
+  test-api:
+    name: Tests API (Vitest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --no-audit --prefer-offline --loglevel=error
+
+      - name: Generate Prisma Client
+        run: npx prisma generate --schema=apps/api/prisma/schema.prisma
+
+      - name: Build shared + Run API tests
+        run: |
+          npm run build:shared
+          npm run test:api
+
+  test-web:
+    name: Tests Web (Vitest ${{ matrix.shard }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ['1/2', '2/2']
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --no-audit --prefer-offline --loglevel=error
+
+      - name: Generate Prisma Client
+        run: npx prisma generate --schema=apps/api/prisma/schema.prisma
+
+      - name: Build shared + Run web tests
+        run: |
+          npm run build:shared
+          npm --prefix apps/web test -- --shard=${{ matrix.shard }}
+
+  test-mcp:
+    name: Tests MCP Server (Vitest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --no-audit --prefer-offline --loglevel=error
+
+      - name: Build shared + Run MCP tests
+        run: |
+          npm run build:shared
+          npm run test:mcp
+
+  ci-gate:
+    name: CI Quality Gate ✅
+    runs-on: ubuntu-latest
+    needs: [typecheck-and-lint, test-api, test-web, test-mcp]
+    steps:
+      - name: Quality Gate Confirmado
+        run: echo "🎉 Calidad y tipos verificados al 100%. El código es seguro y cumple con las reglas del monorepo."

@@ -37,7 +37,7 @@ services:
   api:
     # Imagen construida en GitHub Actions y publicada en GHCR (ver deploy.yml).
     # El servidor solo hace `docker compose pull`; ya no compila localmente.
-    image: ${API_IMAGE:-ghcr.io/zer0x25/paraglide-api:latest}
+    image: ${API_IMAGE:-ghcr.io/zer0x25/paraglide-2.0-api:latest}
     container_name: parapente_api
     environment:
       DATABASE_URL: ${DOCKER_DATABASE_URL:-postgresql://admin:adminpassword@db:5432/parapente_db?connection_limit=10}
@@ -71,7 +71,7 @@ services:
 
   web:
     # Imagen construida en GitHub Actions y publicada en GHCR (ver deploy.yml).
-    image: ${WEB_IMAGE:-ghcr.io/zer0x25/paraglide-web:latest}
+    image: ${WEB_IMAGE:-ghcr.io/zer0x25/paraglide-2.0-web:latest}
     container_name: parapente_web
     ports:
       - "127.0.0.1:${WEB_HOST_PORT:-3100}:${WEB_CONTAINER_PORT:-3000}"

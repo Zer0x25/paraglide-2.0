@@ -25,9 +25,9 @@ echo -e "\n🖥️ 2. Verificando estado en la VM ($VM_HOST)..."
 if ssh -o ConnectTimeout=3 -o BatchMode=yes "$VM_HOST" "exit" 2>/dev/null; then
   echo "✅ Conexión SSH exitosa a $VM_HOST"
   echo "📦 Commit activo en el repositorio de la VM:"
-  ssh -o ConnectTimeout=3 "$VM_HOST" "cd $VM_REPO_PATH && git log -1 --oneline" 2>/dev/null || echo "   (no se pudo obtener git log)"
+  ssh -o ConnectTimeout=3 "$VM_HOST" "cd server.lab/repos/paraglide-2.0 2>/dev/null || cd server.lab/repos/paraglide && git log -1 --oneline" 2>/dev/null || echo "   (no se pudo obtener git log)"
   echo "🐳 Estado de contenedores Docker:"
-  ssh -o ConnectTimeout=3 "$VM_HOST" "cd $VM_REPO_PATH && docker compose ps --format 'table {{.Name}}\t{{.Status}}\t{{.Ports}}'" 2>/dev/null || echo "   (no se pudo obtener docker compose ps)"
+  ssh -o ConnectTimeout=3 "$VM_HOST" "cd server.lab/repos/paraglide-2.0 2>/dev/null || cd server.lab/repos/paraglide && docker compose ps --format 'table {{.Name}}\t{{.Status}}\t{{.Ports}}'" 2>/dev/null || echo "   (no se pudo obtener docker compose ps)"
 else
   echo "ℹ️ VM no accesible directamente por SSH en esta red. Estado HTTP público reportado arriba."
 fi
