@@ -33,9 +33,54 @@ env:
   VITE_CONFIG_NATIVE_IGNORE_WARNING: 'true'
 
 jobs:
-  typecheck-and-lint:
-    name: Typecheck Monorepo & Lint
+  detect-changes:
+    name: Detectar Módulos Afectados
     runs-on: ubuntu-latest
+    outputs:
+      shared: ${{ steps.filter.outputs.shared }}
+      api: ${{ steps.filter.outputs.api }}
+      web: ${{ steps.filter.outputs.web }}
+      mcp: ${{ steps.filter.outputs.mcp }}
+      any_code: ${{ steps.filter.outputs.any_code }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Evaluar Rutas Modificadas
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters:
+            shared:
+              - 'packages/shared/**'
+              - 'package.json'
+              - 'package-lock.json'
+            api:
+              - 'apps/api/**'
+              - 'packages/shared/**'
+              - 'package.json'
+              - 'package-lock.json'
+            web:
+              - 'apps/web/**'
+              - 'packages/shared/**'
+              - 'package.json'
+              - 'package-lock.json'
+            mcp:
+              - 'apps/mcp/**'
+              - 'packages/shared/**'
+              - 'package.json'
+              - 'package-lock.json'
+            any_code:
+              - 'apps/**'
+              - 'packages/**'
+              - 'package.json'
+              - 'package-lock.json'
+              - 'tsconfig.base.json'
+
+  typecheck-and-lint:
+    name: Typecheck & Lint
+    runs-on: ubuntu-latest
+    needs: [detect-changes]
+    if: github.event_name == 'workflow_dispatch' || needs.detect-changes.outputs.any_code == 'true'
     steps:
       - uses: actions/checkout@v4
 
@@ -58,6 +103,7 @@ jobs:
         run: npm run typecheck
 
       - name: ESLint (Web)
+        if: github.event_name == 'workflow_dispatch' || needs.detect-changes.outputs.web == 'true'
         run: npm run lint 2>&1 | tee /tmp/eslint.log; exit ${PIPESTATUS[0]}
 
       - name: Upload lint logs (on failure)
@@ -71,6 +117,8 @@ jobs:
   test-api:
     name: Tests API (Vitest)
     runs-on: ubuntu-latest
+    needs: [detect-changes]
+    if: github.event_name == 'workflow_dispatch' || needs.detect-changes.outputs.api == 'true'
     steps:
       - uses: actions/checkout@v4
 
@@ -94,6 +142,8 @@ jobs:
   test-web:
     name: Tests Web (Vitest ${{ matrix.shard }})
     runs-on: ubuntu-latest
+    needs: [detect-changes]
+    if: github.event_name == 'workflow_dispatch' || needs.detect-changes.outputs.web == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -121,6 +171,8 @@ jobs:
   test-mcp:
     name: Tests MCP Server (Vitest)
     runs-on: ubuntu-latest
+    needs: [detect-changes]
+    if: github.event_name == 'workflow_dispatch' || needs.detect-changes.outputs.mcp == 'true'
     steps:
       - uses: actions/checkout@v4
 
@@ -141,7 +193,14 @@ jobs:
   ci-gate:
     name: CI Quality Gate ✅
     runs-on: ubuntu-latest
-    needs: [typecheck-and-lint, test-api, test-web, test-mcp]
+    needs: [detect-changes, typecheck-and-lint, test-api, test-web, test-mcp]
+    if: always()
     steps:
-      - name: Quality Gate Confirmado
-        run: echo "🎉 Calidad y tipos verificados al 100%. El código es seguro y cumple con las reglas del monorepo."
+      - name: Evaluar Estado de Módulos
+        run: |
+          RESULTS="${{ needs.typecheck-and-lint.result }} ${{ needs.test-api.result }} ${{ needs.test-web.result }} ${{ needs.test-mcp.result }}"
+          if echo "$RESULTS" | grep -q 'failure'; then
+            echo "❌ Falló al menos una de las suites de prueba ejecutadas."
+            exit 1
+          fi
+          echo "🎉 CI Quality Gate aprobado: todos los módulos afectados pasaron sus pruebas y validaciones con éxito."
