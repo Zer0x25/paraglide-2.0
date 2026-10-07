@@ -30,11 +30,14 @@ Cuando el usuario delega una tarea en modo 100% autónomo ("yo casi no toco el c
 ```
 
 ### Paso 1: Diagnóstico y Pre-vuelo
+- Consultar [`PRD.md`](../../PRD.md) y la especificación asociada en [`specs/`](../../specs/README.md).
+- Revisar [`STATE.md`](../../STATE.md) para conocer el estado actual y pendientes inmediatos.
 - Ejecutar `git status` para ver el estado actual del árbol de trabajo.
 - Si hay dudas sobre tipos o DTOs, consultar primero `packages/shared/src`.
 - Si se requiere consultar datos reales de prueba, usar el MCP `postgres-dev` o `docker compose -f docker-compose.dev-db.yml exec ...`.
 
-### Paso 2: Implementación
+### Paso 2: Implementación (TDD & SDD)
+- Escribir o actualizar pruebas que codifiquen los escenarios BDD (Dado / Cuando / Entonces) antes de implementar el código productivo.
 - Modificar o crear archivos de forma modular y limpia.
 - Tras editar `packages/shared`, es mandatorio compilarlo:
   ```bash
@@ -69,5 +72,7 @@ Este comando valida de forma atómica:
   - Ancho de viewport móvil (375px) sin desbordamientos horizontales.
   - Consola limpia de errores de React o promesas no resueltas.
 
-### Paso 5: Reporte de Entrega
+### Paso 5: Reporte de Entrega y Actualización de STATE
+- Verificar el cumplimiento completo de la Definition of Done (DoD) en [`AGENTS.md`](../../AGENTS.md).
+- Actualizar [`STATE.md`](../../STATE.md) registrando el trabajo realizado, evidencia de tests y siguiente acción.
 - Resumir de forma concisa y profesional qué se implementó, qué archivos se modificaron y el resultado de las pruebas de verificación.

@@ -2,6 +2,17 @@
 
 Portal central de documentación de arquitectura, diseño, hojas de ruta y auditorías del monorepo.
 
+## ⚖️ Marco de Gobernanza (7 Pilares)
+
+El ciclo de desarrollo y colaboración asistida por IA se rige por 7 artefactos coordinados:
+
+* [`docs/gobernanza.md`](./gobernanza.md): Manual operativo del marco de gobernanza y ciclo de vida de 7 capas.
+* [`PRD.md`](../PRD.md): Requisitos de producto (visión, personas, alcance Core/Premium, RFs, RNFs).
+* [`PROMPT-MAESTRO.md`](../PROMPT-MAESTRO.md): Invocación estandarizada y niveles de autonomía autorizada (L1 a L4).
+* [`specs/`](../specs/README.md): Especificaciones SDD (contratos y límites) + BDD (escenarios Dado/Cuando/Entonces).
+* [`STATE.md`](../STATE.md): Estado vivo de ejecución, trazabilidad de sesiones, evidencia y bitácora de aprendizaje.
+* [`AGENTS.md`](../AGENTS.md): Reglas inmutables del monorepo y Definition of Done (DoD) personalizada para Paraglide.
+
 ---
 
 ## 🏛️ Architecture Decision Records (ADRs)

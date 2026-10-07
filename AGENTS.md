@@ -5,7 +5,25 @@ Monorepo: `apps/web` (Next.js 16 + PWA), `apps/api` (Fastify 5 + Prisma + Postgr
 
 ---
 
-## 1. Entorno y Puertos (Seguridad de DB)
+## 1. Marco de Gobernanza (7 Pilares)
+
+El desarrollo en este repositorio sigue una disciplina estricta de 7 capas que garantiza trazabilidad desde el producto hasta la ejecución técnica:
+
+| Elemento | Dónde vive | Función |
+|---|---|---|
+| **PRD** | [`PRD.md`](PRD.md) | Alcance de la entrega, usuarios, requisitos y aceptación final |
+| **ADR** | [`docs/adr/`](docs/adr/README.md) | Decisiones arquitectónicas significativas |
+| **Prompt maestro** | [`PROMPT-MAESTRO.md`](PROMPT-MAESTRO.md) | Invocación, referencia al PRD y autonomía autorizada |
+| **SDD + BDD** | [`specs/`](specs/README.md) (cada spec) | Contratos, límites y escenarios Dado/Cuando/Entonces |
+| **TDD** | Pruebas e implementación | Verificar comportamiento antes de implementarlo |
+| **DoD** | [`AGENTS.md`](AGENTS.md) (Sección 6) | Condiciones comunes de calidad y cierre del proyecto |
+| **Seguimiento** | [`STATE.md`](STATE.md) y aprendizaje | Evidencia, pendientes y siguiente acción |
+
+> Manual detallado del marco en [`docs/gobernanza.md`](docs/gobernanza.md).
+
+---
+
+## 2. Entorno y Puertos (Seguridad de DB)
 
 - **Root `.env` único** (dotenvx): Cargado por `apps/web/next.config.ts`, `apps/api/src/config.ts` y `apps/mcp/src/config.ts`. No existe `apps/web/.env`.
 - **Dev (Local)**: Web `:3000`, API `:3001`, DB Postgres `:5679` (`docker compose -f docker-compose.dev-db.yml up -d`, `parapente_dev_db`).
@@ -16,7 +34,7 @@ Monorepo: `apps/web` (Next.js 16 + PWA), `apps/api` (Fastify 5 + Prisma + Postgr
 
 ---
 
-## 2. Guía Rápida de Comandos
+## 3. Guía Rápida de Comandos
 
 ### Flujo Cotidiano de Desarrollo
 | Comando | Propósito |
@@ -44,7 +62,7 @@ Monorepo: `apps/web` (Next.js 16 + PWA), `apps/api` (Fastify 5 + Prisma + Postgr
 
 ---
 
-## 3. Guardrails y Reglas Inmutables
+## 4. Guardrails y Reglas Inmutables
 
 ### Seguridad y Base de Datos
 - **Aislamiento**: Dev siempre en `:5679`, Staging en `:5680`. Nunca referenciar `:5678` en tareas locales.
@@ -74,7 +92,7 @@ Monorepo: `apps/web` (Next.js 16 + PWA), `apps/api` (Fastify 5 + Prisma + Postgr
 
 ---
 
-## 4. Arquitectura Modular (Core vs Premium)
+## 5. Arquitectura Modular (Core vs Premium)
 
 - **Módulos Core**: Inicio `/`, Pilotos `/pilotos`, Reservas `/reservas`, Calendario `/calendario`, Analíticas `/analiticas`, Auditoría `/auditoria`.
 - **Módulos Premium**: Equipos, reportes, meteorología, pantalla, plantillas.
@@ -83,9 +101,41 @@ Monorepo: `apps/web` (Next.js 16 + PWA), `apps/api` (Fastify 5 + Prisma + Postgr
 
 ---
 
-## 5. Orquestación y Flujo de Trabajo
+## 6. Definition of Done (DoD) de Paraglide
 
-- **Antes de empezar**: Revisa los [protocolos de agente](#6-referencias-contextuales). Usa **Agente Autónomo** al implementar/verificar cambios y **Debug de Flujo** ante bugs o test rotos. Delega en los agentes personalizados cuando la tarea lo requiera (schema, API, ADR, UI, E2E, staging/MCP).
+Toda tarea, refactor o nueva feature debe cumplir estrictamente esta lista de condiciones de calidad y cierre antes de darse por completada:
+
+1. **Contratos & Tipos (SDD)**:
+   - Toda modificación en DTOs o esquemas Zod en `packages/shared` compilada con `npm run build:shared`.
+   - `npx tsc --noEmit` verificado sin ningún error de tipos en la raíz y en cada workspace afectado.
+2. **Pruebas Automatizadas (TDD)**:
+   - Escenarios BDD cubiertos con tests unitarios (`test:api`, `test:web`, `test:mcp`) o integración (`test:api:integration` en Dev `:5679`).
+   - El gate obligatorio `npm run check:quick` finaliza con código de salida `0` (build shared + typecheck monorepo + unit tests).
+   - Cero promesas no manejadas, advertencias en `stderr` o errores en consola de pruebas.
+3. **Guardrails Inmutables de Base de Datos y Negocio**:
+   - 🚨 Verificado: Cero referencias o conexiones al puerto `5678` (aislado para Dev `:5679` o Staging `:5680`).
+   - Dinero procesado exclusivamente mediante `toNum()` de `money.util.ts` (`Decimal(12,2)`).
+   - Soft-delete respetado en todas las consultas (`deletedAt: null`).
+   - Control optimista de concurrencia implementado con `version Int` (retorno HTTP 409 Conflict ante choques).
+   - Side effects (SSE `broadcastDatos`, notificaciones) emitidos **solo tras el commit** exitoso de la transacción.
+4. **Formateo Incremental de Código**:
+   - `npm run format` ejecutado y aplicado sobre los archivos modificados. (Archivos `.md` quedan deliberadamente fuera del formateo Prettier para preservar legibilidad de tablas).
+5. **Frontend, React y PWA (si aplica)**:
+   - Clases canónicas de Tailwind v4 sin tokens ficticios.
+   - Rules of Hooks cumplidas (guards y retornos siempre después de todos los hooks).
+   - Operaciones sin conexión tratadas con optimismo e inyección en outbox local (`isQueuedError`), sin toast de error de red fatal.
+   - Vista móvil verificada en 375px sin scroll o desbordamiento horizontal.
+6. **Seguimiento y Registro de Aprendizaje**:
+   - [`STATE.md`](STATE.md) actualizado con el resumen de la sesión, evidencia de tests ejecutados, tareas pendientes y siguientes pasos.
+   - Lecciones operativas o postmortems complejos documentados en [`.agents/memories/`](.agents/memories/).
+7. **Control de Versiones y Entrega**:
+   - Commits atómicos con convención Conventional Commits obligatoria (`feat(web):`, `fix(api):`, `chore(agents):`) para `release-please`.
+
+---
+
+## 7. Orquestación y Flujo de Trabajo
+
+- **Antes de empezar**: Revisa los [protocolos de agente](#8-referencias-contextuales). Usa **Agente Autónomo** al implementar/verificar cambios y **Debug de Flujo** ante bugs o test rotos. Delega en los agentes personalizados cuando la tarea lo requiera (schema, API, ADR, UI, E2E, staging/MCP).
 
 1. **Ciclo de Edición**: Tras modificar código, ejecutar `npx tsc --noEmit` y la prueba unitaria de la ruta afectada.
 2. **Formateo Incremental**: Ejecutar `npm run format` tras implementar y antes de commitear. Es **incremental por diseño**: `scripts/format.mjs` solo formatea lo que Git ve cambiado (staged + modificados + untracked), nunca el repo completo. Reglas:
@@ -100,9 +150,10 @@ Monorepo: `apps/web` (Next.js 16 + PWA), `apps/api` (Fastify 5 + Prisma + Postgr
 
 ---
 
-## 6. Referencias Contextuales
+## 8. Referencias Contextuales
 
 - **Documentación de Paquetes**: [apps/api/AGENTS.md](apps/api/AGENTS.md) | [apps/web/AGENTS.md](apps/web/AGENTS.md)
+- **Gobernanza del Sistema**: [Marco de Gobernanza](docs/gobernanza.md) | [PRD Central](PRD.md) | [Prompt Maestro](PROMPT-MAESTRO.md) | [Especificaciones SDD+BDD](specs/README.md) | [Estado y Seguimiento](STATE.md)
 - **Skills** (flujos on-demand en el contexto del agente activo):
   - [Agente Autónomo](.agents/skills/agente-autonomo/SKILL.md): ciclo de vida autónomo con gates obligatorios y auto-verificación. Úsalo al implementar, refactorizar o verificar cambios.
   - [Debug de Flujo](.agents/skills/debug-flujo/SKILL.md): resolución sistemática de bugs con límite de iteraciones. Úsalo ante tests rotos, errores de CI o comportamientos inesperados.
