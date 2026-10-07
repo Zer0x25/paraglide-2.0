@@ -80,7 +80,9 @@ jobs:
     name: Typecheck & Lint
     runs-on: ubuntu-latest
     needs: [detect-changes]
-    if: github.event_name == 'workflow_dispatch' || needs.detect-changes.outputs.any_code == 'true'
+    if: ${{ github.event_name == 'workflow_dispatch' || needs.detect-changes.outputs.any_code == 'true' }}
+    env:
+      WEB_CHANGED: ${{ needs.detect-changes.outputs.web }}
     steps:
       - uses: actions/checkout@v4
 
@@ -103,7 +105,7 @@ jobs:
         run: npm run typecheck
 
       - name: ESLint (Web)
-        if: github.event_name == 'workflow_dispatch' || needs.detect-changes.outputs.web == 'true'
+        if: ${{ github.event_name == 'workflow_dispatch' || env.WEB_CHANGED == 'true' }}
         run: npm run lint 2>&1 | tee /tmp/eslint.log; exit ${PIPESTATUS[0]}
 
       - name: Upload lint logs (on failure)
@@ -118,7 +120,7 @@ jobs:
     name: Tests API (Vitest)
     runs-on: ubuntu-latest
     needs: [detect-changes]
-    if: github.event_name == 'workflow_dispatch' || needs.detect-changes.outputs.api == 'true'
+    if: ${{ github.event_name == 'workflow_dispatch' || needs.detect-changes.outputs.api == 'true' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -143,7 +145,7 @@ jobs:
     name: Tests Web (Vitest ${{ matrix.shard }})
     runs-on: ubuntu-latest
     needs: [detect-changes]
-    if: github.event_name == 'workflow_dispatch' || needs.detect-changes.outputs.web == 'true'
+    if: ${{ github.event_name == 'workflow_dispatch' || needs.detect-changes.outputs.web == 'true' }}
     strategy:
       fail-fast: false
       matrix:
@@ -172,7 +174,7 @@ jobs:
     name: Tests MCP Server (Vitest)
     runs-on: ubuntu-latest
     needs: [detect-changes]
-    if: github.event_name == 'workflow_dispatch' || needs.detect-changes.outputs.mcp == 'true'
+    if: ${{ github.event_name == 'workflow_dispatch' || needs.detect-changes.outputs.mcp == 'true' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -197,8 +199,13 @@ jobs:
     if: always()
     steps:
       - name: Evaluar Estado de Módulos
+        env:
+          RES_TYPECHECK: ${{ needs.typecheck-and-lint.result }}
+          RES_API: ${{ needs.test-api.result }}
+          RES_WEB: ${{ needs.test-web.result }}
+          RES_MCP: ${{ needs.test-mcp.result }}
         run: |
-          RESULTS="${{ needs.typecheck-and-lint.result }} ${{ needs.test-api.result }} ${{ needs.test-web.result }} ${{ needs.test-mcp.result }}"
+          RESULTS="$RES_TYPECHECK $RES_API $RES_WEB $RES_MCP"
           if echo "$RESULTS" | grep -q 'failure'; then
             echo "❌ Falló al menos una de las suites de prueba ejecutadas."
             exit 1
