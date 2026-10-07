@@ -1,0 +1,675 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x", "linux-musl-arm64-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  PILOTO
+  RECEPCION
+}
+
+enum EstadoPago {
+  PENDIENTE
+  ABONADO
+  PAGADO
+  DEVUELTO
+}
+
+enum EstadoVuelo {
+  AGENDADO
+  COMPLETADO
+  CANCELADO
+}
+
+enum EstadoReserva {
+  SIN_AGENDAR
+  AGENDADA
+  COMPLETADA
+  CANCELADA
+}
+
+enum EstadoPasajero {
+  POR_VOLAR
+  VUELO_COMPLETADO
+  CANCELADO
+}
+
+enum MetodoPago {
+  TRANSFERENCIA
+  EFECTIVO
+  WEBPAY
+  TARJETA
+  OTRO
+}
+
+enum TipoEquipo {
+  VELA
+  ARNES_PILOTO
+  ARNES_PASAJERO
+  PARACAIDAS_EMERGENCIA
+  CASCO
+  MOSQUETONES
+  OTRO
+}
+
+enum EstadoEquipo {
+  OPERATIVO
+  EN_MANTENIMIENTO
+  REVISION_PENDIENTE
+  DE_BAJA
+}
+
+enum EstadoPista {
+  ABIERTA
+  PRECAUCION
+  CERRADA
+}
+
+enum CanalMensaje {
+  WHATSAPP
+  EMAIL
+  SMS
+}
+
+enum CategoriaPiloto {
+  MASTER
+  SENIOR
+  JUNIOR
+  STANDARD
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  password  String?
+  nombre    String
+  role      Role     @default(RECEPCION)
+
+  // ADR 013: single-session. Se incrementa en cada login; el JWT lleva el
+  // claim `sv`. Un nuevo login invalida los JWT anteriores de este usuario.
+  sessionVersion Int      @default(0)
+
+  // OAuth Google: vinculación opcional por id de Google (sub)
+  googleId  String?  @unique
+
+  pilotoId  Int?     @unique
+  piloto    Piloto?  @relation(fields: [pilotoId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+}
+
+model Piloto {
+  id                Int      @id @default(autoincrement())
+  nombre            String
+  rutDni            String?
+  telefono          String?
+  email             String?  @unique
+  activo            Boolean  @default(true)
+  peso              Int?
+  tieneLicencia     Boolean  @default(false)
+  numeroLicencia    String?
+  fechaVencimientoLicencia DateTime?
+  prioridad         Int      @default(1) // Prioridad de categoría (ej: 1 = Alta/Master, 2 = Media, 3 = Baja)
+  categoria         CategoriaPiloto? @default(MASTER) // Categoría: MASTER, SENIOR, JUNIOR
+  pesoMinimoPasajero Int?    @default(30)
+  pesoMaximoPasajero Int?    @default(110)
+  disponibilidadTotal Boolean @default(true)
+  tarifaPorVuelo    Decimal  @default(0) @db.Decimal(12,2)
+  version           Int      @default(0)
+  vuelos            Vuelo[]
+  excepciones       ExcepcionFecha[]
+  disponibilidadBloques PilotoDisponibilidadBloque[]
+  equiposAsignados  Equipo[]
+  user              User?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  deletedAt         DateTime?
+
+  @@index([activo])
+  @@index([prioridad])
+  @@index([activo, prioridad])
+  @@index([deletedAt])
+}
+
+model ExcepcionFecha {
+  id        Int      @id @default(autoincrement())
+  fecha     DateTime
+  pilotoId Int
+  piloto   Piloto   @relation(fields: [pilotoId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@unique([pilotoId, fecha])
+}
+
+model PilotoDisponibilidadBloque {
+  id        Int      @id @default(autoincrement())
+  pilotoId  Int
+  piloto    Piloto   @relation(fields: [pilotoId], references: [id], onDelete: Cascade)
+  fecha     DateTime
+  horaInicio String
+  horaFin    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([pilotoId, fecha, horaInicio])
+  @@index([pilotoId, fecha])
+}
+
+model Reserva {
+  id              Int        @id @default(autoincrement())
+  numeroReserva   String     @unique // Formato AAMMDDCC
+  tokenPublico    String     @unique
+  shortId         String     @unique
+  rutDniTitular   String?
+  nombreTitular   String
+  telefono        String?
+  email           String?
+  esGiftCard      Boolean    @default(false)
+  fechaAgenda     DateTime?  // Fecha real en que quedó agendada la reserva (sincronizada con sus vuelos)
+  horaAgenda      String?    // Hora o bloque real agendado (HH:mm)
+  estadoPago      EstadoPago @default(PENDIENTE) // PENDIENTE, ABONADO, PAGADO, DEVUELTO
+  estado          EstadoReserva @default(SIN_AGENDAR) // Ciclo de vida: SIN_AGENDAR, AGENDADA, COMPLETADA, CANCELADA
+  motivoCancelacion String?
+  fechaCancelacion DateTime?
+  valorTotal      Decimal    @default(0) @db.Decimal(12,2)
+  abono           Decimal    @default(0) @db.Decimal(12,2)
+  // Fase 2 (ciclo de vida): monto total devuelto (denormalizado como abono).
+  // Si > 0, el estado de pago se deriva a DEVUELTO.
+  montoDevuelto   Decimal    @default(0) @db.Decimal(12,2)
+  descuento       Decimal    @default(0) @db.Decimal(12,2) // Fase 2: monto descontado por promoción al momento de la reserva
+  version         Int        @default(0)
+  pasajeros       Pasajero[] // Relación: 1 Reserva tiene N Pasajeros
+  pagos           Pago[]     // Relación: 1 Reserva tiene N Pagos/Abonos
+  devoluciones    Devolucion[] // Relación: 1 Reserva tiene N Devoluciones (Fase 2)
+  vuelos          Vuelo[]    // Relación directa: 1 Reserva tiene N Vuelos
+
+  // Fase 2: snapshot de tarifa/promoción aplicadas al crear la reserva
+  tarifaId        Int?
+  tarifa          Tarifa?    @relation(fields: [tarifaId], references: [id])
+  promocionId     Int?
+  promocion       Promocion? @relation(fields: [promocionId], references: [id])
+
+  // Fase 2 (inmutabilidad y snapshot contable):
+  // Fecha en que la reserva fue cerrada operativamente/contablemente y congelada para edición
+  cerradaAt       DateTime?
+  // Snapshot inmutable con el desglose final (pasajeros, vuelos, tarifas, abonos)
+  snapshotJson    Json?
+
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+  deletedAt       DateTime?
+
+  @@index([fechaAgenda])
+  @@index([esGiftCard])
+  @@index([estadoPago])
+  @@index([estadoPago, fechaAgenda])
+  @@index([estado, fechaAgenda])
+  @@index([nombreTitular])
+  @@index([email])
+  @@index([telefono])
+  @@index([tarifaId])
+  @@index([promocionId])
+  @@index([cerradaAt])
+  @@index([deletedAt])
+}
+
+model Pasajero {
+  id                 Int            @id @default(autoincrement())
+  numeroPasajero     String         @unique // Ej: 260822-01-01
+  tokenPublico       String         @unique
+  shortId            String         @unique
+  rutDni             String?
+  nombre             String
+  peso               Int?
+  telefono           String?
+  contactoEmergencia String?
+  telefonoEmergencia String?
+  condicionFisica    String?
+  pesoVerificado     Int?
+  firmaDeslinde      Boolean        @default(false)
+  firmaFecha         DateTime?
+  // Estado de vuelo del pasajero: POR_VOLAR, VUELO_COMPLETADO, CANCELADO
+  estado             EstadoPasajero @default(POR_VOLAR)
+  
+  reservaId          Int
+  reserva            Reserva        @relation(fields: [reservaId], references: [id], onDelete: Cascade)
+  
+  deslindeFirma      DeslindeFirma?
+  vuelos             Vuelo[]
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+  deletedAt          DateTime?
+
+  @@index([reservaId])
+  @@index([deletedAt])
+}
+
+model DeslindeFirma {
+  id           Int       @id @default(autoincrement())
+  pasajeroId   Int       @unique
+  pasajero     Pasajero  @relation(fields: [pasajeroId], references: [id], onDelete: Cascade)
+  firmaBase64  String    // Payload de imagen canvas
+  ip           String?
+  userAgent    String?
+  versionLegal Int       @default(1)
+  createdAt    DateTime  @default(now())
+
+  @@index([pasajeroId])
+}
+
+model Vuelo {
+  id           Int         @id @default(autoincrement())
+  fechaHora    DateTime
+  valorPactado Decimal     @db.Decimal(12,2)
+  pagoPiloto   Decimal     @default(0) @db.Decimal(12,2)
+  estado       EstadoVuelo @default(AGENDADO)
+  version      Int         @default(0)
+  
+  reservaId    Int
+  reserva      Reserva     @relation(fields: [reservaId], references: [id], onDelete: Cascade)
+
+  pilotoId     Int
+  piloto       Piloto      @relation(fields: [pilotoId], references: [id])
+  
+  pasajeroId   Int
+  pasajero     Pasajero    @relation(fields: [pasajeroId], references: [id], onDelete: Cascade)
+
+  equipoId     Int?
+  equipo       Equipo?     @relation(fields: [equipoId], references: [id])
+
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  deletedAt    DateTime?
+
+  googleEventId String?   // ID del evento en Google Calendar (sincronización en tiempo real)
+
+  // Índice único parcial gestionado en indexes-especiales.ts (WHERE deletedAt IS NULL AND estado <> 'CANCELADO')
+  // para no fantasear slots ocupados por vuelos soft-deleted o cancelados
+  @@index([pilotoId, fechaHora])
+  @@index([fechaHora, estado])
+  @@index([reservaId])
+  @@index([equipoId])
+  @@index([estado])
+  @@index([pasajeroId])
+  @@index([deletedAt])
+  @@index([googleEventId])
+}
+
+model ConfiguracionBloque {
+  id          Int             @id @default(autoincrement())
+  nombre      String
+  fechaInicio DateTime?
+  fechaFin    DateTime?
+  fechaExacta DateTime?
+  bloqueado   Boolean         @default(false)
+  archivada   Boolean         @default(false) // Fase 2: archivada = deja de aplicar a fechas futuras (se conserva para histórico)
+  archivadaEn DateTime?       // Momento del archivo; null si sigue activa
+  version     Int             @default(0)
+  horarios    HorarioBloque[]
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  deletedAt   DateTime?
+
+  @@index([archivada])
+  @@index([deletedAt])
+}
+
+model HorarioBloque {
+  id                    Int                 @id @default(autoincrement())
+  horaInicio            String
+  horaFin               String
+  configuracionBloqueId Int
+  configuracionBloque   ConfiguracionBloque @relation(fields: [configuracionBloqueId], references: [id], onDelete: Cascade)
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+  deletedAt             DateTime?
+}
+
+model Gasto {
+  id          Int      @id @default(autoincrement())
+  fecha       DateTime
+  categoria   String
+  monto       Decimal  @db.Decimal(12,2)
+  descripcion String?
+  version     Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  @@index([fecha])
+  @@index([categoria])
+  @@index([fecha, categoria])
+  @@index([deletedAt])
+}
+
+model Pago {
+  id          Int       @id @default(autoincrement())
+  monto       Decimal  @db.Decimal(12,2)
+  metodoPago  MetodoPago @default(TRANSFERENCIA) // TRANSFERENCIA, EFECTIVO, WEBPAY, TARJETA, OTRO
+  fecha       DateTime  @default(now())
+  comprobante String?   // Referencia o número de operación
+  notas       String?
+  version     Int       @default(0)
+  
+  reservaId   Int
+  reserva     Reserva   @relation(fields: [reservaId], references: [id], onDelete: Cascade)
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  @@index([reservaId])
+  @@index([fecha])
+  @@index([deletedAt])
+}
+
+// Fase 2 (ciclo de vida): devolución de dinero al cliente. Espejo de Pago
+// (monto, metodoPago, fecha, comprobante, notas, version, reservaId). Solo se
+// permiten en reservas CANCELADA o INCOMPLETA y nunca por más de lo pagado.
+model Devolucion {
+  id          Int       @id @default(autoincrement())
+  monto       Decimal  @db.Decimal(12,2)
+  metodoPago  MetodoPago @default(TRANSFERENCIA) // TRANSFERENCIA, EFECTIVO, WEBPAY, TARJETA, OTRO
+  fecha       DateTime  @default(now())
+  comprobante String?   // Referencia o número de operación
+  notas       String?
+  version     Int       @default(0)
+
+  reservaId   Int
+  reserva     Reserva   @relation(fields: [reservaId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  @@index([reservaId])
+  @@index([fecha])
+  @@index([deletedAt])
+}
+
+model Equipo {
+  id                    Int                   @id @default(autoincrement())
+  codigo                String                @unique // Ej: VELA-01, RES-02
+  nombre                String                // Ej: Ozone Magnum 3 41m2
+  tipo                  TipoEquipo            @default(VELA) // VELA, ARNES_PILOTO, ARNES_PASAJERO, PARACAIDAS_EMERGENCIA, CASCO, MOSQUETONES, OTRO
+  marca                 String?
+  modelo                String?
+  numeroSerie           String?
+  anoFabricacion        Int?
+  fechaAdquisicion      DateTime?
+  estado                EstadoEquipo          @default(OPERATIVO) // OPERATIVO, EN_MANTENIMIENTO, REVISION_PENDIENTE, DE_BAJA
+  horasVueloEstimadas   Float                 @default(0)
+  vuelosRealizados      Int                   @default(0)
+  limiteHorasInspeccion Float?                @default(100)
+  fechaUltimaRevision   DateTime?
+  fechaProximaRevision  DateTime?
+  notas                 String?
+  version               Int                   @default(0)
+  
+  pilotoAsignadoId      Int?
+  pilotoAsignado        Piloto?               @relation(fields: [pilotoAsignadoId], references: [id])
+  
+  mantenimientos        MantenimientoEquipo[]
+  vuelos                Vuelo[]
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+  deletedAt             DateTime?
+
+  @@index([tipo])
+  @@index([estado])
+  @@index([pilotoAsignadoId])
+  @@index([deletedAt])
+}
+
+model MantenimientoEquipo {
+  id          Int       @id @default(autoincrement())
+  fecha       DateTime  @default(now())
+  tipo        String    // REPLEGADO_PARACAIDAS, TEST_POROSIDAD, REVISION_LINEAS, REPARACION, INSPECCION_ANUAL, OTRO
+  descripcion String
+  taller      String?
+  costo       Decimal   @default(0) @db.Decimal(12,2)
+  version     Int       @default(0)
+  comprobante String?
+  equipoId    Int
+  equipo      Equipo    @relation(fields: [equipoId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  @@index([equipoId])
+  @@index([fecha])
+  @@index([deletedAt])
+}
+
+model CondicionPista {
+  id               Int       @id @default(autoincrement())
+  fechaHora        DateTime  @default(now())
+  estadoPista      EstadoPista @default(ABIERTA) // ABIERTA, PRECAUCION, CERRADA
+  velocidadViento  Float?    // km/h
+  rachaViento      Float?    // km/h
+  direccionViento  String?   // N, NE, E, SE, S, SW, W, NW, etc.
+  temperatura      Float?    // °C
+  visibilidad      String?   @default("EXCELENTE") // EXCELENTE, BUENA, REGULAR, NULA
+  techoNubes       Int?      // metros
+  nubosidad        Int?      // porcentaje de cobertura de nubes (0-100)
+  indiceUv         Float?    // índice UV (Open-Meteo, 0-11+)
+  observaciones    String?
+  registradoPor    String?
+  version          Int       @default(0)
+  
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  deletedAt        DateTime?
+
+  @@index([fechaHora])
+  @@index([estadoPista])
+  @@index([deletedAt])
+}
+
+model LogAuditoria {
+  id            Int       @id @default(autoincrement())
+  fechaHora     DateTime  @default(now())
+  usuarioId     Int?
+  usuarioEmail  String?
+  usuarioNombre String?
+  accion        String    // CREAR, EDITAR, ELIMINAR, REGISTRAR_PAGO, ANULAR_PAGO, ASIGNAR_VUELO, CAMBIAR_ESTADO_PISTA, MANTENIMIENTO, OTRO
+  entidad       String    // RESERVA, PAGO, VUELO, PILOTO, EQUIPO, CLIMA, CONFIGURACION
+  entidadId     String?
+  descripcion   String
+  detalles      String?
+  ip            String?
+  createdAt     DateTime  @default(now())
+
+  @@index([fechaHora])
+  @@index([entidad])
+  @@index([accion])
+  @@index([usuarioEmail])
+}
+
+model PlantillaMensaje {
+  id          Int       @id @default(autoincrement())
+  tipo        String    @unique // CONFIRMACION_RESERVA, RECORDATORIO_24H, SOLICITUD_DESLINDE, AGRADECIMIENTO_RESEÑA, AVISO_CLIMA_CANCELACION, ENLACE_PANTALLA_DIA, OTRO
+  titulo      String
+  canal       CanalMensaje @default(WHATSAPP) // WHATSAPP, EMAIL, SMS
+  cuerpo      String
+  variables   String?
+  activo      Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  @@index([tipo])
+  @@index([deletedAt])
+}
+
+model PantallaToken {
+  id        Int       @id @default(autoincrement())
+  tipo      String    // DIARIO (caduca fin de día) o TV (7 días, se renueva con uso)
+  token     String    @unique // token crudo; se valida por expiración
+  expiraEn  DateTime
+  creadoPor Int?
+  createdAt DateTime  @default(now())
+
+  @@index([tipo, expiraEn])
+  @@index([expiraEn])
+}
+
+// ========================
+// CONFIGURACIÓN (Fase A): tarifas, promociones, FAQ, deslinde, reglas operativas
+// ========================
+
+enum TipoDescuento {
+  PORCENTAJE
+  MONTO_FIJO
+}
+
+enum CategoriaRegla {
+  AGENDAMIENTO
+  SEGURIDAD
+  CONTACTO
+  PAGOS
+  PUNTO_ENCUENTRO
+}
+
+model Tarifa {
+  id          Int      @id @default(autoincrement())
+  nombre      String
+  descripcion String?
+  precio      Decimal  @db.Decimal(12,2)
+  activo      Boolean  @default(true)
+  reservas    Reserva[] // Fase 2: reservas que usaron esta tarifa (snapshot)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  @@index([deletedAt])
+}
+
+model Promocion {
+  id            Int           @id @default(autoincrement())
+  nombre        String
+  descripcion   String?
+  tipoDescuento TipoDescuento
+  valor         Decimal       @db.Decimal(12,2)
+  fechaInicio   DateTime?
+  fechaFin      DateTime?
+  activa        Boolean       @default(true)
+  reservas      Reserva[]     // Fase 2: reservas que aplicaron esta promoción (snapshot)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  deletedAt     DateTime?
+
+  @@index([deletedAt])
+}
+
+model Faq {
+  id        Int      @id @default(autoincrement())
+  pregunta  String
+  respuesta String
+  orden     Int      @default(0)
+  publica   Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+
+  @@index([orden])
+  @@index([deletedAt])
+}
+
+// Historial legal inmutable: cada versión se conserva; solo el flag `activa`
+// cambia. Sin updatedAt ni deletedAt a propósito. `version` es el número
+// legal INMUTABLE; `revision` es el token de concurrencia optimista (ADR 004)
+// que incrementa en cada activación sin alterar la numeración histórica.
+model DeslindeVersion {
+  id        Int      @id @default(autoincrement())
+  version   Int      @unique @default(autoincrement())
+  revision  Int      @default(0)
+  titulo    String   @default("Deslinde de Responsabilidad")
+  texto     String
+  activa    Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+// Fase 2: datos de la escuela (página pública / pantalla). Fila única gestionada
+// por el admin; `version` para concurrencia optimista (ADR 004).
+model Empresa {
+  id            Int      @id @default(autoincrement())
+  nombre        String
+  slogan        String?
+  telefono      String?
+  email         String?
+  direccion     String?
+  logoUrl       String?
+  horario       String?
+  redesSociales Json?
+  version       Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// Configuración clave-valor (upsert por clave). Sin deletedAt.
+model ReglaOperativa {
+  id          Int            @id @default(autoincrement())
+  clave       String         @unique
+  valor       String
+  descripcion String?
+  categoria   CategoriaRegla
+  esDefault   Boolean        @default(false)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+}
+
+// Notificaciones automáticas: switches on/off por tipo (Fase 5).
+// Singleton (id=1): el scheduler consulta estos flags antes de cada barrido.
+// `version` para concurrencia optimista (ADR 004); sin soft-delete.
+model NotificacionConfig {
+  id                    Int      @id @default(autoincrement())
+  recordatorio24hActivo Boolean  @default(true)
+  avisoClimaActivo      Boolean  @default(true)
+  version               Int      @default(0)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+}
+
+/// Idempotencia del outbox offline (ADR 009): guarda la respuesta de una
+/// mutación marcada con X-Client-Id para devolverla tal cual si llega un
+/// reenvío duplicado (replay concurrente o respuesta perdida tras aplicar).
+/// La clave incluye método+URL (misma operación, no otra) y usuarioId (un
+/// cliente nunca recibe la respuesta cacheada de otro usuario).
+model Idempotencia {
+  clientId   String
+  metodo     String
+  url        String
+  usuarioId  Int
+  statusCode Int
+  respuesta  Json
+  createdAt  DateTime @default(now())
+
+  @@id([clientId, metodo, url])
+  @@index([createdAt])
+}
+
+/// Rotación/revocación de tokens de suscripción del feed iCalendar (feed.ics).
+/// `key` identifica el ámbito del feed: 'all' (universal) o 'piloto:<id>'.
+/// El token de suscripción se firma con el valor de `rotadoEn` vigente:
+/// regenerar el enlace actualiza `rotadoEn` e invalida todos los tokens
+/// emitidos con la rotación anterior (hallazgo 2a). Un token cuya emisión
+/// supera su TTL de 1 año también se rota automáticamente al consultarlo.
+model FeedTokenRotacion {
+  key      String   @id
+  rotadoEn DateTime @default(now())
+}

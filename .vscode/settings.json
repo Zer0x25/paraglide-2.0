@@ -1,0 +1,29 @@
+{
+    "prisma.pinToPrisma6": false,
+    "markdown.validate.enabled": true,
+
+    // Usar el TypeScript del workspace (monorepo con TS 5)
+    "typescript.tsdk": "node_modules/typescript/lib",
+
+    // Etiquetas de pestañas legibles para el App Router (Next.js 16)
+    "workbench.editor.customLabels.patterns": {
+        "**/app/**/page.tsx": "${dirname(1)}/${dirname} - page.tsx",
+        "**/app/**/layout.tsx": "${dirname(1)}/${dirname} - layout.tsx",
+        "**/app/**/loading.tsx": "${dirname(1)}/${dirname} - loading.tsx",
+        "**/app/**/error.tsx": "${dirname(1)}/${dirname} - error.tsx",
+        "**/app/**/route.ts": "${dirname(1)}/${dirname} - route.ts"
+    },
+
+    // No indexar artefactos de build en búsquedas
+    "search.exclude": {
+        "**/.next": true,
+        "**/dist": true,
+        "**/playwright-report": true,
+        "**/test-results": true
+    },
+
+    // Autocompletar clases Tailwind dentro de strings
+    "editor.quickSuggestions": {
+        "strings": "on"
+    }
+}

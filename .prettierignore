@@ -1,0 +1,18 @@
+# Artefactos generados: se formatean en su origen, no en el consumidor.
+.next/
+out/
+dist/
+build/
+coverage/
+
+# Prisma client y artefactos de next-pwa (minificados, gitignored)
+node_modules/
+public/
+
+# Lockfile: generado por npm, el formato no aporta nada
+package-lock.json
+
+# Metadata de editor: .vscode/settings.json y extensions.json tienen su propia
+# convención de indentación (4 espacios) y comentarios; reformatearlos genera
+# ruido sin valor en el diff.
+.vscode/

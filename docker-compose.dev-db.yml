@@ -1,0 +1,66 @@
+# Base de datos SOLO para desarrollo local.
+#
+# Aislada de la DB de producción (docker-compose.yml usa puerto 5678 y el
+# volumen postgres_data). Levanta un Postgres propio para dev en el puerto
+# 5679 con su propio volumen, de modo que las Dev Tools (reset-db, simulate)
+# NUNCA toquen los datos reales.
+#
+# AISLAMIENTO vs PROD:
+#   El deploy de prod corre `docker compose down --remove-orphans` sobre el
+#   proyecto `paraglide` (misma carpeta server.lab/repos/paraglide). Si esta DB
+#   dev compartiera el project name / red `paraglide_default`, el deploy la
+#   marcaría como "orphan" y la eliminaría. Por eso declaramos un `name` y una
+#   `network` PROPIOS (paraglide-dev / paraglide-dev-net), distintos al de prod.
+#
+#   docker compose -f docker-compose.dev-db.yml up -d
+#
+name: paraglide-dev
+
+services:
+  db-dev:
+    image: ${POSTGRES_IMAGE:-postgres:18.4-alpine}
+    container_name: parapente_postgres_dev
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-adminpassword}
+      POSTGRES_DB: ${POSTGRES_DB_DEV:-parapente_dev_db}
+    # Pilar 4.5: mismo tuning que prod (docker-compose.yml) para que dev
+    # reproduzca el comportamiento real
+    # Pilar 4.6: pg_stat_statements para medir queries reales
+    command: >
+      -c shared_preload_libraries=pg_stat_statements
+      -c pg_stat_statements.max=10000
+      -c shared_buffers=128MB
+      -c effective_cache_size=512MB
+      -c work_mem=8MB
+      -c maintenance_work_mem=64MB
+      -c max_connections=100
+      -c autovacuum_vacuum_scale_factor=0.05
+      -c autovacuum_analyze_scale_factor=0.05
+      -c autovacuum_vacuum_cost_limit=2000
+    ports:
+      - "${POSTGRES_DEV_HOST_PORT:-5679}:5432"
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - paraglide-dev-net
+
+networks:
+  paraglide-dev-net:
+    name: paraglide-dev-net
+    driver: bridge
+
+volumes:
+  # Volumen EXTERNO: reusa el volumen ya existente con los datos de dev
+  # (paraglide_postgres_dev_data), en lugar de crear uno nuevo prefijado con
+  # el project name. Así tus datos persisten aunque cambiemos el project name.
+  postgres_dev_data:
+    name: paraglide_postgres_dev_data
+    external: true

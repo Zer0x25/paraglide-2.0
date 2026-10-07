@@ -1,0 +1,9 @@
+{
+  "modules": [
+    "equipos",
+    "reportes",
+    "meteorologia",
+    "pantalla",
+    "plantillas"
+  ]
+}

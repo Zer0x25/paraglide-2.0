@@ -1,0 +1,44 @@
+{
+	"inputs": [
+		{
+			"id": "pgDevUrl",
+			"type": "promptString",
+			"description": "DATABASE_URL de desarrollo (docker-compose.dev-db.yml)",
+			"default": "postgresql://admin:adminpassword@localhost:5679/parapente_dev_db?connection_limit=10"
+		}
+	],
+	"servers": {
+		"next-devtools": {
+			"command": "npx",
+			"args": [
+				"-y",
+				"next-devtools-mcp@latest"
+			],
+			"type": "stdio"
+		},
+		"postgres-dev": {
+			"command": "npx",
+			"args": [
+				"-y",
+				"@modelcontextprotocol/server-postgres",
+				"${input:pgDevUrl}"
+			],
+			"type": "stdio"
+		},
+		"playwright": {
+			"command": "npx",
+			"args": [
+				"-y",
+				"@playwright/mcp@latest"
+			],
+			"type": "stdio"
+		},
+		"paraglide-api": {
+			"command": "node",
+			"args": [
+				"apps/mcp/dist/index.js"
+			],
+			"type": "stdio"
+		}
+	}
+}

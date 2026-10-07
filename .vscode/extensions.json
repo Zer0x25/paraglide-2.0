@@ -1,0 +1,19 @@
+{
+    // Extensiones recomendadas para trabajar en paraglide.
+    // VS Code las sugiere al abrir el workspace (banner o Command Palette
+    // -> "Extensions: Show Recommended Extensions").
+    "recommendations": [
+        // Stack del proyecto
+        "Prisma.prisma", // schema.prisma: syntax, lint, formateo
+        "bradlc.vscode-tailwindcss", // Tailwind v4: autocomplete y hover de clases
+        "ms-playwright.playwright", // tests E2E en apps/web/tests/
+        "ms-azuretools.vscode-containers", // docker-compose.dev-db.yml / docker-compose.yml
+
+        // GitHub (remoto: Zer0x25/paraglide, deploy self-hosted + release-please)
+        "github.vscode-pull-request-github",
+        "github.vscode-github-actions",
+
+        // Calidad de código
+        "dbaeumer.vscode-eslint"
+    ]
+}

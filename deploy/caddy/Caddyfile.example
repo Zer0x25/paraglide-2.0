@@ -1,0 +1,30 @@
+# Paraglide — site block de ejemplo para Caddy (infra-core del servidor).
+#
+# El servidor expone los contenedores en la red externa compartida `proxy_net`
+# y el ingress lo maneja Caddy (ver .hermes.md). Con este bloque Caddy:
+#   - Termina TLS con certificado Let's Encrypt automático (dominio real).
+#   - Reenvía al contenedor web por su nombre de red interna `parapente_web:3000`.
+#
+# Sustituir `parapente.ejemplo.com` por el dominio real que apunte al servidor.
+#
+# NOTA: NO hace falta exponer la API por separado: el navegador usa
+# `NEXT_PUBLIC_API_URL=/api` (mismo origen) y Next hace proxy de /api hacia el
+# contenedor `api` internamente. Un solo site block basta para la app completa.
+
+parapente.ejemplo.com {
+	encode zstd gzip
+
+	# Proxy hacia el contenedor web (puerto interno 3000; el 3100 es solo el
+	# bind del host). Caddy y web comparten la red proxy_net, así que el nombre
+	# `parapente_web` resuelve por DNS de Docker.
+	reverse_proxy parapente_web:3000
+}
+
+# ── Opcional: exponer la API directamente (https://api.ejemplo.com) ─────────
+# Solo si se quiere acceso directo a la API (p.ej. la pantalla TV embebida
+# desde otro origen). Requiere ALLOWED_ORIGINS en el .env del servidor con el
+# origen de la web (https://parapente.ejemplo.com).
+#
+# api.ejemplo.com {
+# 	reverse_proxy parapente_api:3001
+# }

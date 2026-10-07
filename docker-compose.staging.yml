@@ -1,0 +1,121 @@
+# Staging local sin HTTPS — espejo aislado de `docker-compose.yml`.
+#
+# - `name: paraglide-staging` + `network: paraglide-staging-net` + volumen
+#   `postgres_staging_data` propios para que `docker compose down --remove-orphans`
+#   del deploy de prod (project `paraglide`) NO lo borre — mismo patrón que
+#   `docker-compose.dev-db.yml` (`name: paraglide-dev`).
+# - Puertos 5680 (DB) / 3201 (API) / 3200 (Web) — nunca 5678 prod ni 5679 dev.
+# - `http://localhost:3200` es secure context: SW/Workbox/IndexedDB funcionan
+#   sin TLS porque `apps/web/next.config.ts` solo desactiva PWA en
+#   `NODE_ENV===development`.
+# - Imágenes GHCR `latest` por defecto (pull) — API solo se recrea si cambia
+#   `apps/api`/`packages/shared`/`prisma`.
+#
+# Uso:
+#   docker compose -f docker-compose.staging.yml up -d --pull always
+#   docker compose -f docker-compose.staging.yml exec api npx prisma db push --schema=apps/api/prisma/schema.prisma --skip-generate --accept-data-loss
+#   docker compose -f docker-compose.staging.yml exec api npx tsx apps/api/prisma/seed.prod.ts
+#   PROD_URL=http://localhost:3200 npm run test:prod   # 11 etapas con offline
+#   docker compose -f docker-compose.staging.yml down      # preserva datos
+#   docker compose -f docker-compose.staging.yml down -v   # borra DB
+
+name: paraglide-staging
+
+services:
+  db:
+    image: ${POSTGRES_IMAGE:-postgres:18.4-alpine}
+    container_name: parapente_postgres_staging
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-adminpassword}
+      POSTGRES_DB: ${POSTGRES_DB_STAGING:-parapente_staging_db}
+    command: >
+      -c shared_preload_libraries=pg_stat_statements
+      -c pg_stat_statements.max=10000
+      -c shared_buffers=128MB
+      -c effective_cache_size=512MB
+      -c work_mem=8MB
+      -c maintenance_work_mem=64MB
+      -c max_connections=100
+      -c autovacuum_vacuum_scale_factor=0.05
+      -c autovacuum_analyze_scale_factor=0.05
+      -c autovacuum_vacuum_cost_limit=2000
+    ports:
+      - "${POSTGRES_STAGING_HOST_PORT:-5680}:5432"
+    volumes:
+      - postgres_staging_data:/var/lib/postgresql
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB_STAGING:-parapente_staging_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - staging_net
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    image: ${API_IMAGE:-ghcr.io/zer0x25/paraglide-api:staging}
+    container_name: parapente_api_staging
+    environment:
+      DATABASE_URL: ${DOCKER_STAGING_DATABASE_URL:-postgresql://admin:adminpassword@db:5432/parapente_staging_db?connection_limit=10}
+      PORT: 3001
+      JWT_SECRET: ${JWT_SECRET:?Definir JWT_SECRET en el .env (sin valores por defecto)}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CALENDAR_ID: ${GOOGLE_CALENDAR_ID:-}
+      GOOGLE_CALENDAR_CLIENT_EMAIL: ${GOOGLE_CALENDAR_CLIENT_EMAIL:-}
+      GOOGLE_CALENDAR_PRIVATE_KEY: ${GOOGLE_CALENDAR_PRIVATE_KEY:-}
+      CENTRO_LAT: ${CENTRO_LAT:--20.27}
+      CENTRO_LON: ${CENTRO_LON:--70.13}
+      NODE_ENV: production
+      PUBLIC_WEB_URL: ${PUBLIC_STAGING_WEB_URL:-http://localhost:3200}
+      ALLOWED_ORIGINS: "http://localhost:3200,http://localhost:3000,http://localhost:3100,https://parapente.zer0x.org,https://parapente.app"
+      GIT_COMMIT_SHA: ${IMAGE_TAG:-${GIT_COMMIT_SHA:-staging}}
+    ports:
+      - "${STAGING_API_HOST_PORT:-3201}:3001"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:3001/api/public/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+    restart: unless-stopped
+    networks:
+      - staging_net
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${NEXT_PUBLIC_GOOGLE_CLIENT_ID:-}
+    image: ${WEB_IMAGE:-ghcr.io/zer0x25/paraglide-web:staging}
+    container_name: parapente_web_staging
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-/api}
+      INTERNAL_API_URL: http://api:3001
+      NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${NEXT_PUBLIC_GOOGLE_CLIENT_ID:-}
+      PORT: 3000
+      NODE_ENV: production
+    ports:
+      - "${STAGING_WEB_HOST_PORT:-3200}:3000"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - staging_net
+
+volumes:
+  postgres_staging_data:
+
+networks:
+  staging_net:
+    name: paraglide-staging-net
+    driver: bridge

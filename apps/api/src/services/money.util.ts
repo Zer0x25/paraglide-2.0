@@ -1,0 +1,1 @@
+export const toNum = (v: any): number => (v == null ? 0 : Number(v));
