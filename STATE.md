@@ -31,9 +31,11 @@ Este documento mantiene el estado de ejecución, trazabilidad de sesiones, evide
   4. **Gate Pre-Deploy**: Incorporación de `npm run check:quick` como prerrequisito antes del build de imágenes Docker.
   5. **Sincronización de Compose y Configs**: Actualización de imágenes en `docker-compose.yml`, `docker-compose.staging.yml`, `.env.example`, `README.md` y rutas tolerantes en `scripts/deploy-status.sh`.
   6. **Integración Release Please + CD**: Configuración de `workflow_call` en `deploy.yml` y encadenamiento en `release-please.yml` para que al mergear el Release PR se dispare el build y deploy automáticamente.
+  7. **Habilitación de Permisos de Actions**: Configuración de `can_approve_pull_request_reviews=true` y `default_workflow_permissions=write` vía API de GitHub para permitir que GitHub Actions cree Pull Requests automáticamente.
 - **Evidencia de Calidad:**
   - Sintaxis YAML validada con parser estricto (`ci.yml`, `deploy.yml`, `release-please.yml`).
   - Nombres de imágenes y variables de entorno homologados al estándar monorepo.
+  - Pull Request de Release creado exitosamente por el bot: [PR #2](https://github.com/Zer0x25/paraglide-2.0/pull/2).
   - DoD cumplido: aislamiento de DBs respetado y formateo verificado.
 
 ---
