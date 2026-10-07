@@ -5,6 +5,19 @@ based on [Conventional Commits](https://www.conventionalcommits.org/) and this
 file is maintained automatically by
 [release-please](https://github.com/googleapis/release-please).
 
+## [0.9.3](https://github.com/Zer0x25/paraglide-2.0/compare/v0.9.2...v0.9.3) (2026-10-07)
+
+
+### Bug Fixes
+
+* **ci:** corregir contexto de evaluacion condicional y variables de entorno ([816bea6](https://github.com/Zer0x25/paraglide-2.0/commit/816bea68c823a24f0763d43552d2dfd2ca0b82be))
+* **ci:** pasar filters como string multilínea a dorny/paths-filter ([f468e43](https://github.com/Zer0x25/paraglide-2.0/commit/f468e43047f7d9baa30605b1a693a15305d240e7))
+
+
+### CI/CD & DevOps
+
+* implementar Smart CI con deteccion de modulos afectados (paths-filter) ([98ab4f6](https://github.com/Zer0x25/paraglide-2.0/commit/98ab4f614b033b44081006bfd3e4a53ae0d23ea4))
+
 ## [0.9.2](https://github.com/Zer0x25/paraglide-2.0/compare/v0.9.1...v0.9.2) (2026-10-07)
 
 
