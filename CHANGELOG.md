@@ -5,6 +5,32 @@ based on [Conventional Commits](https://www.conventionalcommits.org/) and this
 file is maintained automatically by
 [release-please](https://github.com/googleapis/release-please).
 
+## [0.9.2](https://github.com/Zer0x25/paraglide-2.0/compare/v0.9.1...v0.9.2) (2026-10-07)
+
+
+### Bug Fixes
+
+* **release:** configurar secciones de changelog y habilitar release PR ([54c3e34](https://github.com/Zer0x25/paraglide-2.0/commit/54c3e346d0f542ec8592d9cad88ef3ea612986af))
+
+
+### Documentation
+
+* **governance:** integrar marco de gobernanza de 7 pilares y definicion de terminado (DoD) ([5be45cf](https://github.com/Zer0x25/paraglide-2.0/commit/5be45cf0b6cefcfb31a54d5e859eca68c90541d4))
+* **governance:** registrar resolucion de permisos de PRs y generacion de release ([6e0bc25](https://github.com/Zer0x25/paraglide-2.0/commit/6e0bc250c02c7712d16f3400b81e4dcc94a87d92))
+
+
+### Miscellaneous Chores
+
+* **governance:** adoptar marco lean de 3 tiers, living specs y blindar hooks ([fbb27fd](https://github.com/Zer0x25/paraglide-2.0/commit/fbb27fd289f8e736c17f5083eccfb3be7dca77ac))
+* initial commit (paraglide-2.0) ([739c26d](https://github.com/Zer0x25/paraglide-2.0/commit/739c26df0a162b354bdb17bd8e757448a76ba386))
+* **main:** release 0.9.1 ([bcfa624](https://github.com/Zer0x25/paraglide-2.0/commit/bcfa62478a533db119d616b3ad13144465070e22))
+* release 0.9.1 ([6e5292f](https://github.com/Zer0x25/paraglide-2.0/commit/6e5292ff3a8fd357088f531a091cfbd7e5638e2a))
+
+
+### CI/CD & DevOps
+
+* desacoplar CI de CD, reparar paquetes GHCR y activar deploy en release-please ([6136303](https://github.com/Zer0x25/paraglide-2.0/commit/613630335eb3a255f03cdfc31f80454f591719c1))
+
 ## [0.9.1](https://github.com/Zer0x25/paraglide-2.0/compare/v0.9.0...v0.9.1) (2026-10-07)
 
 
