@@ -5,6 +5,13 @@ based on [Conventional Commits](https://www.conventionalcommits.org/) and this
 file is maintained automatically by
 [release-please](https://github.com/googleapis/release-please).
 
+## [0.9.4](https://github.com/Zer0x25/paraglide-2.0/compare/v0.9.3...v0.9.4) (2026-10-07)
+
+
+### Bug Fixes
+
+* **ci:** activar CD en workflow_call y omitir re-ejecucion de CI en merge de PRs ([2a7f4f0](https://github.com/Zer0x25/paraglide-2.0/commit/2a7f4f068fa708378f111aaad2e6e8b866b0d037))
+
 ## [0.9.3](https://github.com/Zer0x25/paraglide-2.0/compare/v0.9.2...v0.9.3) (2026-10-07)
 
 
