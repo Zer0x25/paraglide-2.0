@@ -36,6 +36,12 @@ jobs:
   detect-changes:
     name: Detectar Módulos Afectados
     runs-on: ubuntu-latest
+    if: >-
+      github.event_name == 'pull_request' ||
+      github.event_name == 'workflow_dispatch' ||
+      (!startsWith(github.event.head_commit.message, 'Merge pull request #') &&
+       !contains(github.event.head_commit.message, 'chore(main): release') &&
+       !contains(github.event.head_commit.message, 'release-please--branches'))
     outputs:
       shared: ${{ steps.filter.outputs.shared }}
       api: ${{ steps.filter.outputs.api }}
@@ -200,11 +206,16 @@ jobs:
     steps:
       - name: Evaluar Estado de Módulos
         env:
+          RES_DETECT: ${{ needs.detect-changes.result }}
           RES_TYPECHECK: ${{ needs.typecheck-and-lint.result }}
           RES_API: ${{ needs.test-api.result }}
           RES_WEB: ${{ needs.test-web.result }}
           RES_MCP: ${{ needs.test-mcp.result }}
         run: |
+          if [ "$RES_DETECT" = "skipped" ]; then
+            echo "⏭️ Merge de PR o release detectado: el CI ya fue validado en el Pull Request. Omitiendo re-ejecución redundante en main."
+            exit 0
+          fi
           RESULTS="$RES_TYPECHECK $RES_API $RES_WEB $RES_MCP"
           if echo "$RESULTS" | grep -q 'failure'; then
             echo "❌ Falló al menos una de las suites de prueba ejecutadas."
