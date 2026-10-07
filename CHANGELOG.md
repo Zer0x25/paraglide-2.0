@@ -5,6 +5,15 @@ based on [Conventional Commits](https://www.conventionalcommits.org/) and this
 file is maintained automatically by
 [release-please](https://github.com/googleapis/release-please).
 
+## [0.9.5](https://github.com/Zer0x25/paraglide-2.0/compare/v0.9.4...v0.9.5) (2026-10-07)
+
+
+### Documentation
+
+* **jules:** restaurar directrices y aprendizajes de Jules ([5f59a36](https://github.com/Zer0x25/paraglide-2.0/commit/5f59a3656f3242af107aa2b0e51d29fff292578b))
+* **jules:** restaurar directrices y aprendizajes de Jules ([c982eea](https://github.com/Zer0x25/paraglide-2.0/commit/c982eeae7cc5176f8c28e48102fd3c8cbddd18c2))
+* registrar lecciones aprendidas de workflow_call y runner self-hosted en STATE.md ([09e35ee](https://github.com/Zer0x25/paraglide-2.0/commit/09e35eebc8abf4962ac9729b6216eaa20dc0fd75))
+
 ## [0.9.4](https://github.com/Zer0x25/paraglide-2.0/compare/v0.9.3...v0.9.4) (2026-10-07)
 
 
