@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import { X } from 'lucide-react';
 import { Horario } from './types';
@@ -47,6 +47,7 @@ export function ConfigBloqueFormModal({
       <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-xl w-full max-w-2xl p-5 sm:p-6 relative my-auto max-h-[90vh] overflow-y-auto">
         <button
           onClick={onClose}
+          aria-label="Cerrar modal"
           className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
         >
           <X size={24} />
@@ -114,7 +115,9 @@ export function ConfigBloqueFormModal({
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-500 mb-1">Hasta (Opcional)</label>
+                  <label className="block text-xs font-medium text-slate-500 mb-1">
+                    Hasta (Opcional)
+                  </label>
                   <input
                     type="date"
                     className="w-full border rounded px-3 py-1 text-sm text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-800 dark:border-slate-700"
@@ -127,7 +130,9 @@ export function ConfigBloqueFormModal({
 
             {tipoConfig === 'EXACTA' && (
               <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1">Fecha Exacta</label>
+                <label className="block text-xs font-medium text-slate-500 mb-1">
+                  Fecha Exacta
+                </label>
                 <input
                   type="date"
                   required
@@ -163,7 +168,9 @@ export function ConfigBloqueFormModal({
                   </h3>
                   <button
                     type="button"
-                    onClick={() => setHorariosForm([...horariosForm, { horaInicio: '', horaFin: '' }])}
+                    onClick={() =>
+                      setHorariosForm([...horariosForm, { horaInicio: '', horaFin: '' }])
+                    }
                     className="text-xs text-blue-600 hover:text-blue-800 font-medium"
                   >
                     + Añadir Bloque
@@ -199,6 +206,7 @@ export function ConfigBloqueFormModal({
                       {horariosForm.length > 1 && (
                         <button
                           type="button"
+                          aria-label="Eliminar bloque de horario"
                           onClick={() => {
                             const newH = [...horariosForm];
                             newH.splice(i, 1);
