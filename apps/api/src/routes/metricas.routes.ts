@@ -38,6 +38,7 @@ const metricasRoutes: FastifyPluginAsync = async (fastify) => {
         gastosAgrupados,
         gastosTotal,
         vuelosPorDia,
+        pilotosTopRaw,
       ] = await Promise.all([
         prisma.vuelo.groupBy({
           by: ['estado'],
@@ -72,14 +73,16 @@ const metricasRoutes: FastifyPluginAsync = async (fastify) => {
           WHERE "deletedAt" IS NULL AND "fechaHora" >= ${startDate} AND "fechaHora" < ${endDate}
           GROUP BY 1, 2
         `,
-      ]);
 
-      const pilotosTopRaw = await prisma.vuelo.groupBy({
-        by: ['pilotoId'],
-        where: { estado: 'COMPLETADO', fechaHora: { gte: startDate, lt: endDate } },
-        _count: { _all: true },
-        _sum: { valorPactado: true, pagoPiloto: true },
-      });
+        // ⚡ Bolt: Moved pilotosTopRaw query into Promise.all to run concurrently,
+        // avoiding a sequential wait and N+1 execution pattern.
+        prisma.vuelo.groupBy({
+          by: ['pilotoId'],
+          where: { estado: 'COMPLETADO', fechaHora: { gte: startDate, lt: endDate } },
+          _count: { _all: true },
+          _sum: { valorPactado: true, pagoPiloto: true },
+        }),
+      ]);
 
       const pilotosNombres = await prisma.piloto.findMany({
         where: { id: { in: pilotosTopRaw.map((p) => p.pilotoId) } },
