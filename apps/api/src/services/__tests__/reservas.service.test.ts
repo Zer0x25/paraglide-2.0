@@ -9,17 +9,23 @@ vi.mock('../../plugins/prisma', () => {
           findUnique: vi.fn(),
           findFirst: vi.fn(),
           update: vi.fn(),
+        updateMany: vi.fn(),
+        updateMany: vi.fn(),
         },
         pago: {
           create: vi.fn(),
           aggregate: vi.fn(),
           findMany: vi.fn(),
           update: vi.fn(),
+        updateMany: vi.fn(),
+        updateMany: vi.fn(),
         },
         devolucion: {
           create: vi.fn(),
           aggregate: vi.fn(),
           update: vi.fn(),
+        updateMany: vi.fn(),
+        updateMany: vi.fn(),
         },
       })),
       reserva: {
@@ -27,6 +33,8 @@ vi.mock('../../plugins/prisma', () => {
         findFirst: vi.fn(),
         create: vi.fn(),
         update: vi.fn(),
+        updateMany: vi.fn(),
+        updateMany: vi.fn(),
         count: vi.fn(),
       },
     },
@@ -119,6 +127,8 @@ describe('Reservas Service - Pagos y Abonos', () => {
           estadoPago: 'PENDIENTE',
         }),
         update: vi.fn(),
+        updateMany: vi.fn(),
+        updateMany: vi.fn(),
       },
       // Punto 3: la derivación sale de la suma real de pagos activos
       pago: { aggregate: vi.fn().mockResolvedValue({ _sum: { monto: 0 } }) }, // sin abonos → derivación = PENDIENTE
@@ -202,6 +212,7 @@ describe('Reservas Service - actualizarEstadoPasajeros (estado de vuelo)', () =>
       pasajero: {
         findMany: vi.fn().mockResolvedValue([{ id: 101 }, { id: 102 }]),
         update: vi.fn().mockImplementation(({ where, data }) => Promise.resolve({ id: where.id, ...data })),
+        updateMany: vi.fn().mockImplementation(({ data }) => Promise.resolve({ count: 1 })),
       },
     };
 
@@ -215,8 +226,8 @@ describe('Reservas Service - actualizarEstadoPasajeros (estado de vuelo)', () =>
       ],
     });
 
-    expect(mockTx.pasajero.update).toHaveBeenCalledWith({ where: { id: 101 }, data: { estado: 'VUELO_COMPLETADO' } });
-    expect(mockTx.pasajero.update).toHaveBeenCalledWith({ where: { id: 102 }, data: { estado: 'CANCELADO' } });
+    expect(mockTx.pasajero.updateMany).toHaveBeenCalledWith({ where: { id: { in: [101] } }, data: { estado: 'VUELO_COMPLETADO' } });
+    expect(mockTx.pasajero.updateMany).toHaveBeenCalledWith({ where: { id: { in: [102] } }, data: { estado: 'CANCELADO' } });
     expect(mockTx.reserva.update).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: 5 },
@@ -235,6 +246,8 @@ describe('Reservas Service - actualizarEstadoPasajeros (estado de vuelo)', () =>
         // Solo encuentra 1 de los 2 pedidos → pertenencia inválida
         findMany: vi.fn().mockResolvedValue([{ id: 101 }]),
         update: vi.fn(),
+        updateMany: vi.fn(),
+        updateMany: vi.fn(),
       },
     };
 
@@ -261,6 +274,8 @@ describe('Reservas Service - actualizarEstadoPasajeros (estado de vuelo)', () =>
       pasajero: {
         findMany: vi.fn().mockResolvedValue([{ id: 101 }]),
         update: vi.fn(),
+        updateMany: vi.fn(),
+        updateMany: vi.fn(),
       },
     };
 
@@ -282,6 +297,8 @@ describe('Reservas Service - actualizarEstadoPasajeros (estado de vuelo)', () =>
       pasajero: {
         findMany: vi.fn(),
         update: vi.fn(),
+        updateMany: vi.fn(),
+        updateMany: vi.fn(),
       },
     };
 
@@ -305,6 +322,8 @@ describe('Reservas Service - actualizarEstadoPasajeros (estado de vuelo)', () =>
       pasajero: {
         findMany: vi.fn().mockResolvedValue([{ id: 101 }]),
         update: vi.fn(),
+        updateMany: vi.fn(),
+        updateMany: vi.fn(),
       },
     };
 
@@ -329,6 +348,7 @@ describe('Reservas Service - actualizarEstadoPasajeros (estado de vuelo)', () =>
       pasajero: {
         findMany: vi.fn().mockResolvedValue([{ id: 101 }]),
         update: vi.fn().mockResolvedValue({ id: 101, estado: 'VUELO_COMPLETADO' }),
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
       },
     };
 
@@ -352,6 +372,7 @@ describe('Reservas Service - actualizarEstadoPasajeros (estado de vuelo)', () =>
           .mockResolvedValueOnce([{ id: 101 }, { id: 102 }])
           .mockResolvedValueOnce([{ id: 101, estado: 'VUELO_COMPLETADO' }, { id: 102, estado: 'CANCELADO' }]),
         update: vi.fn().mockResolvedValue({}),
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
       },
     };
 
@@ -385,6 +406,7 @@ describe('Reservas Service - actualizarEstadoPasajeros (estado de vuelo)', () =>
           .mockResolvedValueOnce([{ id: 101 }, { id: 102 }])
           .mockResolvedValueOnce([{ id: 101, estado: 'VUELO_COMPLETADO' }, { id: 102, estado: 'VUELO_COMPLETADO' }]),
         update: vi.fn().mockResolvedValue({}),
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
       },
     };
 
@@ -417,6 +439,8 @@ describe('Reservas Service - actualizarEstadoPasajeros (estado de vuelo)', () =>
         aggregate: vi.fn().mockResolvedValue({ _sum: { monto: 50000 } }),
         findMany: vi.fn(),
         update: vi.fn(),
+        updateMany: vi.fn(),
+        updateMany: vi.fn(),
       },
     };
 
@@ -436,12 +460,16 @@ describe('Reservas Service - actualizarEstadoPasajeros (estado de vuelo)', () =>
       reserva: {
         findUnique: vi.fn().mockResolvedValue({ id: 1, version: 1, valorTotal: 50000, abono: 20000, montoDevuelto: 20000, estadoPago: 'DEVUELTO' }),
         update: vi.fn(),
+        updateMany: vi.fn(),
+        updateMany: vi.fn(),
       },
       pago: {
         create: vi.fn(),
         aggregate: vi.fn().mockResolvedValue({ _sum: { monto: 0 } }), // se anula el único pago → abono 0
         findMany: vi.fn(),
         update: vi.fn(),
+        updateMany: vi.fn(),
+        updateMany: vi.fn(),
       },
     };
 
@@ -514,6 +542,8 @@ describe('Reservas Service - Devoluciones (Fase 2 ciclo de vida)', () => {
       reserva: {
         findFirst: vi.fn().mockResolvedValue({ id: 1, valorTotal: 50000, abono: 10000, estado: 'SIN_AGENDAR' }),
         update: vi.fn(),
+        updateMany: vi.fn(),
+        updateMany: vi.fn(),
       },
       devolucion: {
         create: vi.fn(),
@@ -534,6 +564,8 @@ describe('Reservas Service - Devoluciones (Fase 2 ciclo de vida)', () => {
       reserva: {
         findFirst: vi.fn().mockResolvedValue({ id: 1, valorTotal: 10000, abono: 10000, estado: 'CANCELADA' }),
         update: vi.fn(),
+        updateMany: vi.fn(),
+        updateMany: vi.fn(),
       },
       devolucion: {
         create: vi.fn(),
@@ -655,6 +687,8 @@ describe('Reservas Service - Devoluciones (Fase 2 ciclo de vida)', () => {
       reserva: {
         findFirst: vi.fn().mockResolvedValue({ id: 1, valorTotal: 50000, abono: 50000, estado: 'CANCELADA', version: 5 }),
         update: vi.fn(),
+        updateMany: vi.fn(),
+        updateMany: vi.fn(),
       },
       devolucion: {
         create: vi.fn(),

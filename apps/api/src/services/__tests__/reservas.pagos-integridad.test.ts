@@ -136,6 +136,7 @@ describe('Integridad Contable: Historial de Pagos y Validación al Completar', (
             .mockResolvedValueOnce([{ id: 1 }]) // validación de pertenencia
             .mockResolvedValueOnce([{ id: 1, estado: 'VUELO_COMPLETADO' }]), // estados finales
           update: vi.fn().mockResolvedValue({ id: 1, estado: 'VUELO_COMPLETADO' }),
+          updateMany: vi.fn().mockResolvedValue({ count: 1 }),
         },
         vuelo: {
           updateMany: vi.fn().mockResolvedValue({ count: 1 }),
@@ -175,6 +176,7 @@ describe('Integridad Contable: Historial de Pagos y Validación al Completar', (
             .mockResolvedValueOnce([{ id: 1 }])
             .mockResolvedValueOnce([{ id: 1, estado: 'VUELO_COMPLETADO' }]),
           update: vi.fn().mockResolvedValue({ id: 1, estado: 'VUELO_COMPLETADO' }),
+          updateMany: vi.fn().mockResolvedValue({ count: 1 }),
         },
         vuelo: {
           updateMany: vi.fn().mockResolvedValue({ count: 1 }),
@@ -214,6 +216,7 @@ describe('Integridad Contable: Historial de Pagos y Validación al Completar', (
             .mockResolvedValueOnce([{ id: 1 }])
             .mockResolvedValueOnce([{ id: 1, estado: 'VUELO_COMPLETADO' }]),
           update: vi.fn().mockResolvedValue({ id: 1, estado: 'VUELO_COMPLETADO' }),
+          updateMany: vi.fn().mockResolvedValue({ count: 1 }),
         },
         vuelo: {
           updateMany: vi.fn().mockResolvedValue({ count: 1 }),

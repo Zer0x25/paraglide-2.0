@@ -51,10 +51,16 @@ export async function actualizarEstadoPasajerosReserva(
       throw new Error('Uno o más pasajeros no pertenecen a la reserva');
     }
 
-    for (const p of data.pasajeros) {
-      await tx.pasajero.update({
-        where: { id: p.id },
-        data: { estado: p.estado },
+    const groupedByEstado = data.pasajeros.reduce((acc, p) => {
+      if (!acc[p.estado]) acc[p.estado] = [];
+      acc[p.estado].push(p.id);
+      return acc;
+    }, {} as Record<EstadoPasajero, number[]>);
+
+    for (const [estado, ids] of Object.entries(groupedByEstado)) {
+      await tx.pasajero.updateMany({
+        where: { id: { in: ids } },
+        data: { estado: estado as EstadoPasajero },
       });
     }
 
