@@ -55,13 +55,19 @@ const SEED_PLANTILLAS = [
 
 export class PlantillasService {
   async initSeeds() {
-    for (const p of SEED_PLANTILLAS) {
-      const existing = await prisma.plantillaMensaje.findFirst({
-        where: { tipo: p.tipo, deletedAt: null },
-      });
-      if (!existing) {
-        await prisma.plantillaMensaje.create({ data: p as any });
-      }
+    const tipos = SEED_PLANTILLAS.map((p) => p.tipo);
+    const existing = await prisma.plantillaMensaje.findMany({
+      where: { tipo: { in: tipos }, deletedAt: null },
+      select: { tipo: true },
+    });
+
+    const existingTipos = new Set(existing.map((e) => e.tipo));
+    const toCreate = SEED_PLANTILLAS.filter((p) => !existingTipos.has(p.tipo));
+
+    if (toCreate.length > 0) {
+      await Promise.all(
+        toCreate.map((p) => prisma.plantillaMensaje.create({ data: p as any }))
+      );
     }
   }
 
