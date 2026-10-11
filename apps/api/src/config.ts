@@ -20,7 +20,7 @@ const jwtSecret = required('JWT_SECRET', nodeEnv === 'test' ? 'test-only-jwt-sec
 // conocidos (p. ej. el fallback de docker-compose) ni secretos triviales.
 if (
   nodeEnv === 'production' &&
-  (['change-me-in-production', 'test-only-jwt-secret', 'secret'].includes(jwtSecret) || jwtSecret.length < 16)
+  (['change-me-in-production', 'test-only-jwt-secret', 'secret'].includes(jwtSecret) || jwtSecret.length < 32)
 ) {
   throw new Error('JWT_SECRET inválido en producción: define un secreto fuerte en el .env (sin valores por defecto)');
 }
