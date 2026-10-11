@@ -124,10 +124,15 @@ export function useDomainMutation<
   onError,
   mutationFn,
   optimisticUpdate,
-  outbox: _outbox, // eslint-disable-line @typescript-eslint/no-unused-vars -- declarativo por ahora: el call site debe usar withOutboxHeaders()
+  outbox, // destructured but not passed to `rest`
   ...rest
 }: UseDomainMutationOptions<TData, TVariables, TContext>) {
   const queryClient = useQueryClient();
+
+  // Note: we destructure `outbox` to prevent it from being passed to `useMutation`
+  // since it's a custom declarative property for this hook and TanStack Query
+  // doesn't recognize it. Using it in a no-op way avoids TS unused variable warnings.
+  void outbox;
 
   // `onMutate` del usuario vive en `rest`: lo extraemos para encadenarlo
   // después del optimistic update sin romper su contrato.
