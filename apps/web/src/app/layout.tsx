@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { cookies } from 'next/headers';
 import { Inter } from 'next/font/google';
+import Script from 'next/script';
 import './globals.css';
 import { ThemeProvider } from '@/components/ThemeProvider';
 import { QueryProvider } from '@/components/QueryProvider';
@@ -37,11 +38,9 @@ export default async function RootLayout({
   return (
     <html lang="es" className={`h-full antialiased ${dark ? 'dark' : ''}`} suppressHydrationWarning>
       <head>
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `(function(){try{var m=document.cookie.match(/(?:^|; )theme=([^;]+)/);if(m&&m[1]==='dark')document.documentElement.classList.add('dark');}catch(e){}})();`,
-          }}
-        />
+        <Script id="theme-script" strategy="beforeInteractive">
+          {`(function(){try{var m=document.cookie.match(/(?:^|; )theme=([^;]+)/);if(m&&m[1]==='dark')document.documentElement.classList.add('dark');}catch(e){}})();`}
+        </Script>
       </head>
       <body className={`${inter.className} min-h-full flex`}>
         <QueryProvider>
