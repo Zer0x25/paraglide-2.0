@@ -37,8 +37,8 @@ interface ReservaPublica {
 export default function DeslindePublicoPage({ params }: { params: Promise<{ id: string }> }) {
   const [reservaId, setReservaId] = useState<string | null>(null);
 
-  // Pasajero actualmente seleccionado para firmar
-  const [selectedPasajero, setSelectedPasajero] = useState<PasajeroPublico | null>(null);
+  // ID del pasajero seleccionado manualmente
+  const [manualSelectedId, setManualSelectedId] = useState<number | null>(null);
 
   const queryClient = useQueryClient();
   const {
@@ -52,8 +52,13 @@ export default function DeslindePublicoPage({ params }: { params: Promise<{ id: 
     ? 'No pudimos encontrar la información de esta reserva o el enlace ha expirado.'
     : null;
 
+  const manualPasajero = reserva?.pasajeros?.find(p => p.id === manualSelectedId);
+  const selectedPasajero = (manualPasajero && !manualPasajero.firmaDeslinde)
+    ? manualPasajero
+    : (reserva?.pasajeros?.find(p => !p.firmaDeslinde) || null);
+
   const selectPasajero = (p: PasajeroPublico) => {
-    setSelectedPasajero(p);
+    setManualSelectedId(p.id);
   };
 
   useEffect(() => {
@@ -61,16 +66,6 @@ export default function DeslindePublicoPage({ params }: { params: Promise<{ id: 
       if (p?.id) setReservaId(p.id);
     });
   }, [params]);
-
-  // Auto seleccionar el primer pasajero que no haya firmado
-  /* eslint-disable react-hooks/set-state-in-effect -- selección automática al llegar la reserva; no es estado derivado */
-  useEffect(() => {
-    const primerSinFirma = reserva?.pasajeros?.find((p: PasajeroPublico) => !p.firmaDeslinde);
-    if (primerSinFirma) {
-      setSelectedPasajero(primerSinFirma);
-    }
-  }, [reserva]);
-  /* eslint-enable react-hooks/set-state-in-effect */
 
   const firmaMutation = useMutation({
     mutationFn: (data: FirmaData) => {
