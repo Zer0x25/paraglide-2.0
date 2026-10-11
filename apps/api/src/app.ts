@@ -153,15 +153,11 @@ export async function buildApp() {
   });
 
   await app.register(cors, {
-    // En desarrollo se permite todo (origen nulo y cualquier origin).
-    // En producción solo se permiten los orígenes de ALLOWED_ORIGINS
+    // Solo se permiten los orígenes de ALLOWED_ORIGINS
     // (p.ej. el dominio público de la web); peticiones sin Origin
     // (curl, proxy server-to-server, mismo origen) siguen pasando.
     origin: (origin, cb) => {
-      const allowed =
-        config.nodeEnv !== 'production' ||
-        !origin ||
-        config.allowedOrigins.includes(origin);
+      const allowed = !origin || config.allowedOrigins.includes(origin);
       cb(allowed ? null : new Error('Not allowed by CORS'), allowed);
     },
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
