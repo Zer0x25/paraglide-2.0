@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { toast } from 'sonner';
 import { useAuthStore } from '@/store/authStore';
 import { ShieldCheck, Save, RefreshCw, AlertCircle } from 'lucide-react';
 import { ALL_MODULE_IDS } from '@/modules/runtime';
 import { apiRaw } from '@/services/api';
 import { OfflinePageGuard } from '@/components/OfflinePageGuard';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 interface ModuleStatus {
   id: string;
@@ -15,49 +16,63 @@ interface ModuleStatus {
 
 export default function AdminModulesPage() {
   const { user } = useAuthStore();
-  const [modules, setModules] = useState<ModuleStatus[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const queryClient = useQueryClient();
+  const [overrides, setOverrides] = useState<Record<string, boolean>>({});
 
-  const fetchModules = async () => {
-    try {
-      // El interceptor devuelve response.data; el cast alinea el tipado de axios.
-      const data = (await apiRaw.get('/admin/modules')) as unknown as { modules: ModuleStatus[] };
-      setModules(data.modules);
-    } catch (err: unknown) {
-      // 403 (no admin): salimos del modo loading para mostrar el mensaje.
-      const status = (err as { response?: { status?: number } })?.response?.status;
-      if (status !== 403) console.error(err);
-      setModules([]);
-    } finally {
-      setLoading(false);
-    }
+  const { data: fetchedModules = [], isLoading: loading } = useQuery({
+    queryKey: ['admin-modules'],
+    queryFn: async () => {
+      try {
+        const data = (await apiRaw.get('/admin/modules')) as unknown as { modules: ModuleStatus[] };
+        return data.modules;
+      } catch (err: unknown) {
+        const status = (err as { response?: { status?: number } })?.response?.status;
+        if (status !== 403) console.error(err);
+        return [];
+      }
+    },
+    enabled: !!user && user.role === 'ADMIN',
+  });
+
+  const saveMutation = useMutation({
+    mutationFn: async (enabledIds: string[]) => {
+      const data = (await apiRaw.put('/admin/modules', { enabled: enabledIds })) as unknown as { modules: ModuleStatus[] };
+      return data.modules;
+    },
+    onSuccess: (newModules) => {
+      setOverrides({});
+      queryClient.setQueryData(['admin-modules'], newModules);
+      toast.success('Módulos actualizados en caliente (reload automático en todos los clientes).');
+    },
+    onError: () => {
+      toast.error('Error al guardar módulos');
+    },
+  });
+
+  const getDerivedModules = (): ModuleStatus[] => {
+    return ([...ALL_MODULE_IDS] as string[]).map((id) => {
+      const isOverridden = overrides[id] !== undefined;
+      if (isOverridden) {
+        return { id, enabled: overrides[id] };
+      }
+      const remoteModule = fetchedModules.find((m) => m.id === id);
+      return remoteModule ?? { id, enabled: false };
+    });
   };
 
-  /* eslint-disable react-hooks/set-state-in-effect -- fetch inicial de módulos al montar; no es estado derivado */
-  useEffect(() => {
-    fetchModules();
-  }, []);
-  /* eslint-enable react-hooks/set-state-in-effect */
+  const derivedModules = getDerivedModules();
 
   const toggle = (id: string) => {
-    setModules((prev) =>
-      prev.map((m) => (m.id === id ? { ...m, enabled: !m.enabled } : m)),
-    );
+    const currentStatus = derivedModules.find(m => m.id === id)?.enabled ?? false;
+    setOverrides(prev => ({
+      ...prev,
+      [id]: !currentStatus
+    }));
   };
 
-  const save = async () => {
-    setSaving(true);
-    try {
-      const enabled = modules.filter((m) => m.enabled).map((m) => m.id);
-      const data = (await apiRaw.put('/admin/modules', { enabled })) as unknown as { modules: ModuleStatus[] };
-      setModules(data.modules);
-      toast.success('Módulos actualizados en caliente (reload automático en todos los clientes).');
-    } catch {
-      toast.error('Error al guardar módulos');
-    } finally {
-      setSaving(false);
-    }
+  const save = () => {
+    const enabledIds = derivedModules.filter(m => m.enabled).map(m => m.id);
+    saveMutation.mutate(enabledIds);
   };
 
   // Solo bloquear una vez que sabemos quién es el usuario y NO es admin.
@@ -96,10 +111,10 @@ export default function AdminModulesPage() {
         </div>
         <button
           onClick={save}
-          disabled={saving}
+          disabled={saveMutation.isPending}
           className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg flex items-center gap-2 transition disabled:opacity-50"
         >
-          {saving ? (
+          {saveMutation.isPending ? (
             <>
               <RefreshCw className="animate-spin" size={16} />
               Guardando...
@@ -133,12 +148,7 @@ export default function AdminModulesPage() {
             </tr>
           </thead>
           <tbody>
-            {([...ALL_MODULE_IDS] as string[])
-              .map((id): ModuleStatus => {
-                const m = modules.find((x) => x.id === id);
-                return m ?? { id, enabled: false };
-              })
-              .map((m) => (
+            {derivedModules.map((m) => (
                 <tr key={m.id} className="border-t border-slate-100">
                   <td className="px-4 py-3">
                     <span className="font-medium capitalize">{m.id}</span>
