@@ -60,7 +60,15 @@ export async function actualizarEstadoPasajerosReserva(
 
     // Sincronizar estado de los vuelos según los estados de pasajero asignados
     if (tx.vuelo?.updateMany) {
-      const completedPaxIds = data.pasajeros.filter((p) => p.estado === 'VUELO_COMPLETADO').map((p) => p.id);
+      const { completedPaxIds, cancelledPaxIds } = data.pasajeros.reduce(
+        (acc, p) => {
+          if (p.estado === 'VUELO_COMPLETADO') acc.completedPaxIds.push(p.id);
+          else if (p.estado === 'CANCELADO') acc.cancelledPaxIds.push(p.id);
+          return acc;
+        },
+        { completedPaxIds: [] as number[], cancelledPaxIds: [] as number[] }
+      );
+
       if (completedPaxIds.length > 0) {
         await tx.vuelo.updateMany({
           where: {
@@ -75,7 +83,6 @@ export async function actualizarEstadoPasajerosReserva(
         });
       }
 
-      const cancelledPaxIds = data.pasajeros.filter((p) => p.estado === 'CANCELADO').map((p) => p.id);
       if (cancelledPaxIds.length > 0) {
         await tx.vuelo.updateMany({
           where: {
