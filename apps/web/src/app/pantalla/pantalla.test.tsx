@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '../../test/render';
 import PantallaSalaEsperaPage from './page';
 import { apiRaw as api } from '../../services/api';
+import { resetPantallaSessionForTests } from './hooks/usePantallaSession';
 
 // page.tsx importa `apiRaw` de services/api, que a su vez ejecuta
 // axios.create().interceptors a nivel de módulo. Un automock (`vi.mock('axios')`)
@@ -69,6 +70,7 @@ describe('Página Pública de Pantalla FIDS (/pantalla) - Pruebas Unitarias y de
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.clear();
+    resetPantallaSessionForTests();
     window.history.replaceState({}, '', '/pantalla?token=testtoken');
     // La página llama a dos endpoints: /public/pantalla (datos FIDS) y
     // /pantalla/link (enlaces admin). Respondemos por URL para que cada

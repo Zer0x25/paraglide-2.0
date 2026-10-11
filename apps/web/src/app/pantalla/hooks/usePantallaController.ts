@@ -1,14 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from 'react';
-import Cookies from 'js-cookie';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiRaw } from '../../../services/api';
 import { toast } from 'sonner';
 import { copyTextToClipboard } from '@/utils/clipboard';
 import QRCode from 'qrcode';
-
-export const PANTALLA_TOKEN_KEY = 'pantalla_token';
+import { usePantallaSession, PANTALLA_TOKEN_KEY } from './usePantallaSession';
 
 export interface VueloPantalla {
   id: number;
@@ -56,13 +54,12 @@ function usePantallaLinkQuery(tipo: 'DIARIO' | 'TV', enabled: boolean) {
 
 export function usePantallaController() {
   const queryClient = useQueryClient();
-  const [token, setToken] = useState<string | null>(null);
-  const [accessStatus, setAccessStatus] = useState<'loading' | 'ok' | 'invalid'>('loading');
+  const { token, adminToken, clearToken } = usePantallaSession();
+
   const [currentTime, setCurrentTime] = useState<string>('');
   const [currentDateStr, setCurrentDateStr] = useState<string>('');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
-  const [adminToken, setAdminToken] = useState<string | null>(null);
   const [showAdminPanel, setShowAdminPanel] = useState(false);
   const [copiedKey, setCopiedKey] = useState('');
 
@@ -103,29 +100,7 @@ export function usePantallaController() {
     retry: false,
   });
 
-  /* eslint-disable react-hooks/set-state-in-effect -- resolución del token desde URL/localStorage y estado de acceso por fetch; no es estado derivado */
-  useEffect(() => {
-    const urlToken = new URLSearchParams(window.location.search).get('token');
-    const storedToken = localStorage.getItem(PANTALLA_TOKEN_KEY);
-    const tokenActual = urlToken || storedToken;
-    if (urlToken) {
-      localStorage.setItem(PANTALLA_TOKEN_KEY, urlToken);
-    }
-    if (!tokenActual) {
-      setAccessStatus('invalid');
-      return;
-    }
-    setToken(tokenActual);
-  }, []);
-
-  // Cookie de admin para los enlaces (antes: la leía refreshLinks en cada fetch)
-  useEffect(() => {
-    setAdminToken(Cookies.get('token') ?? null);
-  }, []);
-
-  useEffect(() => {
-    if (pantallaQuery.data) setAccessStatus('ok');
-  }, [pantallaQuery.data]);
+  const accessStatus = !token ? 'invalid' : pantallaQuery.data ? 'ok' : 'loading';
 
   // Manejo especial del 401 (enlace caducado o inválido): se ejecuta una sola
   // vez por error, guardado por identidad del error en el ref.
@@ -134,13 +109,13 @@ export function usePantallaController() {
     const err = pantallaQuery.error;
     if (!err || err === ultimoErrorRef.current) return;
     ultimoErrorRef.current = err;
+
     const axiosErr = err as {
       isAxiosError?: boolean;
       response?: { status?: number; data?: { message?: string } };
     };
     if (axiosErr?.isAxiosError && axiosErr.response?.status === 401) {
-      localStorage.removeItem(PANTALLA_TOKEN_KEY);
-      setAccessStatus('invalid');
+      clearToken();
       if (process.env.NODE_ENV !== 'test') {
         console.warn('Enlace del tablero caducado o inválido:', axiosErr.response.data?.message);
       }
@@ -149,8 +124,7 @@ export function usePantallaController() {
         console.error('Error cargando datos de pantalla:', err);
       }
     }
-  }, [pantallaQuery.error]);
-  /* eslint-enable react-hooks/set-state-in-effect */
+  }, [pantallaQuery.error, clearToken]);
 
   const dailyLinkQuery = usePantallaLinkQuery('DIARIO', !!adminToken);
   const tvLinkQuery = usePantallaLinkQuery('TV', !!adminToken);
