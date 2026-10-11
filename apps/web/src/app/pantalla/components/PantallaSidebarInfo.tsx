@@ -1,6 +1,7 @@
 "use client";
 
 import { QrCode, ShieldCheck } from 'lucide-react';
+import Image from 'next/image';
 
 interface PantallaSidebarInfoProps {
   qrDataUrl: string;
@@ -26,8 +27,7 @@ export function PantallaSidebarInfo({ qrDataUrl }: PantallaSidebarInfoProps) {
 
         {qrDataUrl && (
           <div className="p-3 bg-white rounded-2xl inline-block shadow-md mx-auto">
-            {/* eslint-disable-next-line @next/next/no-img-element -- data URL base64, not optimizable by next/image */}
-            <img src={qrDataUrl} alt="QR Check-in" className="w-32 h-32" />
+            <Image src={qrDataUrl} alt="QR Check-in" width={128} height={128} className="w-32 h-32" unoptimized />
           </div>
         )}
 

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from 'next/link';
+import Image from 'next/image';
 
 interface VoucherQrFinancialCardProps {
   qrDataUrl: string;
@@ -49,8 +50,7 @@ export function VoucherQrFinancialCard({
             className="block p-2 rounded-2xl shadow-md shrink-0 hover:scale-105 hover:shadow-lg transition-all duration-300 ring-2 ring-transparent hover:ring-blue-500 cursor-pointer bg-white"
             title="Toca para abrir el deslinde"
           >
-            {/* eslint-disable-next-line @next/next/no-img-element -- data URL base64, no optimizable por next/image */}
-            <img src={qrDataUrl} alt="QR Deslinde" className="w-20 h-20 sm:w-28 sm:h-28" />
+            <Image src={qrDataUrl} alt="QR Deslinde" width={112} height={112} className="w-20 h-20 sm:w-28 sm:h-28" unoptimized />
           </Link>
         )}
         <div>
