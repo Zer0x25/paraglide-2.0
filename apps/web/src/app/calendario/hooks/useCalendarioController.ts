@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../../../services/api';
 import { dateFnsLocalizer, Views } from 'react-big-calendar';
@@ -63,6 +64,7 @@ const _origRange = localizer.range.bind(localizer) as typeof localizer.range;
 
 export function useCalendarioController() {
   const queryClient = useQueryClient();
+  const searchParams = useSearchParams();
   const isMobile = useMediaQuery('(max-width: 640px)');
   const [view, setView] = useState<string>(Views.MONTH);
   const [date, setDate] = useState<Date>(new Date());
@@ -181,55 +183,66 @@ export function useCalendarioController() {
 
   // Sincronización de URL params (?reservaId=...)
   const allDataReady = !!vuelosQuery.data && !!pilotosQuery.data && !!pasajerosQuery.data && !!reservasQuery.data;
-  const handledReservaParam = useRef(false);
+  const handledReservaParam = useRef<string | null>(null);
+  const reservaIdParam = searchParams.get('reservaId');
 
-  /* eslint-disable react-hooks/set-state-in-effect -- hidratación una vez al montar desde URL params ?reservaId; no es derivado calculable en render */
+  // Extraemos funciones estables para el dependency array
+  const { setFilterReservaId, setEditingId, setFormData, setGroupPilotSelections, setIsModalOpen } = modalController;
+
   useEffect(() => {
-    if (!allDataReady || handledReservaParam.current) return;
-    handledReservaParam.current = true;
+    if (!allDataReady || handledReservaParam.current === reservaIdParam) return;
+    handledReservaParam.current = reservaIdParam;
 
-    if (typeof window !== 'undefined') {
-      const urlParams = new URLSearchParams(window.location.search);
-      const reservaIdParam = urlParams.get('reservaId');
-      if (reservaIdParam && reservas) {
-        const resId = Number(reservaIdParam);
-        modalController.setFilterReservaId(resId);
-        const reserva = reservas.find((r: ReservaConPasajeros) => r.id === resId);
-        const groupPassengers = pasajeros.filter((p: Pasajero) => p.reservaId === resId);
-        const existingFlight = vuelos.find((v: Vuelo) => groupPassengers.some((gp: Pasajero) => gp.id === v.pasajeroId));
+    if (reservaIdParam && reservas) {
+      const resId = Number(reservaIdParam);
+      setFilterReservaId(resId);
+      const reserva = reservas.find((r: ReservaConPasajeros) => r.id === resId);
+      const groupPassengers = pasajeros.filter((p: Pasajero) => p.reservaId === resId);
+      const existingFlight = vuelos.find((v: Vuelo) => groupPassengers.some((gp: Pasajero) => gp.id === v.pasajeroId));
 
-        let defaultFecha = '';
-        let defaultHora = '';
+      let defaultFecha = '';
+      let defaultHora = '';
 
-        if (existingFlight) {
-          const start = new Date(existingFlight.fechaHora);
-          defaultFecha = dateKeyLocal(start);
-          const localDate = new Date(start.getTime() - start.getTimezoneOffset() * 60000);
-          defaultHora = localDate.toISOString().split('T')[1].substring(0, 5);
-          setDate(start);
-        } else if (reserva && reserva.fechaAgenda) {
-          const fr = reserva.fechaAgenda as string | Date;
-          defaultFecha = typeof fr === 'string' ? fr.split('T')[0] : new Date(fr).toISOString().split('T')[0];
-          setDate(typeof fr === 'string' ? new Date(fr) : new Date(fr));
+      let dateToSet: Date | null = null;
+      if (existingFlight) {
+        const start = new Date(existingFlight.fechaHora);
+        defaultFecha = dateKeyLocal(start);
+        const localDate = new Date(start.getTime() - start.getTimezoneOffset() * 60000);
+        defaultHora = localDate.toISOString().split('T')[1].substring(0, 5);
+        dateToSet = start;
+      } else if (reserva && reserva.fechaAgenda) {
+        const fr = reserva.fechaAgenda as string | Date;
+        defaultFecha = typeof fr === 'string' ? fr.split('T')[0] : new Date(fr).toISOString().split('T')[0];
+        dateToSet = typeof fr === 'string' ? new Date(fr) : new Date(fr);
+      }
+
+      setEditingId(null);
+      setFormData({ pilotoId: '', pasajeroId: '', fecha: defaultFecha, hora: defaultHora, valorPactado: '' });
+
+      const autoSelections: Record<number, string> = {};
+      groupPassengers.forEach((p: Pasajero) => {
+        const pFlight = vuelos.find((v: Vuelo) => v.pasajeroId === p.id);
+        if (pFlight) {
+          autoSelections[p.id] = String(pFlight.pilotoId);
         }
-
-        modalController.setEditingId(null);
-        modalController.setFormData({ pilotoId: '', pasajeroId: '', fecha: defaultFecha, hora: defaultHora, valorPactado: '' });
-
-        const autoSelections: Record<number, string> = {};
-        groupPassengers.forEach((p: Pasajero) => {
-          const pFlight = vuelos.find((v: Vuelo) => v.pasajeroId === p.id);
-          if (pFlight) {
-            autoSelections[p.id] = String(pFlight.pilotoId);
-          }
-        });
-        modalController.setGroupPilotSelections(autoSelections);
-        modalController.setIsModalOpen(true);
+      });
+      setGroupPilotSelections(autoSelections);
+      setIsModalOpen(true);
+      if (dateToSet) {
+        // Ejecutamos setDate de manera diferida para no interferir en el ciclo de render actual del efecto
+        setTimeout(() => setDate(dateToSet!), 0);
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- run-once al montar cuando todos los queries están listos; deps adicionales causarían reapertura del modal al cambiar datos
-  }, [allDataReady]);
-  /* eslint-enable react-hooks/set-state-in-effect */
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run-once al montar cuando todos los queries están listos y hay un reservaIdParam nuevo; dependencias en objetos causan renders infinitos
+  }, [
+    allDataReady,
+    reservaIdParam,
+    setFilterReservaId,
+    setEditingId,
+    setFormData,
+    setGroupPilotSelections,
+    setIsModalOpen,
+  ]);
 
   const openConfigBloques = () => {
     setIsConfigModalOpen(true);

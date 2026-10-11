@@ -7,7 +7,9 @@ import {
   CalendarioModals,
 } from './components';
 
-export default function CalendarioPage() {
+import { Suspense } from 'react';
+
+function CalendarioPageContent() {
   const c = useCalendarioController();
 
   return (
@@ -26,5 +28,13 @@ export default function CalendarioPage() {
       {/* Orquestación de Diálogos Modales (Vuelo, Sync, ConfigBloques, Pagos) */}
       <CalendarioModals controller={c} />
     </div>
+  );
+}
+
+export default function CalendarioPage() {
+  return (
+    <Suspense fallback={<div>Cargando calendario...</div>}>
+      <CalendarioPageContent />
+    </Suspense>
   );
 }

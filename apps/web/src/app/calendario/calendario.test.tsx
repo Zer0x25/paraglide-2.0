@@ -4,6 +4,10 @@ import { render, screen, fireEvent, waitFor, act } from '../../test/render';
 import { queryClient } from '../../test/render';
 import CalendarioPage from './page';
 import api from '../../services/api';
+
+vi.mock('next/navigation', () => ({
+  useSearchParams: vi.fn(() => new URLSearchParams()),
+}));
 import type { CalendarEvent } from './hooks/types';
 import type { ConfiguracionBloqueDTO, ResolucionDiaDTO } from '@parapente/shared';
 
