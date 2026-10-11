@@ -42,14 +42,13 @@ describe('uuid()', () => {
     expect(uuid()).toMatch(UUID_V4);
   });
 
-  it('cae al último recurso sin romperse si no hay Web Crypto en absoluto', () => {
+  it('lanza un error si no hay Web Crypto en absoluto por razones de seguridad', () => {
     Object.defineProperty(globalThis, 'crypto', {
       value: undefined,
       configurable: true,
       writable: true,
     });
 
-    expect(() => uuid()).not.toThrow();
-    expect(uuid()).toMatch(UUID_V4);
+    expect(() => uuid()).toThrowError('Secure random number generation is not supported in this environment.');
   });
 });

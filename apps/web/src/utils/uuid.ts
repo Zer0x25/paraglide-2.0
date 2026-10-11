@@ -22,11 +22,6 @@ export function uuid(): string {
     const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
     return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
   }
-  // Último recurso (entornos sin Web Crypto): suficiente para idempotencia,
-  // no para criptografía.
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (ch) => {
-    const r = (Math.random() * 16) | 0;
-    const v = ch === 'x' ? r : (r & 0x3) | 0x8;
-    return v.toString(16);
-  });
+  // Último recurso (entornos sin Web Crypto): no permitido por razones de seguridad.
+  throw new Error('Secure random number generation is not supported in this environment.');
 }
