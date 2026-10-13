@@ -47,9 +47,22 @@ export interface RegistrarFirmaDTO {
 }
 
 export class PublicService {
-  getHealth() {
+  async getHealth() {
+    let dbOk = false;
+    try {
+      if (typeof (prisma as any).$queryRaw === 'function') {
+        await (prisma as any).$queryRaw`SELECT 1`;
+        dbOk = true;
+      } else {
+        dbOk = true;
+      }
+    } catch {
+      dbOk = false;
+    }
+
     return {
-      status: 'ok',
+      status: dbOk ? 'ok' : 'degraded',
+      database: dbOk ? 'connected' : 'disconnected',
       version: APP_VERSION,
       commit: process.env.GIT_COMMIT_SHA || process.env.COMMIT_SHA || null,
       uptime: Math.round(process.uptime()),
@@ -149,10 +162,7 @@ export class PublicService {
     const reserva: any = await prisma.reserva.findFirst({
       where: {
         deletedAt: null,
-        OR: [
-          { tokenPublico: id },
-          { shortId: id },
-        ],
+        OR: [{ tokenPublico: id }, { shortId: id }],
       },
       select: selectClause,
     });
@@ -279,22 +289,34 @@ export class PublicService {
         reglas.find((r: any) => r.categoria === 'PUNTO_ENCUENTRO' && r.esDefault)?.valor ||
         reglas.find((r: any) => r.clave === 'puntoDeEncuentro')?.valor;
       if (hit) puntoDeEncuentro = hit;
-    } catch { /* fallback */ }
+    } catch {
+      /* fallback */
+    }
 
     let nombreEscuela = 'Parapente School';
     try {
       const empresa = await prisma.empresa.findFirst();
       if (empresa?.nombre) nombreEscuela = empresa.nombre;
-    } catch { /* fallback */ }
+    } catch {
+      /* fallback */
+    }
 
     const fechaAgenda: Date | null = reserva.fechaAgenda ? new Date(reserva.fechaAgenda) : null;
     const fechaStr = fechaAgenda
-      ? formatFechaEspanol(fechaAgenda, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
+      ? formatFechaEspanol(fechaAgenda, {
+          weekday: 'long',
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+        })
       : 'Por coordinar con la escuela';
     const horaStr = reserva.horaAgenda ? `${reserva.horaAgenda} hrs` : 'Por coordinar';
     const estadoPago = (reserva.estadoPago as string) || 'PENDIENTE';
     const montoDevuelto = Number(reserva.montoDevuelto || 0);
-    const saldoPendiente = Math.max(0, Number(reserva.valorTotal || 0) - Number(reserva.abono || 0));
+    const saldoPendiente = Math.max(
+      0,
+      Number(reserva.valorTotal || 0) - Number(reserva.abono || 0),
+    );
     const estadoLabel: Record<string, string> = {
       CANCELADA: 'CANCELADA',
       COMPLETADA: 'COMPLETADA',
@@ -314,66 +336,162 @@ export class PublicService {
     // Header
     doc.save().rect(0, 0, doc.page.width, 82).fill('#1e3a8a').restore();
     doc.fillColor('#fff').font('Helvetica-Bold').fontSize(16).text('VUELO EN PARAPENTE', 36, 22);
-    doc.font('Helvetica').fontSize(7).fillColor('#bfdbfe').text('Experiencia Biplaza Tandem con Piloto Certificado  ·  ' + nombreEscuela, 36, 42);
-    doc.font('Helvetica-Bold').fontSize(7).fillColor('#fff').text(`Ticket #${reserva.numeroReserva || reserva.id}`, 36, 56);
-    
+    doc
+      .font('Helvetica')
+      .fontSize(7)
+      .fillColor('#bfdbfe')
+      .text('Experiencia Biplaza Tandem con Piloto Certificado  ·  ' + nombreEscuela, 36, 42);
+    doc
+      .font('Helvetica-Bold')
+      .fontSize(7)
+      .fillColor('#fff')
+      .text(`Ticket #${reserva.numeroReserva || reserva.id}`, 36, 56);
+
     // Badge estado arriba derecha
     const badgeText = estadoLabel[estado] || estado;
     const badgeColor =
-      estado === 'CANCELADA' ? '#ef4444' : estado === 'COMPLETADA' ? '#334155' : estado === 'SIN_AGENDAR' ? '#f59e0b' : '#10b981';
-    doc.save().roundedRect(doc.page.width - 120, 28, 84, 22, 6).fill(badgeColor).restore();
-    doc.fillColor('#fff').font('Helvetica-Bold').fontSize(8).text(badgeText, doc.page.width - 120, 35, { width: 84, align: 'center' });
+      estado === 'CANCELADA'
+        ? '#ef4444'
+        : estado === 'COMPLETADA'
+          ? '#334155'
+          : estado === 'SIN_AGENDAR'
+            ? '#f59e0b'
+            : '#10b981';
+    doc
+      .save()
+      .roundedRect(doc.page.width - 120, 28, 84, 22, 6)
+      .fill(badgeColor)
+      .restore();
+    doc
+      .fillColor('#fff')
+      .font('Helvetica-Bold')
+      .fontSize(8)
+      .text(badgeText, doc.page.width - 120, 35, { width: 84, align: 'center' });
     doc.fillColor('#111');
 
     let y = 98;
     // Titular + Fecha/Hora + Punto
     doc.font('Helvetica-Bold').fontSize(7).fillColor('#64748b').text('TITULAR DE RESERVA', 36, y);
-    doc.font('Helvetica-Bold').fontSize(10).fillColor('#0f172a').text(reserva.nombreTitular || '—', 36, y + 10);
-    doc.font('Helvetica').fontSize(7).fillColor('#64748b').text(reserva.telefono || '', 36, y + 24);
+    doc
+      .font('Helvetica-Bold')
+      .fontSize(10)
+      .fillColor('#0f172a')
+      .text(reserva.nombreTitular || '—', 36, y + 10);
+    doc
+      .font('Helvetica')
+      .fontSize(7)
+      .fillColor('#64748b')
+      .text(reserva.telefono || '', 36, y + 24);
 
     doc.font('Helvetica-Bold').fontSize(7).fillColor('#64748b').text('FECHA DEL VUELO', 260, y);
-    doc.font('Helvetica-Bold').fontSize(9).fillColor('#0f172a').text(fechaStr, 260, y + 10, { width: 140 });
-    doc.font('Helvetica').fontSize(7).fillColor('#0f172a').text(horaStr, 260, y + 26);
-    doc.font('Helvetica').fontSize(6).fillColor('#64748b').text('Presentarse 15 min antes', 260, y + 36);
+    doc
+      .font('Helvetica-Bold')
+      .fontSize(9)
+      .fillColor('#0f172a')
+      .text(fechaStr, 260, y + 10, { width: 140 });
+    doc
+      .font('Helvetica')
+      .fontSize(7)
+      .fillColor('#0f172a')
+      .text(horaStr, 260, y + 26);
+    doc
+      .font('Helvetica')
+      .fontSize(6)
+      .fillColor('#64748b')
+      .text('Presentarse 15 min antes', 260, y + 36);
 
     doc.font('Helvetica-Bold').fontSize(7).fillColor('#64748b').text('PUNTO DE ENCUENTRO', 420, y);
-    doc.font('Helvetica-Bold').fontSize(8).fillColor('#0f172a').text(puntoDeEncuentro, 420, y + 10, { width: 140 });
-    doc.font('Helvetica').fontSize(6).fillColor('#64748b').text('Pista Principal de Vuelo', 420, y + 26);
+    doc
+      .font('Helvetica-Bold')
+      .fontSize(8)
+      .fillColor('#0f172a')
+      .text(puntoDeEncuentro, 420, y + 10, { width: 140 });
+    doc
+      .font('Helvetica')
+      .fontSize(6)
+      .fillColor('#64748b')
+      .text('Pista Principal de Vuelo', 420, y + 26);
 
     y += 56;
-    doc.moveTo(36, y).lineTo(doc.page.width - 36, y).strokeColor('#e2e8f0').lineWidth(0.6).stroke();
+    doc
+      .moveTo(36, y)
+      .lineTo(doc.page.width - 36, y)
+      .strokeColor('#e2e8f0')
+      .lineWidth(0.6)
+      .stroke();
     y += 10;
 
     // Pasajeros
-    doc.font('Helvetica-Bold').fontSize(7).fillColor('#64748b').text(`PASAJEROS REGISTRADOS (${(reserva.pasajeros || []).length})`, 36, y);
+    doc
+      .font('Helvetica-Bold')
+      .fontSize(7)
+      .fillColor('#64748b')
+      .text(`PASAJEROS REGISTRADOS (${(reserva.pasajeros || []).length})`, 36, y);
     y += 12;
     const pasajeros: any[] = reserva.pasajeros || [];
     if (pasajeros.length === 0) {
-      doc.font('Helvetica').fontSize(8).fillColor('#64748b').text('Sin pasajeros registrados.', 36, y);
+      doc
+        .font('Helvetica')
+        .fontSize(8)
+        .fillColor('#64748b')
+        .text('Sin pasajeros registrados.', 36, y);
       y += 14;
     } else {
       for (let i = 0; i < pasajeros.length; i++) {
         const p = pasajeros[i];
-        if (y > doc.page.height - 90) { doc.addPage(); y = 36; }
+        if (y > doc.page.height - 90) {
+          doc.addPage();
+          y = 36;
+        }
         const bg = i % 2 === 0 ? '#f8fafc' : '#ffffff';
-        doc.save().roundedRect(36, y, doc.page.width - 72, 22, 6).fill(bg).strokeColor('#e2e8f0').lineWidth(0.4).stroke().restore();
-        doc.fillColor('#0f172a').font('Helvetica-Bold').fontSize(7).text(`${i + 1}. ${p.nombre}`, 44, y + 5, { width: 300 });
-        doc.font('Helvetica').fontSize(6).fillColor('#64748b').text(p.rutDni || 'RUT por registrar', 44, y + 13);
+        doc
+          .save()
+          .roundedRect(36, y, doc.page.width - 72, 22, 6)
+          .fill(bg)
+          .strokeColor('#e2e8f0')
+          .lineWidth(0.4)
+          .stroke()
+          .restore();
+        doc
+          .fillColor('#0f172a')
+          .font('Helvetica-Bold')
+          .fontSize(7)
+          .text(`${i + 1}. ${p.nombre}`, 44, y + 5, { width: 300 });
+        doc
+          .font('Helvetica')
+          .fontSize(6)
+          .fillColor('#64748b')
+          .text(p.rutDni || 'RUT por registrar', 44, y + 13);
         const firmaLabel = p.firmaDeslinde ? 'Deslinde Firmado' : 'Firma Pendiente';
         const firmaColor = p.firmaDeslinde ? '#065f46' : '#92400e';
         const firmaBg = p.firmaDeslinde ? '#d1fae5' : '#fef3c7';
         const tw = doc.widthOfString(firmaLabel) + 10;
         const bx = doc.page.width - 36 - tw - 8;
-        doc.save().roundedRect(bx, y + 5, tw, 12, 6).fill(firmaBg).restore();
-        doc.fillColor(firmaColor).font('Helvetica-Bold').fontSize(6).text(firmaLabel, bx, y + 9, { width: tw, align: 'center' });
+        doc
+          .save()
+          .roundedRect(bx, y + 5, tw, 12, 6)
+          .fill(firmaBg)
+          .restore();
+        doc
+          .fillColor(firmaColor)
+          .font('Helvetica-Bold')
+          .fontSize(6)
+          .text(firmaLabel, bx, y + 9, { width: tw, align: 'center' });
         y += 26;
       }
     }
 
     // Desglose de tarifa y promoción (si existe tarifa asignada)
     if (reserva.tarifa) {
-      if (y > doc.page.height - 140) { doc.addPage(); y = 36; }
-      doc.font('Helvetica-Bold').fontSize(7).fillColor('#64748b').text('DESGLOSE DE TARIFA Y PROMOCIÓN', 36, y);
+      if (y > doc.page.height - 140) {
+        doc.addPage();
+        y = 36;
+      }
+      doc
+        .font('Helvetica-Bold')
+        .fontSize(7)
+        .fillColor('#64748b')
+        .text('DESGLOSE DE TARIFA Y PROMOCIÓN', 36, y);
       y += 12;
 
       const numPasajeros = Math.max(1, (reserva.pasajeros || []).length);
@@ -382,23 +500,65 @@ export class PublicService {
       const descuentoTotal = toNum(reserva.descuento);
 
       const boxHeight = descuentoTotal > 0 ? 46 : 30;
-      doc.save().roundedRect(36, y, doc.page.width - 72, boxHeight, 6).fill('#f8fafc').strokeColor('#e2e8f0').lineWidth(0.4).stroke().restore();
+      doc
+        .save()
+        .roundedRect(36, y, doc.page.width - 72, boxHeight, 6)
+        .fill('#f8fafc')
+        .strokeColor('#e2e8f0')
+        .lineWidth(0.4)
+        .stroke()
+        .restore();
 
       // Fila Tarifa
-      doc.font('Helvetica-Bold').fontSize(7).fillColor('#0f172a').text(reserva.tarifa.nombre, 44, y + 6);
-      doc.font('Helvetica').fontSize(6).fillColor('#64748b').text(`${numPasajeros} ${numPasajeros === 1 ? 'vuelo' : 'vuelos'} × $${precioUnitario.toLocaleString('es-CL')}`, 44, y + 16);
-      doc.font('Helvetica-Bold').fontSize(7).fillColor('#0f172a').text(`$${precioSubtotal.toLocaleString('es-CL')}`, doc.page.width - 140, y + 6, { width: 96, align: 'right' });
+      doc
+        .font('Helvetica-Bold')
+        .fontSize(7)
+        .fillColor('#0f172a')
+        .text(reserva.tarifa.nombre, 44, y + 6);
+      doc
+        .font('Helvetica')
+        .fontSize(6)
+        .fillColor('#64748b')
+        .text(
+          `${numPasajeros} ${numPasajeros === 1 ? 'vuelo' : 'vuelos'} × $${precioUnitario.toLocaleString('es-CL')}`,
+          44,
+          y + 16,
+        );
+      doc
+        .font('Helvetica-Bold')
+        .fontSize(7)
+        .fillColor('#0f172a')
+        .text(`$${precioSubtotal.toLocaleString('es-CL')}`, doc.page.width - 140, y + 6, {
+          width: 96,
+          align: 'right',
+        });
 
       // Fila Descuento (si aplica)
       if (descuentoTotal > 0) {
         const promoNombre = reserva.promocion?.nombre || 'Promoción';
-        const promoDetalle = reserva.promocion?.tipoDescuento === 'PORCENTAJE'
-          ? `Descuento ${toNum(reserva.promocion.valor)}%`
-          : `Descuento $${toNum(reserva.promocion?.valor || (descuentoTotal / numPasajeros)).toLocaleString('es-CL')} × ${numPasajeros} ${numPasajeros === 1 ? 'vuelo' : 'vuelos'}`;
+        const promoDetalle =
+          reserva.promocion?.tipoDescuento === 'PORCENTAJE'
+            ? `Descuento ${toNum(reserva.promocion.valor)}%`
+            : `Descuento $${toNum(reserva.promocion?.valor || descuentoTotal / numPasajeros).toLocaleString('es-CL')} × ${numPasajeros} ${numPasajeros === 1 ? 'vuelo' : 'vuelos'}`;
 
-        doc.font('Helvetica-Bold').fontSize(7).fillColor('#16a34a').text(`🏷️ ${promoNombre}`, 44, y + 26);
-        doc.font('Helvetica').fontSize(6).fillColor('#15803d').text(promoDetalle, 170, y + 27);
-        doc.font('Helvetica-Bold').fontSize(7).fillColor('#16a34a').text(`-$${descuentoTotal.toLocaleString('es-CL')}`, doc.page.width - 140, y + 26, { width: 96, align: 'right' });
+        doc
+          .font('Helvetica-Bold')
+          .fontSize(7)
+          .fillColor('#16a34a')
+          .text(`🏷️ ${promoNombre}`, 44, y + 26);
+        doc
+          .font('Helvetica')
+          .fontSize(6)
+          .fillColor('#15803d')
+          .text(promoDetalle, 170, y + 27);
+        doc
+          .font('Helvetica-Bold')
+          .fontSize(7)
+          .fillColor('#16a34a')
+          .text(`-$${descuentoTotal.toLocaleString('es-CL')}`, doc.page.width - 140, y + 26, {
+            width: 96,
+            align: 'right',
+          });
       }
 
       y += boxHeight + 8;
@@ -407,24 +567,78 @@ export class PublicService {
     }
 
     // Resumen financiero
-    doc.save().roundedRect(36, y, doc.page.width - 72, 44, 8).fill('#0f172a').restore();
-    doc.fillColor('#94a3b8').font('Helvetica-Bold').fontSize(6).text('SALDO DE LA RESERVA', 48, y + 8);
+    doc
+      .save()
+      .roundedRect(36, y, doc.page.width - 72, 44, 8)
+      .fill('#0f172a')
+      .restore();
+    doc
+      .fillColor('#94a3b8')
+      .font('Helvetica-Bold')
+      .fontSize(6)
+      .text('SALDO DE LA RESERVA', 48, y + 8);
     if (estadoPago === 'DEVUELTO') {
-      doc.fillColor('#f87171').font('Helvetica-Bold').fontSize(13).text(`$${montoDevuelto.toLocaleString('es-CL')} DEVUELTO`, 48, y + 18);
-      doc.fillColor('#cbd5e1').font('Helvetica').fontSize(6).text(`Devuelto: $${montoDevuelto.toLocaleString('es-CL')} • Abono: $${Number(reserva.abono || 0).toLocaleString('es-CL')}`, 48, y + 32);
+      doc
+        .fillColor('#f87171')
+        .font('Helvetica-Bold')
+        .fontSize(13)
+        .text(`$${montoDevuelto.toLocaleString('es-CL')} DEVUELTO`, 48, y + 18);
+      doc
+        .fillColor('#cbd5e1')
+        .font('Helvetica')
+        .fontSize(6)
+        .text(
+          `Devuelto: $${montoDevuelto.toLocaleString('es-CL')} • Abono: $${Number(reserva.abono || 0).toLocaleString('es-CL')}`,
+          48,
+          y + 32,
+        );
     } else {
-      const saldoTxt = estadoPago === 'PAGADO' ? '$0 (PAGADO)' : `$${saldoPendiente.toLocaleString('es-CL')} (${estadoPago})`;
-      const saldoColor = estadoPago === 'PAGADO' ? '#34d399' : estadoPago === 'ABONADO' ? '#38bdf8' : '#fbbf24';
-      doc.fillColor(saldoColor).font('Helvetica-Bold').fontSize(13).text(saldoTxt, 48, y + 18);
-      doc.fillColor('#cbd5e1').font('Helvetica').fontSize(6).text(`Abono: $${Number(reserva.abono || 0).toLocaleString('es-CL')} / $${Number(reserva.valorTotal || 0).toLocaleString('es-CL')}`, 48, y + 32);
+      const saldoTxt =
+        estadoPago === 'PAGADO'
+          ? '$0 (PAGADO)'
+          : `$${saldoPendiente.toLocaleString('es-CL')} (${estadoPago})`;
+      const saldoColor =
+        estadoPago === 'PAGADO' ? '#34d399' : estadoPago === 'ABONADO' ? '#38bdf8' : '#fbbf24';
+      doc
+        .fillColor(saldoColor)
+        .font('Helvetica-Bold')
+        .fontSize(13)
+        .text(saldoTxt, 48, y + 18);
+      doc
+        .fillColor('#cbd5e1')
+        .font('Helvetica')
+        .fontSize(6)
+        .text(
+          `Abono: $${Number(reserva.abono || 0).toLocaleString('es-CL')} / $${Number(reserva.valorTotal || 0).toLocaleString('es-CL')}`,
+          48,
+          y + 32,
+        );
     }
-    doc.fillColor('#94a3b8').font('Helvetica').fontSize(6).text('Ticket emitido por Parapente · Válido para la fecha agendada', doc.page.width - 280, y + 32, { width: 230, align: 'right' });
+    doc
+      .fillColor('#94a3b8')
+      .font('Helvetica')
+      .fontSize(6)
+      .text(
+        'Ticket emitido por Parapente · Válido para la fecha agendada',
+        doc.page.width - 280,
+        y + 32,
+        { width: 230, align: 'right' },
+      );
 
     // Footer paginación
     const range = doc.bufferedPageRange();
     for (let i = 0; i < range.count; i++) {
       doc.switchToPage(i);
-      doc.font('Helvetica').fontSize(6).fillColor('#94a3b8').text(`Voucher ${reserva.numeroReserva || reserva.id}  ·  ${nombreEscuela}`, 36, doc.page.height - 18, { align: 'center' });
+      doc
+        .font('Helvetica')
+        .fontSize(6)
+        .fillColor('#94a3b8')
+        .text(
+          `Voucher ${reserva.numeroReserva || reserva.id}  ·  ${nombreEscuela}`,
+          36,
+          doc.page.height - 18,
+          { align: 'center' },
+        );
     }
 
     doc.end();
@@ -436,7 +650,7 @@ export class PublicService {
   async registrarFirmaDeslinde(
     id: string,
     body: RegistrarFirmaDTO,
-    meta: { ip?: string; userAgent?: string | null }
+    meta: { ip?: string; userAgent?: string | null },
   ) {
     const {
       firmaBase64,
@@ -457,10 +671,7 @@ export class PublicService {
       where: {
         deletedAt: null,
         // Solo identificadores no secuenciales (ADR 005): sin numeroPasajero ni id.
-        OR: [
-          { tokenPublico: id },
-          { shortId: id },
-        ],
+        OR: [{ tokenPublico: id }, { shortId: id }],
       },
       include: { reserva: true },
     });
@@ -472,7 +683,9 @@ export class PublicService {
     }
 
     if (pasajeroExistente.reserva?.cerradaAt) {
-      const error: any = new Error('No se puede firmar deslinde de una reserva cerrada contablemente');
+      const error: any = new Error(
+        'No se puede firmar deslinde de una reserva cerrada contablemente',
+      );
       error.statusCode = 400;
       throw error;
     }
@@ -485,7 +698,8 @@ export class PublicService {
 
     const updatedPasajero = await prisma.$transaction(async (tx) => {
       if (typeof (tx as any).$queryRaw === 'function') {
-        await (tx as any).$queryRaw`SELECT id FROM "Pasajero" WHERE id = ${pasajeroExistente.id} FOR UPDATE`;
+        await (tx as any)
+          .$queryRaw`SELECT id FROM "Pasajero" WHERE id = ${pasajeroExistente.id} FOR UPDATE`;
       }
 
       if (typeof (tx.pasajero as any)?.findUnique === 'function') {
@@ -553,7 +767,9 @@ export class PublicService {
 
   async getPantalla(token?: string) {
     if (!token) {
-      const err: any = new Error('Esta pantalla requiere un enlace válido. Solicítalo a la escuela.');
+      const err: any = new Error(
+        'Esta pantalla requiere un enlace válido. Solicítalo a la escuela.',
+      );
       err.code = 'LINK_REQUERIDO';
       err.statusCode = 401;
       throw err;
@@ -600,7 +816,11 @@ export class PublicService {
 
       const vuelosFormateados = vuelos.map((v) => ({
         id: v.id,
-        hora: new Date(v.fechaHora).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', hour12: false }),
+        hora: new Date(v.fechaHora).toLocaleTimeString('es-CL', {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false,
+        }),
         pilotoNombre: v.piloto.nombre,
         pilotoCategoria: v.piloto.categoria,
         pasajeroNombre: v.pasajero.nombre,

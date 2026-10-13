@@ -62,12 +62,21 @@ describe('PublicService (Unit Tests)', () => {
   });
 
   describe('getHealth', () => {
-    it('debería retornar el estado ok, versión y uptime', () => {
-      const health = service.getHealth();
+    it('debería retornar el estado ok, versión y uptime', async () => {
+      (prisma as any).$queryRaw = vi.fn().mockResolvedValue([{ '?column?': 1 }]);
+      const health = await service.getHealth();
       expect(health.status).toBe('ok');
+      expect(health.database).toBe('connected');
       expect(typeof health.version).toBe('string');
       expect(typeof health.uptime).toBe('number');
       expect(typeof health.timestamp).toBe('string');
+    });
+
+    it('debería retornar degraded si la base de datos falla', async () => {
+      (prisma as any).$queryRaw = vi.fn().mockRejectedValue(new Error('DB down'));
+      const health = await service.getHealth();
+      expect(health.status).toBe('degraded');
+      expect(health.database).toBe('disconnected');
     });
   });
 
@@ -99,7 +108,7 @@ describe('PublicService (Unit Tests)', () => {
   describe('registrarFirmaDeslinde', () => {
     it('debería lanzar error 400 si falta la firma', async () => {
       await expect(
-        service.registrarFirmaDeslinde('pax-1', { firmaBase64: '' }, { ip: '127.0.0.1' })
+        service.registrarFirmaDeslinde('pax-1', { firmaBase64: '' }, { ip: '127.0.0.1' }),
       ).rejects.toMatchObject({ statusCode: 400 });
     });
 
@@ -107,7 +116,11 @@ describe('PublicService (Unit Tests)', () => {
       (prisma.pasajero.findFirst as any).mockResolvedValue(null);
 
       await expect(
-        service.registrarFirmaDeslinde('pax-inexistente', { firmaBase64: 'data:image/png;base64,...' }, {})
+        service.registrarFirmaDeslinde(
+          'pax-inexistente',
+          { firmaBase64: 'data:image/png;base64,...' },
+          {},
+        ),
       ).rejects.toMatchObject({ statusCode: 404 });
     });
 
@@ -118,7 +131,7 @@ describe('PublicService (Unit Tests)', () => {
       });
 
       await expect(
-        service.registrarFirmaDeslinde('pax-1', { firmaBase64: 'data:image/png;base64,...' }, {})
+        service.registrarFirmaDeslinde('pax-1', { firmaBase64: 'data:image/png;base64,...' }, {}),
       ).rejects.toMatchObject({ statusCode: 400 });
     });
 
@@ -144,7 +157,7 @@ describe('PublicService (Unit Tests)', () => {
       const res = await service.registrarFirmaDeslinde(
         'pax-1',
         { firmaBase64: 'data:image/png;base64,...', rutDni: '11.222.333-4' },
-        { ip: '127.0.0.1', userAgent: 'Browser/1.0' }
+        { ip: '127.0.0.1', userAgent: 'Browser/1.0' },
       );
 
       expect(res.message).toContain('exitosamente');
