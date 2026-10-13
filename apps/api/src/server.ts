@@ -2,12 +2,15 @@ import 'dotenv/config';
 import { NodeSDK } from '@opentelemetry/sdk-node';
 import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
 
-// Inicializar OpenTelemetry (Trazas)
-const sdk = new NodeSDK({
-  traceExporter: new (require('@opentelemetry/sdk-trace-base').ConsoleSpanExporter)(),
-  instrumentations: [getNodeAutoInstrumentations()]
-});
-sdk.start();
+// Inicializar OpenTelemetry (Trazas) solo fuera de producción o si se habilita explícitamente
+let sdk: NodeSDK | null = null;
+if (process.env.NODE_ENV !== 'production' && process.env.ENABLE_OTEL_CONSOLE === 'true') {
+  sdk = new NodeSDK({
+    traceExporter: new (require('@opentelemetry/sdk-trace-base').ConsoleSpanExporter)(),
+    instrumentations: [getNodeAutoInstrumentations()],
+  });
+  sdk.start();
+}
 import { buildApp } from './app';
 import { config } from './config';
 import { iniciarHigieneBloques } from './services/higiene.service';
@@ -22,6 +25,25 @@ async function start() {
     // Server boot
     await app.listen({ port: config.port, host: config.host });
     console.log(`API de Fastify escuchando en el puerto ${config.port}`);
+
+    // Graceful Shutdown
+    const shutdown = async (signal: string) => {
+      console.log(`\n[Server] Recibida señal ${signal}. Iniciando apagado ordenado...`);
+      try {
+        await app.close();
+        if (sdk) {
+          await sdk.shutdown();
+        }
+        console.log('[Server] Apagado ordenado finalizado.');
+        process.exit(0);
+      } catch (err) {
+        console.error('[Server] Error durante el apagado:', err);
+        process.exit(1);
+      }
+    };
+    process.on('SIGTERM', () => void shutdown('SIGTERM'));
+    process.on('SIGINT', () => void shutdown('SIGINT'));
+
     // Higiene de reglas de bloques: barrido inicial + archivado diario 03:00 UTC
     iniciarHigieneBloques();
     // Sampler de condiciones de pista vía Open-Meteo: barrido inicial + ciclo cada 15 min
