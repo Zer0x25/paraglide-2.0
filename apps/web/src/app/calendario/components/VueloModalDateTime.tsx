@@ -1,6 +1,7 @@
-"use client";
+'use client';
 
 import { Calendar, AlertTriangle, Sparkles } from 'lucide-react';
+import { dateKeyLocal } from '@parapente/shared';
 import type { HorarioBloque } from '../hooks/types';
 
 interface VueloModalDateTimeProps {
@@ -43,12 +44,16 @@ export function VueloModalDateTime({
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
-          <label htmlFor="vuelo-fecha" className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase mb-1">
+          <label
+            htmlFor="vuelo-fecha"
+            className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase mb-1"
+          >
             Fecha
           </label>
           <input
             id="vuelo-fecha"
             type="date"
+            min={dateKeyLocal()}
             required
             disabled={esCerrada}
             value={fecha}
@@ -58,11 +63,16 @@ export function VueloModalDateTime({
         </div>
 
         <div>
-          <label htmlFor="vuelo-hora" className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase mb-1">
+          <label
+            htmlFor="vuelo-hora"
+            className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase mb-1"
+          >
             Bloque Horario
           </label>
           {!fecha ? (
-            <p className="text-xs text-slate-500 py-2">Selecciona una fecha primero para ver los bloques disponibles.</p>
+            <p className="text-xs text-slate-500 py-2">
+              Selecciona una fecha primero para ver los bloques disponibles.
+            </p>
           ) : isBloqueado ? (
             <div className="flex flex-col gap-1 p-3 bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-900 rounded-2xl text-xs font-bold text-red-700 dark:text-red-300">
               <div className="flex items-center gap-1.5">
@@ -71,9 +81,14 @@ export function VueloModalDateTime({
               </div>
               <p className="text-[11px] font-normal text-red-500">
                 No se pueden agendar vuelos.{' '}
-                <button type="button" onClick={openConfigBloques} className="underline font-bold cursor-pointer">
+                <button
+                  type="button"
+                  onClick={openConfigBloques}
+                  className="underline font-bold cursor-pointer"
+                >
                   Configurar Horarios
-                </button>.
+                </button>
+                .
               </p>
             </div>
           ) : availableBlocks.length === 0 ? (
@@ -84,9 +99,14 @@ export function VueloModalDateTime({
               </div>
               <p className="text-[11px] font-normal text-amber-600">
                 Configura horarios con el botón{' '}
-                <button type="button" onClick={openConfigBloques} className="underline font-bold cursor-pointer">
+                <button
+                  type="button"
+                  onClick={openConfigBloques}
+                  className="underline font-bold cursor-pointer"
+                >
                   Configurar Bloques
-                </button>.
+                </button>
+                .
               </p>
             </div>
           ) : (
@@ -98,12 +118,10 @@ export function VueloModalDateTime({
               onChange={(e) => onHoraChange(e.target.value)}
               className={`w-full border border-slate-200 dark:border-slate-700 rounded-2xl px-3.5 py-2 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-bold outline-none focus:ring-2 focus:ring-blue-500 ${esCerrada ? 'opacity-60 cursor-not-allowed bg-slate-100 dark:bg-slate-800/60' : ''}`}
             >
-              <option value="" disabled>Seleccione un bloque...</option>
-              {selectedTimeIsCustom && (
-                <option value={hora}>
-                  Hora guardada: {hora}
-                </option>
-              )}
+              <option value="" disabled>
+                Seleccione un bloque...
+              </option>
+              {selectedTimeIsCustom && <option value={hora}>Hora guardada: {hora}</option>}
               {availableBlocks.map((block: HorarioBloque, i: number) => (
                 <option key={i} value={block.horaInicio}>
                   {block.horaInicio} – {block.horaFin}

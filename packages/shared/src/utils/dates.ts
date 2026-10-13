@@ -13,6 +13,13 @@ const formatYMD = (d: Date, timeZone: string): string => {
       month: '2-digit',
       day: '2-digit',
     });
+    const parts = formatter.formatToParts(d);
+    const y = parts.find((p) => p.type === 'year')?.value;
+    const m = parts.find((p) => p.type === 'month')?.value;
+    const day = parts.find((p) => p.type === 'day')?.value;
+    if (y && m && day) {
+      return `${y}-${m.padStart(2, '0')}-${day.padStart(2, '0')}`;
+    }
     return formatter.format(d);
   } catch {
     const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
@@ -22,7 +29,7 @@ const formatYMD = (d: Date, timeZone: string): string => {
 
 /**
  * Normaliza y devuelve la clave de fecha `YYYY-MM-DD` en la zona horaria canónica (default 'America/Santiago').
- * 
+ *
  * Reglas:
  * 1. Si fecha es falsy (null/undefined), usa la fecha actual en timeZone.
  * 2. Si fecha es un string 'YYYY-MM-DD' directo, extrae 'YYYY-MM-DD' sin conversiones UTC erráticas.
@@ -31,7 +38,7 @@ const formatYMD = (d: Date, timeZone: string): string => {
  */
 export const dateKeyLocal = (
   fecha?: Date | string | null,
-  timeZone: string = DEFAULT_TIMEZONE
+  timeZone: string = DEFAULT_TIMEZONE,
 ): string => {
   if (fecha === null || fecha === undefined) {
     fecha = new Date();
@@ -65,7 +72,7 @@ export const dateKeyLocal = (
  */
 export const horaLocalHHMM = (
   fechaHora: string | Date | null | undefined,
-  timeZone: string = DEFAULT_TIMEZONE
+  timeZone: string = DEFAULT_TIMEZONE,
 ): string => {
   if (!fechaHora) return '00:00';
 
@@ -102,7 +109,7 @@ export const horaLocalHHMM = (
 export const esMismoDia = (
   fechaHoraIso: string | Date,
   dateKey: string,
-  timeZone: string = DEFAULT_TIMEZONE
+  timeZone: string = DEFAULT_TIMEZONE,
 ): boolean => {
   if (!fechaHoraIso || !dateKey) return false;
   return dateKeyLocal(fechaHoraIso, timeZone) === dateKey;
@@ -116,7 +123,7 @@ export const esMismoDia = (
 export const fechaHoraLocalToIso = (
   fecha: string,
   hora: string = '12:00',
-  timeZone: string = DEFAULT_TIMEZONE
+  timeZone: string = DEFAULT_TIMEZONE,
 ): string => {
   const cleanFecha = dateKeyLocal(fecha, timeZone);
   const cleanHora = horaLocalHHMM(hora || '12:00', timeZone);
@@ -150,7 +157,7 @@ export const fechaHoraLocalToIso = (
 export const formatFechaEspanol = (
   fecha: string | Date | null | undefined,
   options?: Intl.DateTimeFormatOptions,
-  timeZone: string = DEFAULT_TIMEZONE
+  timeZone: string = DEFAULT_TIMEZONE,
 ): string => {
   if (!fecha) return '';
 
@@ -170,6 +177,62 @@ export const formatFechaEspanol = (
     return new Intl.DateTimeFormat('es-CL', defaultOptions).format(d);
   } catch {
     return ymd;
+  }
+};
+
+/**
+ * Determina si una fecha y hora opcional corresponden a un momento en el pasado
+ * relativo a la hora actual en la zona horaria oficial ('America/Santiago').
+ *
+ * @param fecha Fecha en string 'YYYY-MM-DD', Date o string ISO.
+ * @param hora Hora opcional 'HH:mm'. Si no se envía y fecha es solo 'YYYY-MM-DD', evalúa si el día calendario ya concluyó (estrictamente anterior a hoy).
+ * @param toleranciaMinutos Margen de gracia en minutos (default: 5) para absorber latencia en mostrador/caja.
+ * @param timeZone Zona horaria (default 'America/Santiago').
+ */
+export const esFechaHoraPasada = (
+  fecha: string | Date | null | undefined,
+  hora?: string | null,
+  toleranciaMinutos: number = 5,
+  timeZone: string = DEFAULT_TIMEZONE,
+): boolean => {
+  if (!fecha) return false;
+
+  const hoyYmd = dateKeyLocal(new Date(), timeZone);
+  const fechaYmd = dateKeyLocal(fecha, timeZone);
+
+  // 1. Si el día civil es anterior a hoy en la zona horaria oficial, es pasado.
+  if (fechaYmd < hoyYmd) {
+    return true;
+  }
+
+  // 2. Si el día civil es posterior a hoy (mañana o después), es futuro.
+  if (fechaYmd > hoyYmd) {
+    return false;
+  }
+
+  // 3. El día civil es HOY:
+  let horaFinal = hora;
+  if (!horaFinal && typeof fecha === 'string' && fecha.includes('T')) {
+    horaFinal = horaLocalHHMM(fecha, timeZone);
+  } else if (!horaFinal && fecha instanceof Date) {
+    horaFinal = horaLocalHHMM(fecha, timeZone);
+  }
+
+  // Si no hay hora especificada (solo el día de hoy sin hora), el día sigue en curso.
+  if (
+    !horaFinal ||
+    horaFinal.trim() === '' ||
+    (horaFinal === '00:00' && typeof fecha === 'string' && !fecha.includes('T'))
+  ) {
+    return false;
+  }
+
+  try {
+    const isoMomento = fechaHoraLocalToIso(fechaYmd, horaFinal, timeZone);
+    const msMomento = new Date(isoMomento).getTime();
+    return msMomento + toleranciaMinutos * 60 * 1000 < Date.now();
+  } catch {
+    return false;
   }
 };
 
@@ -220,5 +283,3 @@ export const buildGoogleCalendarUrl = (params: GoogleCalendarEventParams): strin
 
   return url.toString();
 };
-
-

@@ -1,6 +1,7 @@
-"use client";
+'use client';
 
 import { Calendar, AlertTriangle, RefreshCw } from 'lucide-react';
+import { dateKeyLocal } from '@parapente/shared';
 
 interface AgendamientoRapidoHorariosProps {
   fecha: string;
@@ -17,8 +18,17 @@ interface AgendamientoRapidoHorariosProps {
 }
 
 const HORAS_DISPONIBLES = [
-  '08:00', '09:00', '10:00', '11:00', '12:00', 
-  '13:00', '14:00', '15:00', '16:00', '17:00', '18:00'
+  '08:00',
+  '09:00',
+  '10:00',
+  '11:00',
+  '12:00',
+  '13:00',
+  '14:00',
+  '15:00',
+  '16:00',
+  '17:00',
+  '18:00',
 ];
 
 export function AgendamientoRapidoHorarios({
@@ -50,9 +60,12 @@ export function AgendamientoRapidoHorarios({
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
-          <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase mb-1">Fecha</label>
+          <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase mb-1">
+            Fecha
+          </label>
           <input
             type="date"
+            min={dateKeyLocal()}
             value={fecha}
             onChange={(e) => setFecha(e.target.value)}
             className="w-full border border-slate-200 dark:border-slate-700 rounded-2xl px-3.5 py-2 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-bold outline-none focus:ring-2 focus:ring-blue-500"
@@ -62,7 +75,10 @@ export function AgendamientoRapidoHorarios({
 
         <div>
           <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase mb-1">
-            Bloque Horario {loadingBloques && <span className="text-slate-400 font-normal lowercase">(cargando…)</span>}
+            Bloque Horario{' '}
+            {loadingBloques && (
+              <span className="text-slate-400 font-normal lowercase">(cargando…)</span>
+            )}
           </label>
           {diaBloqueado ? (
             <div className="flex items-center gap-1.5 p-2 bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-900 rounded-2xl text-xs font-bold text-red-700 dark:text-red-300">
@@ -96,7 +112,9 @@ export function AgendamientoRapidoHorarios({
                 className="w-full border border-amber-300 dark:border-amber-700 rounded-2xl px-3.5 py-2 text-sm bg-amber-50/50 dark:bg-amber-950/20 text-slate-900 dark:text-white font-bold outline-none focus:ring-2 focus:ring-blue-500"
               >
                 {HORAS_DISPONIBLES.map((h) => (
-                  <option key={h} value={h}>{h} hrs (estándar)</option>
+                  <option key={h} value={h}>
+                    {h} hrs (estándar)
+                  </option>
                 ))}
               </select>
               <p className="text-[10px] text-amber-600 dark:text-amber-400">
@@ -121,4 +139,3 @@ export function AgendamientoRapidoHorarios({
     </div>
   );
 }
- 

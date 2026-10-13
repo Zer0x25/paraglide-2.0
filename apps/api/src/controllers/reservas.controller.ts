@@ -2,11 +2,21 @@ import { FastifyRequest, FastifyReply } from 'fastify';
 import { reservasService } from '../services/reservas.service';
 import { logAudit } from '../services/auditoria.service';
 import { ConflictError } from '../services/concurrencia.service';
-import { CreateReservaPayloadSchema, UpdateReservaPayloadSchema, CreatePagoPayloadSchema, CreateDevolucionPayloadSchema, ActualizarEstadoPasajerosPayloadSchema, CancelarReservaPayloadSchema } from '@parapente/shared';
+import {
+  CreateReservaPayloadSchema,
+  UpdateReservaPayloadSchema,
+  CreatePagoPayloadSchema,
+  CreateDevolucionPayloadSchema,
+  ActualizarEstadoPasajerosPayloadSchema,
+  CancelarReservaPayloadSchema,
+} from '@parapente/shared';
 import { z } from 'zod';
 
 export class ReservasController {
-  async getAll(req: FastifyRequest<{ Querystring: Record<string, string | undefined> }>, reply: FastifyReply) {
+  async getAll(
+    req: FastifyRequest<{ Querystring: Record<string, string | undefined> }>,
+    reply: FastifyReply,
+  ) {
     const reservas = await reservasService.getAll(req.query);
     return reply.send(reservas);
   }
@@ -21,16 +31,28 @@ export class ReservasController {
   }
 
   async create(req: FastifyRequest, reply: FastifyReply) {
-    const data = CreateReservaPayloadSchema.parse(req.body);
-    const nuevaReserva = await reservasService.create(data);
-    await logAudit(req, {
-      accion: 'CREAR',
-      entidad: 'RESERVA',
-      entidadId: nuevaReserva.id,
-      descripcion: `Reserva ${nuevaReserva.numeroReserva} creada: ${nuevaReserva.nombreTitular}`,
-      detalles: JSON.stringify({ valorTotal: nuevaReserva.valorTotal, abono: nuevaReserva.abono, estadoPago: nuevaReserva.estadoPago }),
-    });
-    return reply.code(201).send(nuevaReserva);
+    try {
+      const data = CreateReservaPayloadSchema.parse(req.body);
+      const nuevaReserva = await reservasService.create(data);
+      await logAudit(req, {
+        accion: 'CREAR',
+        entidad: 'RESERVA',
+        entidadId: nuevaReserva.id,
+        descripcion: `Reserva ${nuevaReserva.numeroReserva} creada: ${nuevaReserva.nombreTitular}`,
+        detalles: JSON.stringify({
+          valorTotal: nuevaReserva.valorTotal,
+          abono: nuevaReserva.abono,
+          estadoPago: nuevaReserva.estadoPago,
+        }),
+      });
+      return reply.code(201).send(nuevaReserva);
+    } catch (error: any) {
+      const msg = String(error?.message ?? '').toLowerCase();
+      if (msg.includes('fecha u hora pasada')) {
+        return reply.code(400).send({ error: 'Bad Request', message: String(error.message) });
+      }
+      throw error;
+    }
   }
 
   async update(req: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) {
@@ -42,7 +64,8 @@ export class ReservasController {
     if (cuerpo && typeof cuerpo === 'object' && ('abono' in cuerpo || 'montoDevuelto' in cuerpo)) {
       return reply.code(400).send({
         error: 'Bad Request',
-        message: 'El abono y el monto devuelto no se editan directamente: se derivan de los pagos y devoluciones registrados.',
+        message:
+          'El abono y el monto devuelto no se editan directamente: se derivan de los pagos y devoluciones registrados.',
       });
     }
     const data = UpdateReservaPayloadSchema.parse(req.body);
@@ -63,20 +86,28 @@ export class ReservasController {
       if (
         msg.includes('no se puede editar') ||
         msg.includes('se deriva automáticamente') ||
+        msg.includes('fecha u hora pasada') ||
         msg.includes('no encontrada')
       ) {
         const code = msg.includes('no encontrada') ? 404 : 400;
-        return reply.code(code).send({ error: code === 404 ? 'Not Found' : 'Bad Request', message: String(error.message) });
+        return reply.code(code).send({
+          error: code === 404 ? 'Not Found' : 'Bad Request',
+          message: String(error.message),
+        });
       }
       throw error;
     }
   }
 
-  async desagendar(req: FastifyRequest<{ Params: { id: string }; Body: { version?: number } }>, reply: FastifyReply) {
+  async desagendar(
+    req: FastifyRequest<{ Params: { id: string }; Body: { version?: number } }>,
+    reply: FastifyReply,
+  ) {
     const { id } = req.params;
     try {
       const rawVersion = (req.body as any)?.version;
-      const version = rawVersion !== undefined && rawVersion !== null ? Number(rawVersion) : undefined;
+      const version =
+        rawVersion !== undefined && rawVersion !== null ? Number(rawVersion) : undefined;
       const reservaDesagendada = await reservasService.desagendar(Number(id), { version });
       await logAudit(req, {
         accion: 'DESAGENDAR',
@@ -96,7 +127,10 @@ export class ReservasController {
         msg.includes('no encontrada')
       ) {
         const code = msg.includes('no encontrada') ? 404 : 400;
-        return reply.code(code).send({ error: code === 404 ? 'Not Found' : 'Bad Request', message: String(error.message) });
+        return reply.code(code).send({
+          error: code === 404 ? 'Not Found' : 'Bad Request',
+          message: String(error.message),
+        });
       }
       throw error;
     }
@@ -108,18 +142,29 @@ export class ReservasController {
       const raw = req.body as any;
       const data = CreatePagoPayloadSchema.parse(req.body);
       const version = raw?.version !== undefined ? Number(raw.version) : undefined;
-      const reservaActualizada = await reservasService.addPago(Number(id), { ...data, version } as any);
+      const reservaActualizada = await reservasService.addPago(Number(id), {
+        ...data,
+        version,
+      } as any);
       await logAudit(req, {
         accion: 'REGISTRAR_PAGO',
         entidad: 'PAGO',
         entidadId: id,
         descripcion: `Abono de $${data.monto} CLP registrado en la reserva #${id}`,
-        detalles: JSON.stringify({ metodoPago: data.metodoPago, fecha: data.fecha || new Date().toISOString() }),
+        detalles: JSON.stringify({
+          metodoPago: data.metodoPago,
+          fecha: data.fecha || new Date().toISOString(),
+        }),
       });
       return reply.code(201).send(reservaActualizada);
     } catch (error: any) {
       const msg = String(error?.message ?? '').toLowerCase();
-      if (error instanceof ConflictError || error?.statusCode === 409 || msg.includes('cambió en otro dispositivo') || msg.includes('cerrada contablemente')) {
+      if (
+        error instanceof ConflictError ||
+        error?.statusCode === 409 ||
+        msg.includes('cambió en otro dispositivo') ||
+        msg.includes('cerrada contablemente')
+      ) {
         return reply.code(409).send({ error: 'Conflicto', message: String(error.message) });
       }
       if (msg.includes('cancelada')) {
@@ -132,11 +177,21 @@ export class ReservasController {
     }
   }
 
-  async deletePago(req: FastifyRequest<{ Params: { id: string; pagoId: string }, Querystring: { version?: string } }>, reply: FastifyReply) {
+  async deletePago(
+    req: FastifyRequest<{
+      Params: { id: string; pagoId: string };
+      Querystring: { version?: string };
+    }>,
+    reply: FastifyReply,
+  ) {
     const { id, pagoId } = req.params;
     const version = req.query.version !== undefined ? Number(req.query.version) : undefined;
     try {
-      const reservaActualizada = await reservasService.deletePago(Number(id), Number(pagoId), version);
+      const reservaActualizada = await reservasService.deletePago(
+        Number(id),
+        Number(pagoId),
+        version,
+      );
       await logAudit(req, {
         accion: 'ANULAR_PAGO',
         entidad: 'PAGO',
@@ -146,7 +201,12 @@ export class ReservasController {
       return reply.send(reservaActualizada);
     } catch (error: any) {
       const msg = String(error?.message ?? '').toLowerCase();
-      if (error instanceof ConflictError || error?.statusCode === 409 || msg.includes('cambió en otro dispositivo') || msg.includes('cerrada contablemente')) {
+      if (
+        error instanceof ConflictError ||
+        error?.statusCode === 409 ||
+        msg.includes('cambió en otro dispositivo') ||
+        msg.includes('cerrada contablemente')
+      ) {
         return reply.code(409).send({ error: 'Conflicto', message: String(error.message) });
       }
       if (msg.includes('no se puede anular')) {
@@ -170,19 +230,27 @@ export class ReservasController {
       const raw = req.body as any;
       const data = CreateDevolucionPayloadSchema.parse(req.body);
       const version = raw?.version !== undefined ? Number(raw.version) : undefined;
-      const reservaActualizada = await reservasService.addDevolucion(Number(id), { ...data, version } as any);
+      const reservaActualizada = await reservasService.addDevolucion(Number(id), {
+        ...data,
+        version,
+      } as any);
       await logAudit(req, {
         accion: 'REGISTRAR_DEVOLUCION',
         entidad: 'DEVOLUCION',
         entidadId: id,
         descripcion: `Devolución de $${data.monto} CLP registrada en la reserva #${id}`,
-        detalles: JSON.stringify({ metodoPago: data.metodoPago, fecha: data.fecha || new Date().toISOString() }),
+        detalles: JSON.stringify({
+          metodoPago: data.metodoPago,
+          fecha: data.fecha || new Date().toISOString(),
+        }),
       });
       return reply.code(201).send(reservaActualizada);
     } catch (error: any) {
       const msg = String(error?.message ?? '').toLowerCase();
       if (msg.includes('cambió en otro dispositivo')) {
-        return reply.code(409).send({ error: 'Conflicto de concurrencia', message: String(error.message) });
+        return reply
+          .code(409)
+          .send({ error: 'Conflicto de concurrencia', message: String(error.message) });
       }
       if (
         msg.includes('no se puede') ||
@@ -204,11 +272,21 @@ export class ReservasController {
    * Fase 2 (ciclo de vida): anula (soft-delete) una devolución y recalcula
    * `montoDevuelto`/`estadoPago`. `version` llega por query (como en eliminarPago).
    */
-  async deleteDevolucion(req: FastifyRequest<{ Params: { id: string; devolucionId: string }, Querystring: { version?: string } }>, reply: FastifyReply) {
+  async deleteDevolucion(
+    req: FastifyRequest<{
+      Params: { id: string; devolucionId: string };
+      Querystring: { version?: string };
+    }>,
+    reply: FastifyReply,
+  ) {
     const { id, devolucionId } = req.params;
     const version = req.query.version !== undefined ? Number(req.query.version) : undefined;
     try {
-      const reservaActualizada = await reservasService.deleteDevolucion(Number(id), Number(devolucionId), version);
+      const reservaActualizada = await reservasService.deleteDevolucion(
+        Number(id),
+        Number(devolucionId),
+        version,
+      );
       await logAudit(req, {
         accion: 'ANULAR_DEVOLUCION',
         entidad: 'DEVOLUCION',
@@ -219,13 +297,11 @@ export class ReservasController {
     } catch (error: any) {
       const msg = String(error?.message ?? '').toLowerCase();
       if (msg.includes('cambió en otro dispositivo')) {
-        return reply.code(409).send({ error: 'Conflicto de concurrencia', message: String(error.message) });
+        return reply
+          .code(409)
+          .send({ error: 'Conflicto de concurrencia', message: String(error.message) });
       }
-      if (
-        msg.includes('cerrada') ||
-        msg.includes('no se pueden') ||
-        msg.includes('no se puede')
-      ) {
+      if (msg.includes('cerrada') || msg.includes('no se pueden') || msg.includes('no se puede')) {
         return reply.code(400).send({ error: 'Bad Request', message: String(error.message) });
       }
       if (msg.includes('no encontrada')) {
@@ -242,7 +318,10 @@ export class ReservasController {
    * - 404 si la reserva no existe; 400 si algún pasajero no pertenece a ella
    *   o la reserva ya está CANCELADA/COMPLETADA.
    */
-  async actualizarEstadoPasajeros(req: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) {
+  async actualizarEstadoPasajeros(
+    req: FastifyRequest<{ Params: { id: string } }>,
+    reply: FastifyReply,
+  ) {
     const { id } = req.params;
     const data = ActualizarEstadoPasajerosPayloadSchema.parse(req.body);
 
@@ -261,7 +340,12 @@ export class ReservasController {
       if (msg.includes('cambió en otro dispositivo') || msg.includes('cerrada contablemente')) {
         return reply.code(409).send({ error: 'Conflicto', message: String(error.message) });
       }
-      if (msg.includes('no pertenecen a la reserva') || msg.includes('cancelada o completada') || msg.includes('no se puede completar') || msg.includes('historial de pagos')) {
+      if (
+        msg.includes('no pertenecen a la reserva') ||
+        msg.includes('cancelada o completada') ||
+        msg.includes('no se puede completar') ||
+        msg.includes('historial de pagos')
+      ) {
         return reply.code(400).send({ error: 'Bad Request', message: String(error.message) });
       }
       if (msg.includes('no encontrada')) {
@@ -337,7 +421,8 @@ export class ReservasController {
   async cerrarContable(req: FastifyRequest, reply: FastifyReply) {
     const { id } = req.params as { id: string };
     try {
-      const version = (req.body as any)?.version !== undefined ? Number((req.body as any).version) : undefined;
+      const version =
+        (req.body as any)?.version !== undefined ? Number((req.body as any).version) : undefined;
       const reservaCerrada = await reservasService.cerrarContable(Number(id), version);
       await logAudit(req, {
         accion: 'CERRAR_CONTABLE',
@@ -348,7 +433,11 @@ export class ReservasController {
       return reply.send(reservaCerrada);
     } catch (error: any) {
       const msg = String(error?.message ?? '');
-      if (error instanceof ConflictError || error?.statusCode === 409 || msg.toLowerCase().includes('cambi')) {
+      if (
+        error instanceof ConflictError ||
+        error?.statusCode === 409 ||
+        msg.toLowerCase().includes('cambi')
+      ) {
         return reply.code(409).send({ error: 'Conflicto de concurrencia', message: msg });
       }
       if (msg.includes('no encontrada')) {
@@ -363,7 +452,11 @@ export class ReservasController {
     try {
       const { motivo, version } = (req.body as any) || {};
       const versionNum = version !== undefined && version !== null ? Number(version) : undefined;
-      const reservaReabierta = await reservasService.reabrirContable(Number(id), motivo, versionNum);
+      const reservaReabierta = await reservasService.reabrirContable(
+        Number(id),
+        motivo,
+        versionNum,
+      );
       await logAudit(req, {
         accion: 'REABRIR_CONTABLE',
         entidad: 'RESERVA',
@@ -374,7 +467,11 @@ export class ReservasController {
       return reply.send(reservaReabierta);
     } catch (error: any) {
       const msg = String(error?.message ?? '');
-      if (error instanceof ConflictError || error?.statusCode === 409 || msg.toLowerCase().includes('cambi')) {
+      if (
+        error instanceof ConflictError ||
+        error?.statusCode === 409 ||
+        msg.toLowerCase().includes('cambi')
+      ) {
         return reply.code(409).send({ error: 'Conflicto de concurrencia', message: msg });
       }
       if (msg.includes('no encontrada')) {

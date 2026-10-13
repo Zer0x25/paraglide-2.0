@@ -1,7 +1,12 @@
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { fechaHoraLocalToIso, dateKeyLocal, horaLocalHHMM } from '@parapente/shared';
+import {
+  fechaHoraLocalToIso,
+  dateKeyLocal,
+  horaLocalHHMM,
+  esFechaHoraPasada,
+} from '@parapente/shared';
 import api from '../../../services/api';
 import { typedApiOutbox } from '../../../services/apiOutbox';
 import { isConflictError } from '../../../hooks/useDomainMutation';
@@ -64,7 +69,9 @@ export function useCalendarioModal({
 
   const handleAsignacionAutomatica = async () => {
     if (!filterReservaId || !formData.fecha || !formData.hora) {
-      toast.error('Por favor, selecciona una fecha y bloque de vuelo antes de usar la asignación automática.');
+      toast.error(
+        'Por favor, selecciona una fecha y bloque de vuelo antes de usar la asignación automática.',
+      );
       return;
     }
 
@@ -104,15 +111,19 @@ export function useCalendarioModal({
     const pilotoObj = pilotos.find((p) => p.id === pilotoId);
 
     if (formData.fecha && pilotoObj) {
-      const hasException = (pilotoObj.excepciones || []).some((ex) => ex.fecha.startsWith(formData.fecha));
+      const hasException = (pilotoObj.excepciones || []).some((ex) =>
+        ex.fecha.startsWith(formData.fecha),
+      );
       const isAvailableDay = pilotoObj.disponibilidadTotal ? !hasException : hasException;
       if (!isAvailableDay) return true;
     }
 
     if (currentPasajeroId) {
-      const isAssignedToOtherInGroup = Object.entries(groupPilotSelections).some(([pId, selectedPilotoId]) => {
-        return Number(pId) !== currentPasajeroId && selectedPilotoId === String(pilotoId);
-      });
+      const isAssignedToOtherInGroup = Object.entries(groupPilotSelections).some(
+        ([pId, selectedPilotoId]) => {
+          return Number(pId) !== currentPasajeroId && selectedPilotoId === String(pilotoId);
+        },
+      );
       if (isAssignedToOtherInGroup) return true;
     }
     if (formData.fecha && formData.hora) {
@@ -140,12 +151,18 @@ export function useCalendarioModal({
       pasajeroId: vuelo.pasajeroId?.toString() || '',
       fecha,
       hora,
-      valorPactado: vuelo.valorPactado !== undefined && vuelo.valorPactado !== null ? vuelo.valorPactado.toString() : '0',
+      valorPactado:
+        vuelo.valorPactado !== undefined && vuelo.valorPactado !== null
+          ? vuelo.valorPactado.toString()
+          : '0',
     });
     setIsModalOpen(true);
   };
 
-  const handleAgendarDesdeAgenda = (fechaAgenda: Date, horario: { horaInicio: string; horaFin: string }) => {
+  const handleAgendarDesdeAgenda = (
+    fechaAgenda: Date,
+    horario: { horaInicio: string; horaFin: string },
+  ) => {
     setEditingId(null);
     setFilterReservaId(null);
     setGroupPilotSelections({});
@@ -163,6 +180,11 @@ export function useCalendarioModal({
     e.preventDefault();
     if (!formData.fecha || !formData.hora) {
       toast.error('Por favor selecciona una fecha y una hora.');
+      return;
+    }
+
+    if (!editingId && esFechaHoraPasada(formData.fecha, formData.hora)) {
+      toast.error('No se pueden agendar vuelos en fechas u horas pasadas');
       return;
     }
 
@@ -192,9 +214,7 @@ export function useCalendarioModal({
 
         const resData = (res as { data?: unknown })?.data ?? res;
         const updatedVuelo =
-          resData && typeof resData === 'object' && 'id' in resData
-            ? (resData as Vuelo)
-            : null;
+          resData && typeof resData === 'object' && 'id' in resData ? (resData as Vuelo) : null;
 
         if (updatedVuelo && updatedVuelo.id) {
           queryClient.setQueriesData<Vuelo[] | { data: Vuelo[] }>(
@@ -211,7 +231,7 @@ export function useCalendarioModal({
                 };
               }
               return old;
-            }
+            },
           );
         }
       } else if (filterReservaId) {
@@ -251,7 +271,9 @@ export function useCalendarioModal({
         toast.success('¡Vuelos del grupo guardados/actualizados con éxito!');
       } else {
         const pasajeroSel = pasajeros.find((p) => p.id === Number(formData.pasajeroId));
-        const reservaSingle = pasajeroSel?.reservaId ? reservas.find((r) => r.id === pasajeroSel.reservaId) ?? null : null;
+        const reservaSingle = pasajeroSel?.reservaId
+          ? (reservas.find((r) => r.id === pasajeroSel.reservaId) ?? null)
+          : null;
         const valorSingle = (() => {
           const total = Number(reservaSingle?.valorTotal ?? 0);
           const count = reservaSingle?.pasajeros?.length || 1;
@@ -279,7 +301,8 @@ export function useCalendarioModal({
         toast.error('El vuelo cambió en otro dispositivo. Recargando...');
         refetchVuelos();
       } else {
-        const data = (error as { response?: { data?: { message?: string; error?: string } } })?.response?.data;
+        const data = (error as { response?: { data?: { message?: string; error?: string } } })
+          ?.response?.data;
         const msg = data?.message || data?.error || (error instanceof Error ? error.message : null);
         if (msg) {
           toast.error(`Error: ${msg}`);
@@ -321,12 +344,14 @@ export function useCalendarioModal({
   const handleCompletarVueloReserva = async (
     reservaId: number,
     vueloId: number,
-    versionReserva?: number
+    versionReserva?: number,
   ) => {
     try {
       const reservaObj = reservas.find((r) => r.id === reservaId);
       const paxList = reservaObj?.pasajeros || pasajeros.filter((p) => p.reservaId === reservaId);
-      const paxValidList = paxList.filter((p): p is typeof p & { id: number } => typeof p.id === 'number' && p.id > 0);
+      const paxValidList = paxList.filter(
+        (p): p is typeof p & { id: number } => typeof p.id === 'number' && p.id > 0,
+      );
 
       if (reservaId && paxValidList.length > 0) {
         await typedApiOutbox.reservas.actualizarEstadoPasajeros(reservaId, {
@@ -335,7 +360,8 @@ export function useCalendarioModal({
             const estadoActual = 'estado' in p ? (p as { estado?: string }).estado : undefined;
             return {
               id: p.id,
-              estado: (estadoActual === 'CANCELADO' ? 'CANCELADO' : 'VUELO_COMPLETADO') as 'CANCELADO' | 'VUELO_COMPLETADO',
+              estado: (estadoActual === 'CANCELADO' ? 'CANCELADO' : 'VUELO_COMPLETADO') as
+                'CANCELADO' | 'VUELO_COMPLETADO',
             };
           }),
         });

@@ -7,6 +7,7 @@ import {
   fechaHoraLocalToIso,
   formatFechaEspanol,
   buildGoogleCalendarUrl,
+  esFechaHoraPasada,
 } from '@parapente/shared';
 
 describe('Single Source of Truth: Date & Time Canonical Tests', () => {
@@ -129,6 +130,45 @@ describe('Single Source of Truth: Date & Time Canonical Tests', () => {
       expect(dates).not.toContain('000000Z');
       // Con GMT-3, 10:00 local es 13:00 UTC
       expect(dates).toContain('130000Z');
+    });
+  });
+
+  describe('esFechaHoraPasada - Validación de fechas y horas pasadas', () => {
+    it('detecta como pasada una fecha de ayer (YYYY-MM-DD)', () => {
+      const ayer = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const ayerYmd = dateKeyLocal(ayer);
+      expect(esFechaHoraPasada(ayerYmd)).toBe(true);
+    });
+
+    it('permite una fecha futura (YYYY-MM-DD)', () => {
+      const manana = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      const mananaYmd = dateKeyLocal(manana);
+      expect(esFechaHoraPasada(mananaYmd)).toBe(false);
+    });
+
+    it('permite la fecha de hoy si no se especifica hora', () => {
+      const hoyYmd = dateKeyLocal(new Date());
+      expect(esFechaHoraPasada(hoyYmd)).toBe(false);
+    });
+
+    it('detecta como pasada una hora de hoy que ya ocurrió', () => {
+      const hoyYmd = dateKeyLocal(new Date());
+      // Hora temprana 00:01
+      const ahora = new Date();
+      // Si la hora actual es posterior a 01:00 AM, 00:01 debe ser pasado
+      if (ahora.getHours() >= 2) {
+        expect(esFechaHoraPasada(hoyYmd, '00:01')).toBe(true);
+      }
+    });
+
+    it('permite una hora de hoy posterior a la actual', () => {
+      const hoyYmd = dateKeyLocal(new Date());
+      expect(esFechaHoraPasada(hoyYmd, '23:59')).toBe(false);
+    });
+
+    it('retorna false si fecha es null o undefined', () => {
+      expect(esFechaHoraPasada(null)).toBe(false);
+      expect(esFechaHoraPasada(undefined)).toBe(false);
     });
   });
 });

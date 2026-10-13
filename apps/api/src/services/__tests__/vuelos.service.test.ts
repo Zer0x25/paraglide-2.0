@@ -11,30 +11,32 @@ vi.mock('../eventos.service', () => ({
 vi.mock('../../plugins/prisma', () => {
   return {
     prisma: {
-      $transaction: vi.fn((cb) => cb({
-        $queryRaw: vi.fn().mockResolvedValue([]),
-        reserva: {
-          findUnique: vi.fn(),
-          findFirst: vi.fn(),
-          update: vi.fn(),
-        },
-        piloto: {
-          findUnique: vi.fn(),
-          findMany: vi.fn(),
-        },
-        vuelo: {
-          findFirst: vi.fn(),
-          findMany: vi.fn(),
-          create: vi.fn(),
-          update: vi.fn(),
-          count: vi.fn(),
-          groupBy: vi.fn(),
-        },
-        pasajero: {
-          findUnique: vi.fn(),
-          findMany: vi.fn(),
-        },
-      })),
+      $transaction: vi.fn((cb) =>
+        cb({
+          $queryRaw: vi.fn().mockResolvedValue([]),
+          reserva: {
+            findUnique: vi.fn(),
+            findFirst: vi.fn(),
+            update: vi.fn(),
+          },
+          piloto: {
+            findUnique: vi.fn(),
+            findMany: vi.fn(),
+          },
+          vuelo: {
+            findFirst: vi.fn(),
+            findMany: vi.fn(),
+            create: vi.fn(),
+            update: vi.fn(),
+            count: vi.fn(),
+            groupBy: vi.fn(),
+          },
+          pasajero: {
+            findUnique: vi.fn(),
+            findMany: vi.fn(),
+          },
+        }),
+      ),
       reserva: {
         findUnique: vi.fn(),
       },
@@ -45,7 +47,9 @@ vi.mock('../../plugins/prisma', () => {
       vuelo: {
         findMany: vi.fn(),
         findFirst: vi.fn(),
+        findUnique: vi.fn(),
         create: vi.fn(),
+        update: vi.fn(),
         count: vi.fn(),
       },
       pasajero: {
@@ -84,7 +88,9 @@ describe('Vuelos Service - Agendamiento de Grupo', () => {
       },
       vuelo: {
         findFirst: vi.fn().mockResolvedValue(null),
-        create: vi.fn().mockImplementation(({ data }) => Promise.resolve({ id: Math.random(), ...data })),
+        create: vi
+          .fn()
+          .mockImplementation(({ data }) => Promise.resolve({ id: Math.random(), ...data })),
         update: vi.fn(),
       },
       piloto: {
@@ -96,7 +102,7 @@ describe('Vuelos Service - Agendamiento de Grupo', () => {
 
     const vuelos = await service.agendarGrupo({
       reservaId: 5,
-      fechaHora: '2026-08-25T11:00:00.000Z',
+      fechaHora: '2026-12-25T11:00:00.000Z',
       asignaciones: {
         101: 1,
         102: 2,
@@ -118,9 +124,7 @@ describe('Vuelos Service - Agendamiento de Grupo', () => {
           estado: 'SIN_AGENDAR',
           version: 3, // versión actual en BD
           valorTotal: 150000,
-          pasajeros: [
-            { id: 101, nombre: 'Ana', peso: 60 },
-          ],
+          pasajeros: [{ id: 101, nombre: 'Ana', peso: 60 }],
         }),
         update: vi.fn(),
       },
@@ -136,13 +140,15 @@ describe('Vuelos Service - Agendamiento de Grupo', () => {
 
     (prisma.$transaction as any).mockImplementation((cb: any) => cb(mockTx));
 
-    await expect(service.agendarGrupo({
-      reservaId: 5,
-      fechaHora: '2026-08-25T11:00:00.000Z',
-      asignaciones: { 101: 1 },
-      valorPactadoPorPasajero: 75000,
-      version: 2, // obsoleta
-    })).rejects.toThrow('La reserva cambió en otro dispositivo');
+    await expect(
+      service.agendarGrupo({
+        reservaId: 5,
+        fechaHora: '2026-12-25T11:00:00.000Z',
+        asignaciones: { 101: 1 },
+        valorPactadoPorPasajero: 75000,
+        version: 2, // obsoleta
+      }),
+    ).rejects.toThrow('La reserva cambió en otro dispositivo');
 
     expect(mockTx.vuelo.create).not.toHaveBeenCalled();
     expect(broadcastDatos).not.toHaveBeenCalled();
@@ -156,15 +162,15 @@ describe('Vuelos Service - Agendamiento de Grupo', () => {
           estado: 'SIN_AGENDAR',
           version: 3,
           valorTotal: 150000,
-          pasajeros: [
-            { id: 101, nombre: 'Ana', peso: 60 },
-          ],
+          pasajeros: [{ id: 101, nombre: 'Ana', peso: 60 }],
         }),
         update: vi.fn(),
       },
       vuelo: {
         findFirst: vi.fn().mockResolvedValue(null),
-        create: vi.fn().mockImplementation(({ data }) => Promise.resolve({ id: Math.random(), ...data })),
+        create: vi
+          .fn()
+          .mockImplementation(({ data }) => Promise.resolve({ id: Math.random(), ...data })),
         update: vi.fn(),
       },
       piloto: {
@@ -176,7 +182,7 @@ describe('Vuelos Service - Agendamiento de Grupo', () => {
 
     const vuelos = await service.agendarGrupo({
       reservaId: 5,
-      fechaHora: '2026-08-25T11:00:00.000Z',
+      fechaHora: '2026-12-25T11:00:00.000Z',
       asignaciones: { 101: 1 },
       valorPactadoPorPasajero: 75000,
     });
@@ -185,6 +191,17 @@ describe('Vuelos Service - Agendamiento de Grupo', () => {
     expect(vuelos.length).toBe(1);
     expect(broadcastDatos).toHaveBeenCalledWith('reserva', 'actualizar');
     expect(broadcastDatos).toHaveBeenCalledWith('piloto', 'actualizar');
+  });
+
+  it('agendarGrupo debería lanzar Error si fechaHora es en el pasado', async () => {
+    await expect(
+      service.agendarGrupo({
+        reservaId: 5,
+        fechaHora: '2020-01-01T10:00:00.000Z',
+        asignaciones: { 101: 1 },
+        valorPactadoPorPasajero: 75000,
+      }),
+    ).rejects.toThrow('No se pueden agendar vuelos en una fecha u hora pasada');
   });
 });
 
@@ -306,7 +323,7 @@ describe('Vuelos Service - validateWeightAndConflict', () => {
     (prisma.vuelo.findFirst as any).mockResolvedValue({ id: 10, pilotoId: 1 });
 
     await expect(
-      service.validateWeightAndConflict(1, 50, '2026-08-25T11:00:00.000Z')
+      service.validateWeightAndConflict(1, 50, '2026-08-25T11:00:00.000Z'),
     ).rejects.toThrow('Conflicto de horario');
   });
 
@@ -314,7 +331,7 @@ describe('Vuelos Service - validateWeightAndConflict', () => {
     (prisma.pasajero.findUnique as any).mockResolvedValue({ id: 50, peso: 120 });
 
     await expect(
-      service.validateWeightAndConflict(1, 50, '2026-08-25T11:00:00.000Z')
+      service.validateWeightAndConflict(1, 50, '2026-08-25T11:00:00.000Z'),
     ).rejects.toThrow('Límite de peso excedido');
   });
 });
@@ -337,7 +354,7 @@ describe('Vuelos Service - Transiciones de Estado, Inmutabilidad y Concurrencia'
     (prisma.$transaction as any).mockImplementation((cb: any) => cb(mockTx));
 
     await expect(service.updateEstado(99, 'AGENDADO', 1)).rejects.toThrow(
-      'Transición inválida: COMPLETADO → AGENDADO'
+      'Transición inválida: COMPLETADO → AGENDADO',
     );
     expect(mockTx.vuelo.update).not.toHaveBeenCalled();
   });
@@ -358,8 +375,12 @@ describe('Vuelos Service - Transiciones de Estado, Inmutabilidad y Concurrencia'
   it('updateEstado actualiza vuelo a COMPLETADO y transiciona reserva a COMPLETADA cuando todos los pasajeros completaron vuelo', async () => {
     const mockTx = {
       vuelo: {
-        findFirst: vi.fn().mockResolvedValue({ id: 10, estado: 'AGENDADO', version: 1, pasajeroId: 101 }),
-        update: vi.fn().mockResolvedValue({ id: 10, estado: 'COMPLETADO', version: 2, pasajeroId: 101 }),
+        findFirst: vi
+          .fn()
+          .mockResolvedValue({ id: 10, estado: 'AGENDADO', version: 1, pasajeroId: 101 }),
+        update: vi
+          .fn()
+          .mockResolvedValue({ id: 10, estado: 'COMPLETADO', version: 2, pasajeroId: 101 }),
         count: vi.fn().mockImplementation(() => Promise.resolve(2)),
         groupBy: vi.fn().mockResolvedValue([{ pasajeroId: 101 }, { pasajeroId: 102 }]),
       },
@@ -443,7 +464,15 @@ describe('Vuelos Service - Proyección de Calendario y Versión', () => {
 
   it('getAll con campos="vista-calendario" incluye version: true en select para permitir re-agendamiento concurrente', async () => {
     (prisma.vuelo.findMany as any).mockResolvedValue([
-      { id: 1, fechaHora: new Date(), estado: 'AGENDADO', valorPactado: 50000, version: 2, pilotoId: 1, pasajeroId: 10 }
+      {
+        id: 1,
+        fechaHora: new Date(),
+        estado: 'AGENDADO',
+        valorPactado: 50000,
+        version: 2,
+        pilotoId: 1,
+        pasajeroId: 10,
+      },
     ]);
     (prisma.vuelo.count as any).mockResolvedValue(1);
 
@@ -460,7 +489,131 @@ describe('Vuelos Service - Proyección de Calendario y Versión', () => {
           pilotoId: true,
           pasajeroId: true,
         }),
-      })
+      }),
+    );
+  });
+});
+
+describe('Vuelos Service - deleteVuelo (Reversión de agenda y limpieza de fecha/hora)', () => {
+  let service: VuelosService;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    service = new VuelosService();
+  });
+
+  it('al eliminar el único vuelo de una reserva, limpia fechaAgenda, horaAgenda y revierte a SIN_AGENDAR', async () => {
+    (prisma.vuelo.findUnique as any).mockResolvedValue({
+      id: 99,
+      pasajeroId: 10,
+      pasajero: { id: 10, reservaId: 1 },
+      reserva: { id: 1, cerradaAt: null, estado: 'AGENDADA' },
+    });
+
+    const mockTx = {
+      vuelo: {
+        update: vi.fn().mockResolvedValue({ id: 99, deletedAt: new Date() }),
+      },
+      reserva: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: 1,
+          estado: 'AGENDADA',
+          pasajeros: [
+            {
+              id: 10,
+              vuelos: [],
+            },
+          ],
+        }),
+        update: vi.fn().mockResolvedValue({ id: 1 }),
+      },
+      pasajero: {
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+      },
+    };
+
+    (prisma.$transaction as any).mockImplementation((cb: any) => cb(mockTx));
+
+    await service.delete(99);
+
+    expect(mockTx.vuelo.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 99 },
+        data: expect.objectContaining({ deletedAt: expect.any(Date) }),
+      }),
+    );
+
+    expect(mockTx.reserva.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 1 },
+        data: {
+          estado: 'SIN_AGENDAR',
+          fechaAgenda: null,
+          horaAgenda: null,
+          version: { increment: 1 },
+        },
+      }),
+    );
+
+    expect(mockTx.pasajero.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { reservaId: 1, deletedAt: null, estado: { not: 'VUELO_COMPLETADO' } },
+        data: { estado: 'POR_VOLAR' },
+      }),
+    );
+
+    expect(broadcastDatos).toHaveBeenCalledWith('vuelo', 'actualizar');
+    expect(broadcastDatos).toHaveBeenCalledWith('reserva', 'actualizar');
+  });
+
+  it('si aún quedan vuelos activos en la reserva, sincroniza fechaAgenda con el más próximo', async () => {
+    (prisma.vuelo.findUnique as any).mockResolvedValue({
+      id: 99,
+      pasajeroId: 10,
+      pasajero: { id: 10, reservaId: 1 },
+      reserva: { id: 1, cerradaAt: null, estado: 'AGENDADA' },
+    });
+
+    const fechaRestante = new Date('2026-12-20T14:00:00.000Z');
+    const mockTx = {
+      vuelo: {
+        update: vi.fn().mockResolvedValue({ id: 99, deletedAt: new Date() }),
+      },
+      reserva: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: 1,
+          estado: 'AGENDADA',
+          pasajeros: [
+            {
+              id: 10,
+              vuelos: [],
+            },
+            {
+              id: 11,
+              vuelos: [{ id: 100, fechaHora: fechaRestante, estado: 'AGENDADO' }],
+            },
+          ],
+        }),
+        update: vi.fn().mockResolvedValue({ id: 1 }),
+      },
+      pasajero: {
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+      },
+    };
+
+    (prisma.$transaction as any).mockImplementation((cb: any) => cb(mockTx));
+
+    await service.delete(99);
+
+    expect(mockTx.reserva.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 1 },
+        data: expect.objectContaining({
+          fechaAgenda: expect.any(Date),
+          horaAgenda: expect.any(String),
+          version: { increment: 1 },
+        }),
+      }),
     );
   });
 });

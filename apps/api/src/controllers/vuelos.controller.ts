@@ -4,7 +4,10 @@ import { logAudit } from '../services/auditoria.service';
 import { CreateVueloPayloadSchema } from '@parapente/shared';
 
 export class VuelosController {
-  async getAll(req: FastifyRequest<{ Querystring: Record<string, string | undefined> }>, reply: FastifyReply) {
+  async getAll(
+    req: FastifyRequest<{ Querystring: Record<string, string | undefined> }>,
+    reply: FastifyReply,
+  ) {
     const vuelos = await vuelosService.getAll(req.query);
     return reply.send(vuelos);
   }
@@ -18,17 +21,29 @@ export class VuelosController {
         entidad: 'VUELO',
         entidadId: nuevoVuelo.id,
         descripcion: `Vuelo agendado: ${nuevoVuelo.pasajero?.nombre || 'Pasajero'} con piloto ${nuevoVuelo.piloto?.nombre || nuevoVuelo.pilotoId}`,
-        detalles: JSON.stringify({ fechaHora: nuevoVuelo.fechaHora, valorPactado: nuevoVuelo.valorPactado }),
+        detalles: JSON.stringify({
+          fechaHora: nuevoVuelo.fechaHora,
+          valorPactado: nuevoVuelo.valorPactado,
+        }),
       });
       return reply.code(201).send(nuevoVuelo);
     } catch (error: any) {
       if (error.code === 'P2002') {
-        return reply.code(400).send({ error: 'Conflicto de horario', message: 'El piloto ya tiene un vuelo asignado a esa misma hora.' });
+        return reply.code(400).send({
+          error: 'Conflicto de horario',
+          message: 'El piloto ya tiene un vuelo asignado a esa misma hora.',
+        });
       }
       if (error.message?.includes('cerrada contablemente')) {
-        return reply.code(409).send({ error: 'Conflicto de inmutabilidad', message: error.message });
+        return reply
+          .code(409)
+          .send({ error: 'Conflicto de inmutabilidad', message: error.message });
       }
-      if (error.message?.includes('Límite de peso') || error.message?.includes('Conflicto de horario')) {
+      if (
+        error.message?.includes('Límite de peso') ||
+        error.message?.includes('Conflicto de horario') ||
+        error.message?.includes('fecha u hora pasada')
+      ) {
         return reply.code(400).send({ error: error.message, message: error.message });
       }
       throw error;
@@ -45,24 +60,39 @@ export class VuelosController {
         entidad: 'VUELO',
         entidadId: id,
         descripcion: `Vuelo #${id} modificado: ${vueloActualizado.pasajero?.nombre || 'Pasajero'} con piloto ${vueloActualizado.piloto?.nombre || vueloActualizado.pilotoId}`,
-        detalles: JSON.stringify({ fechaHora: vueloActualizado.fechaHora, valorPactado: vueloActualizado.valorPactado }),
+        detalles: JSON.stringify({
+          fechaHora: vueloActualizado.fechaHora,
+          valorPactado: vueloActualizado.valorPactado,
+        }),
       });
       return reply.send(vueloActualizado);
     } catch (error: any) {
       if (error.code === 'P2002') {
-        return reply.code(400).send({ error: 'Conflicto de horario', message: 'El piloto ya tiene un vuelo asignado a esa misma hora.' });
+        return reply.code(400).send({
+          error: 'Conflicto de horario',
+          message: 'El piloto ya tiene un vuelo asignado a esa misma hora.',
+        });
       }
       if (error.message?.includes('cerrada contablemente')) {
-        return reply.code(409).send({ error: 'Conflicto de inmutabilidad', message: error.message });
+        return reply
+          .code(409)
+          .send({ error: 'Conflicto de inmutabilidad', message: error.message });
       }
-      if (error.message?.includes('Límite de peso') || error.message?.includes('Conflicto de horario')) {
+      if (
+        error.message?.includes('Límite de peso') ||
+        error.message?.includes('Conflicto de horario') ||
+        error.message?.includes('fecha u hora pasada')
+      ) {
         return reply.code(400).send({ error: error.message, message: error.message });
       }
       throw error;
     }
   }
 
-  async autoAssign(req: FastifyRequest<{ Body: { fechaHora: string; pasajeros: { id: number; peso: number }[] } }>, reply: FastifyReply) {
+  async autoAssign(
+    req: FastifyRequest<{ Body: { fechaHora: string; pasajeros: { id: number; peso: number }[] } }>,
+    reply: FastifyReply,
+  ) {
     const { fechaHora, pasajeros } = req.body;
     const asignaciones = await vuelosService.autoAssign(fechaHora, pasajeros);
     await logAudit(req, {
@@ -74,7 +104,18 @@ export class VuelosController {
     return reply.send({ asignaciones });
   }
 
-  async agendarGrupo(req: FastifyRequest<{ Body: { reservaId: number; fechaHora: string; asignaciones?: Record<number, number>; valorPactadoPorPasajero?: number; version?: number } }>, reply: FastifyReply) {
+  async agendarGrupo(
+    req: FastifyRequest<{
+      Body: {
+        reservaId: number;
+        fechaHora: string;
+        asignaciones?: Record<number, number>;
+        valorPactadoPorPasajero?: number;
+        version?: number;
+      };
+    }>,
+    reply: FastifyReply,
+  ) {
     try {
       const vuelos = await vuelosService.agendarGrupo(req.body);
       await logAudit(req, {
@@ -86,12 +127,18 @@ export class VuelosController {
       return reply.code(201).send({ success: true, vuelos });
     } catch (error: any) {
       const isCerrada = error.message?.includes('cerrada contablemente');
-      const status = isCerrada ? 409 : (error?.statusCode || 400);
-      return reply.code(status).send({ error: status === 409 ? 'Conflicto de inmutabilidad' : 'Error al agendar grupo', message: error.message });
+      const status = isCerrada ? 409 : error?.statusCode || 400;
+      return reply.code(status).send({
+        error: status === 409 ? 'Conflicto de inmutabilidad' : 'Error al agendar grupo',
+        message: error.message,
+      });
     }
   }
 
-  async updateEstado(req: FastifyRequest<{ Params: { id: string }; Body: { estado: string; version?: number } }>, reply: FastifyReply) {
+  async updateEstado(
+    req: FastifyRequest<{ Params: { id: string }; Body: { estado: string; version?: number } }>,
+    reply: FastifyReply,
+  ) {
     const { id } = req.params;
     const { estado, version } = req.body;
     try {

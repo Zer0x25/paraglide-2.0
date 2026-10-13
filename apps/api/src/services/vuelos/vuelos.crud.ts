@@ -1,5 +1,5 @@
 import { prisma } from '../../plugins/prisma';
-import { CreateVueloPayload, horaLocalHHMM } from '@parapente/shared';
+import { CreateVueloPayload, horaLocalHHMM, esFechaHoraPasada } from '@parapente/shared';
 import { checkVersion } from '../concurrencia.service';
 import { listar, parseSort, ListQuery } from '../pagination.util';
 import { broadcastDatos } from '../eventos.service';
@@ -9,7 +9,13 @@ import { googleCalendarService } from '../google-calendar.service';
 const SORT_FIELDS = ['fechaHora', 'createdAt'] as const;
 
 export async function getAllVuelos(
-  opts: ListQuery & { desde?: string; hasta?: string; estado?: string; sort?: string; campos?: string } = {},
+  opts: ListQuery & {
+    desde?: string;
+    hasta?: string;
+    estado?: string;
+    sort?: string;
+    campos?: string;
+  } = {},
 ) {
   try {
     const where: any = { deletedAt: null };
@@ -20,7 +26,7 @@ export async function getAllVuelos(
     }
     if (opts.estado) where.estado = opts.estado;
     const orderBy = parseSort(opts.sort, SORT_FIELDS, { fechaHora: 'asc' });
-    
+
     // Proyección optimizada si campos === 'vista-calendario'
     const base: any = { where, orderBy };
     if (opts.campos === 'vista-calendario') {
@@ -64,11 +70,17 @@ export async function getAllVuelos(
     );
   } catch (err) {
     console.warn('Advertencia DB en VuelosService.getAll, retornando arreglo vacío:', err);
-    return { data: [], pagination: { page: 1, pageSize: 100, total: 0, totalPages: 0, hasMore: false } };
+    return {
+      data: [],
+      pagination: { page: 1, pageSize: 100, total: 0, totalPages: 0, hasMore: false },
+    };
   }
 }
 
 export async function createVuelo(data: CreateVueloPayload) {
+  if (esFechaHoraPasada(data.fechaHora as string)) {
+    throw new Error('No se puede crear un vuelo en una fecha u hora pasada');
+  }
   await validateWeightAndConflict(data.pilotoId, data.pasajeroId, data.fechaHora as string);
 
   const pasajero = await prisma.pasajero.findUnique({
@@ -165,9 +177,19 @@ export async function updateVuelo(id: number, data: CreateVueloPayload & { versi
     });
     if (!actual) throw new Error('Vuelo no encontrado');
     if (actual.reserva?.cerradaAt) {
-      throw new Error('No se puede modificar un vuelo perteneciente a una reserva cerrada contablemente');
+      throw new Error(
+        'No se puede modificar un vuelo perteneciente a una reserva cerrada contablemente',
+      );
     }
     checkVersion(actual.version, data.version);
+
+    if (data.fechaHora) {
+      const fechaAnterior = new Date(actual.fechaHora).getTime();
+      const fechaNueva = new Date(data.fechaHora).getTime();
+      if (fechaAnterior !== fechaNueva && esFechaHoraPasada(data.fechaHora as string)) {
+        throw new Error('No se puede reprogramar un vuelo a una fecha u hora pasada');
+      }
+    }
 
     return tx.vuelo.update({
       where: { id },

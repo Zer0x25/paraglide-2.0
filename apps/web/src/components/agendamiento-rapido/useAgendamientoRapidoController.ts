@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import { useState, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -6,7 +6,13 @@ import { toast } from 'sonner';
 import api from '../../services/api';
 import { typedApiOutbox } from '../../services/apiOutbox';
 import { isConflictError } from '../../hooks/useDomainMutation';
-import { PilotoDTO, HorarioBloquePayload, dateKeyLocal, fechaHoraLocalToIso } from '@parapente/shared';
+import {
+  PilotoDTO,
+  HorarioBloquePayload,
+  dateKeyLocal,
+  fechaHoraLocalToIso,
+  esFechaHoraPasada,
+} from '@parapente/shared';
 import type { ReservaConPasajeros } from '@/types/reservaDetalle';
 
 function getApiMessage(error: unknown, fallback: string): string {
@@ -30,7 +36,9 @@ export function useAgendamientoRapidoController({
   const [fecha, setFecha] = useState('');
   const [hora, setHora] = useState('');
   const [pilotos, setPilotos] = useState<PilotoDTO[]>([]);
-  const [bloquesDelDia, setBloquesDelDia] = useState<Array<{ horaInicio: string; horaFin: string }>>([]);
+  const [bloquesDelDia, setBloquesDelDia] = useState<
+    Array<{ horaInicio: string; horaFin: string }>
+  >([]);
   const [nombreConfig, setNombreConfig] = useState<string | null>(null);
   const [diaBloqueado, setDiaBloqueado] = useState(false);
   const [loadingBloques, setLoadingBloques] = useState(false);
@@ -54,7 +62,7 @@ export function useAgendamientoRapidoController({
       const defaultDate = reserva.fechaAgenda
         ? dateKeyLocal(new Date(reserva.fechaAgenda))
         : dateKeyLocal();
-      
+
       setFecha(defaultDate);
       setHora(reserva.horaAgenda || '');
       setAsignaciones({});
@@ -80,7 +88,9 @@ export function useAgendamientoRapidoController({
           setBloquesDelDia(horarios);
 
           if (horarios.length > 0) {
-            const matchBloque = reserva?.horaAgenda && horarios.some((h: HorarioBloquePayload) => h.horaInicio === reserva.horaAgenda);
+            const matchBloque =
+              reserva?.horaAgenda &&
+              horarios.some((h: HorarioBloquePayload) => h.horaInicio === reserva.horaAgenda);
             setHora(matchBloque ? (reserva.horaAgenda as string) : horarios[0].horaInicio);
           } else {
             setHora(reserva?.horaAgenda || '10:00');
@@ -99,7 +109,9 @@ export function useAgendamientoRapidoController({
     };
 
     cargarBloques();
-    return () => { cancel = true; };
+    return () => {
+      cancel = true;
+    };
   }, [fecha, reserva]);
 
   const ejecutarAutoMatch = async () => {
@@ -126,7 +138,9 @@ export function useAgendamientoRapidoController({
         if (asignadosCount === paxs.length) {
           toast.success(`¡Match perfecto! ${asignadosCount}/${paxs.length} pilotos sugeridos`);
         } else {
-          toast.warning(`Sugeridos ${asignadosCount} de ${paxs.length} pasajeros. Faltan pilotos disponibles.`);
+          toast.warning(
+            `Sugeridos ${asignadosCount} de ${paxs.length} pasajeros. Faltan pilotos disponibles.`,
+          );
         }
       }
     } catch (error: unknown) {
@@ -141,12 +155,19 @@ export function useAgendamientoRapidoController({
     e.preventDefault();
     if (!reserva || !fecha || !hora) return;
 
+    if (esFechaHoraPasada(fecha, hora)) {
+      toast.error('No se pueden agendar vuelos en fechas u horas pasadas');
+      return;
+    }
+
     const fechaHora = fechaHoraLocalToIso(fecha, hora);
     const totalPax = reserva.pasajeros?.length || 0;
     const asignadosCount = Object.keys(asignaciones).length;
 
     if (asignadosCount < totalPax) {
-      toast.error(`Debes asignar un piloto para cada uno de los ${totalPax} pasajeros antes de confirmar`);
+      toast.error(
+        `Debes asignar un piloto para cada uno de los ${totalPax} pasajeros antes de confirmar`,
+      );
       return;
     }
 
@@ -173,14 +194,24 @@ export function useAgendamientoRapidoController({
       onClose();
     } catch (error: unknown) {
       console.error(error);
-      if (error !== null && typeof error === 'object' && 'queued' in error && Boolean((error as { queued?: boolean }).queued)) {
+      if (
+        error !== null &&
+        typeof error === 'object' &&
+        'queued' in error &&
+        Boolean((error as { queued?: boolean }).queued)
+      ) {
         toast.info('Sin conexión: los vuelos se enviarán automáticamente al reconectar');
         onSuccess();
         onClose();
         return;
       }
       if (isConflictError(error)) {
-        toast.error(getApiMessage(error, 'La reserva cambió en otro dispositivo. Recarga e intenta de nuevo.'));
+        toast.error(
+          getApiMessage(
+            error,
+            'La reserva cambió en otro dispositivo. Recarga e intenta de nuevo.',
+          ),
+        );
         onSuccess();
         onClose();
         return;

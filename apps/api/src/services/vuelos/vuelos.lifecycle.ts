@@ -1,5 +1,5 @@
 import { prisma } from '../../plugins/prisma';
-import { puedeTransicionarEstadoVuelo, horaLocalHHMM } from '@parapente/shared';
+import { puedeTransicionarEstadoVuelo, horaLocalHHMM, esFechaHoraPasada } from '@parapente/shared';
 import { checkVersion } from '../concurrencia.service';
 import { toNum } from '../money.util';
 import { broadcastDatos } from '../eventos.service';
@@ -13,6 +13,10 @@ export async function agendarGrupoVuelos(data: {
   valorPactadoPorPasajero?: number;
   version?: number;
 }) {
+  if (esFechaHoraPasada(data.fechaHora)) {
+    throw new Error('No se pueden agendar vuelos en una fecha u hora pasada');
+  }
+
   const targetDate = new Date(data.fechaHora);
 
   const vuelosCreados = await prisma.$transaction(async (tx) => {
@@ -42,25 +46,33 @@ export async function agendarGrupoVuelos(data: {
     }
 
     // Control de concurrencia (re-verificado bajo lock)
-    checkVersion(reserva.version, data.version, 'La reserva cambió en otro dispositivo. Recarga e intenta agendar de nuevo.');
+    checkVersion(
+      reserva.version,
+      data.version,
+      'La reserva cambió en otro dispositivo. Recarga e intenta agendar de nuevo.',
+    );
 
     let asignaciones = data.asignaciones;
     if (!asignaciones || Object.keys(asignaciones).length === 0) {
-      const paxs = reserva.pasajeros.map(p => ({ id: p.id, peso: p.peso || 75 }));
+      const paxs = reserva.pasajeros.map((p) => ({ id: p.id, peso: p.peso || 75 }));
       asignaciones = await autoAssignVuelos(data.fechaHora, paxs);
     }
 
     const totalPasajeros = reserva.pasajeros.length;
     // Sin valor pactado ni valorTotal, el vuelo vale 0: nunca inventar dinero
     // (mismo criterio que el tool MCP crear_y_agendar_reserva).
-    const valorUnitario = data.valorPactadoPorPasajero ?? (toNum(reserva.valorTotal) > 0 ? (toNum(reserva.valorTotal) / totalPasajeros) : 0);
+    const valorUnitario =
+      data.valorPactadoPorPasajero ??
+      (toNum(reserva.valorTotal) > 0 ? toNum(reserva.valorTotal) / totalPasajeros : 0);
 
     const vuelosCreados = [];
 
     for (const pasajero of reserva.pasajeros) {
       const pilotoId = asignaciones![pasajero.id];
       if (!pilotoId) {
-        throw new Error(`No hay piloto disponible para el pasajero ${pasajero.nombre} a las ${data.fechaHora}`);
+        throw new Error(
+          `No hay piloto disponible para el pasajero ${pasajero.nombre} a las ${data.fechaHora}`,
+        );
       }
 
       const vueloPrevio = await tx.vuelo.findFirst({
@@ -96,8 +108,7 @@ export async function agendarGrupoVuelos(data: {
       vuelosCreados.push(vuelo);
     }
 
-    const estadoReservaFinal =
-      reserva.estado === 'SIN_AGENDAR' ? 'AGENDADA' : undefined;
+    const estadoReservaFinal = reserva.estado === 'SIN_AGENDAR' ? 'AGENDADA' : undefined;
 
     const horaBloque = horaLocalHHMM(targetDate);
 
@@ -140,7 +151,9 @@ export async function updateEstadoVuelo(id: number, estado: string, version?: nu
     checkVersion(actual.version, version);
 
     if (actual.reserva?.cerradaAt) {
-      throw new Error('No se puede modificar el estado de un vuelo perteneciente a una reserva cerrada contablemente');
+      throw new Error(
+        'No se puede modificar el estado de un vuelo perteneciente a una reserva cerrada contablemente',
+      );
     }
 
     if (!puedeTransicionarEstadoVuelo(actual.estado as any, estado as any)) {
@@ -168,7 +181,8 @@ export async function updateEstadoVuelo(id: number, estado: string, version?: nu
       });
       if (pasajero?.reservaId) {
         if (typeof (tx as any).$queryRaw === 'function') {
-          await (tx as any).$queryRaw`SELECT id FROM "Reserva" WHERE id = ${pasajero.reservaId} FOR UPDATE`;
+          await (tx as any)
+            .$queryRaw`SELECT id FROM "Reserva" WHERE id = ${pasajero.reservaId} FOR UPDATE`;
         }
         const pasajerosReserva = await tx.pasajero.findMany({
           where: { reservaId: pasajero.reservaId, deletedAt: null },
@@ -180,8 +194,16 @@ export async function updateEstadoVuelo(id: number, estado: string, version?: nu
             // Los vuelos CANCELADO no cuentan como "activos": si se contaran,
             // totalActivos !== completados para siempre y la reserva nunca
             // pasaría a COMPLETADA automáticamente.
-            tx.vuelo.count({ where: { pasajeroId: { in: pasajeroIds }, deletedAt: null, estado: { not: 'CANCELADO' } } }),
-            tx.vuelo.count({ where: { pasajeroId: { in: pasajeroIds }, deletedAt: null, estado: 'COMPLETADO' } }),
+            tx.vuelo.count({
+              where: {
+                pasajeroId: { in: pasajeroIds },
+                deletedAt: null,
+                estado: { not: 'CANCELADO' },
+              },
+            }),
+            tx.vuelo.count({
+              where: { pasajeroId: { in: pasajeroIds }, deletedAt: null, estado: 'COMPLETADO' },
+            }),
             tx.vuelo.groupBy({
               by: ['pasajeroId'],
               where: { pasajeroId: { in: pasajeroIds }, deletedAt: null },
@@ -249,41 +271,39 @@ export async function deleteVuelo(id: number) {
     where: { id, deletedAt: null },
     include: {
       pasajero: {
-        select: { reservaId: true },
+        select: { id: true, reservaId: true },
       },
       reserva: {
-        select: { cerradaAt: true },
+        select: { id: true, cerradaAt: true, estado: true },
       },
     },
   });
 
   if (!vuelo) throw new Error('Vuelo no encontrado');
   if (vuelo.reserva?.cerradaAt) {
-    throw new Error('No se puede eliminar un vuelo perteneciente a una reserva cerrada contablemente');
+    throw new Error(
+      'No se puede eliminar un vuelo perteneciente a una reserva cerrada contablemente',
+    );
   }
 
-  await prisma.vuelo.update({
-    where: { id },
-    data: { deletedAt: new Date(), version: { increment: 1 } },
-  });
+  let reservaModificada = false;
 
-  // Sincronización en tiempo real con Google Calendar (eliminar evento)
-  googleCalendarService.syncVueloDeleted(id, vuelo?.googleEventId || undefined).catch((err) => {
-    console.warn('[GoogleCalendar] Error en syncVueloDeleted:', err);
-  });
+  await prisma.$transaction(async (tx) => {
+    await tx.vuelo.update({
+      where: { id },
+      data: { deletedAt: new Date(), version: { increment: 1 } },
+    });
 
-  // Si el vuelo pertenecía a una reserva, revertir estado a SIN_AGENDAR si ya no quedan vuelos activos
-  if (vuelo?.pasajero?.reservaId) {
-    try {
+    if (vuelo.pasajero?.reservaId) {
       const reservaId = vuelo.pasajero.reservaId;
-      const reserva = await prisma.reserva.findFirst({
+      const reserva = await tx.reserva.findFirst({
         where: { id: reservaId, deletedAt: null },
         include: {
           pasajeros: {
             where: { deletedAt: null },
             include: {
               vuelos: {
-                where: { deletedAt: null, estado: { not: 'CANCELADO' } },
+                where: { deletedAt: null, estado: { not: 'CANCELADO' }, id: { not: id } },
               },
             },
           },
@@ -291,17 +311,71 @@ export async function deleteVuelo(id: number) {
       });
 
       if (reserva && reserva.estado !== 'CANCELADA') {
-        const pasajerosConVuelo = reserva.pasajeros.filter(p => p.vuelos.length > 0).length;
-        if (pasajerosConVuelo === 0) {
-          await prisma.reserva.update({
+        const vuelosRestantes = reserva.pasajeros.flatMap((p) => p.vuelos);
+
+        if (vuelosRestantes.length === 0) {
+          // No quedan vuelos activos: limpiar fecha y hora, y revertir estado a SIN_AGENDAR
+          await tx.reserva.update({
             where: { id: reservaId },
-            data: { estado: 'SIN_AGENDAR', version: { increment: 1 } },
+            data: {
+              estado: 'SIN_AGENDAR',
+              fechaAgenda: null,
+              horaAgenda: null,
+              version: { increment: 1 },
+            },
           });
-          broadcastDatos('reserva', 'actualizar');
+
+          await tx.pasajero.updateMany({
+            where: {
+              reservaId,
+              deletedAt: null,
+              estado: { not: 'VUELO_COMPLETADO' },
+            },
+            data: { estado: 'POR_VOLAR' },
+          });
+
+          reservaModificada = true;
+        } else {
+          // Aún quedan vuelos activos: sincronizar fechaAgenda con el vuelo activo más próximo
+          const vuelosOrdenados = [...vuelosRestantes].sort(
+            (a, b) => new Date(a.fechaHora).getTime() - new Date(b.fechaHora).getTime(),
+          );
+          const proximoVuelo = vuelosOrdenados[0];
+          await tx.reserva.update({
+            where: { id: reservaId },
+            data: {
+              fechaAgenda: new Date(proximoVuelo.fechaHora),
+              horaAgenda: horaLocalHHMM(proximoVuelo.fechaHora),
+              version: { increment: 1 },
+            },
+          });
+
+          const vuelosDelPasajero =
+            reserva.pasajeros.find((p) => p.id === vuelo.pasajeroId)?.vuelos || [];
+          if (vuelosDelPasajero.length === 0) {
+            await tx.pasajero.updateMany({
+              where: {
+                id: vuelo.pasajeroId,
+                deletedAt: null,
+                estado: { not: 'VUELO_COMPLETADO' },
+              },
+              data: { estado: 'POR_VOLAR' },
+            });
+          }
+
+          reservaModificada = true;
         }
       }
-    } catch (err) {
-      console.warn('Advertencia al revertir estado de reserva en vuelos.delete:', err);
     }
+  });
+
+  broadcastDatos('vuelo', 'actualizar');
+  if (reservaModificada) {
+    broadcastDatos('reserva', 'actualizar');
   }
+
+  // Sincronización en tiempo real con Google Calendar (eliminar evento)
+  googleCalendarService.syncVueloDeleted(id, vuelo?.googleEventId || undefined).catch((err) => {
+    console.warn('[GoogleCalendar] Error en syncVueloDeleted:', err);
+  });
 }

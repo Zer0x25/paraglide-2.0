@@ -6,6 +6,8 @@ import {
   UpdateReservaPayload,
   PasajeroDTO,
   derivarEstadoPago,
+  esFechaHoraPasada,
+  dateKeyLocal,
 } from '@parapente/shared';
 import { checkVersion, ConflictError } from '../concurrencia.service';
 import { broadcastDatos } from '../eventos.service';
@@ -41,7 +43,7 @@ export function normalizarRut(rut: string | null | undefined): string {
  */
 export function esMismaPersona(
   a: { nombre: string; rutDni?: string | null },
-  b: { nombre: string; rutDni?: string | null }
+  b: { nombre: string; rutDni?: string | null },
 ): boolean {
   const normNombreA = normalizarNombre(a.nombre);
   const normNombreB = normalizarNombre(b.nombre);
@@ -106,18 +108,27 @@ export async function createReserva(data: CreateReservaPayload) {
   if (montoDevuelto > abonoNormalizado) {
     throw new Error('No se puede devolver más de lo pagado');
   }
-  const finalEstadoPago = derivarEstadoPago(toNum(data.valorTotal), abonoNormalizado, montoDevuelto);
+  const finalEstadoPago = derivarEstadoPago(
+    toNum(data.valorTotal),
+    abonoNormalizado,
+    montoDevuelto,
+  );
 
   // Fase 2: campos opcionales de tarificación.
   const tarifaId: number | undefined = typeof raw.tarifaId === 'number' ? raw.tarifaId : undefined;
-  const promocionId: number | undefined = typeof raw.promocionId === 'number' ? raw.promocionId : undefined;
+  const promocionId: number | undefined =
+    typeof raw.promocionId === 'number' ? raw.promocionId : undefined;
   let valorTotalFinal = toNum(data.valorTotal);
   let descuentoFinal: number | undefined;
 
   if (tarifaId !== undefined) {
     // Server manda: recalcula con la tarifa/promoción vigentes e ignora el
     // valorTotal del cliente si difiere.
-    const calculo = await calcularValor({ tarifaId, promocionId, cantidadPasajeros: Math.max(1, data.pasajeros?.length ?? 1) });
+    const calculo = await calcularValor({
+      tarifaId,
+      promocionId,
+      cantidadPasajeros: Math.max(1, data.pasajeros?.length ?? 1),
+    });
     valorTotalFinal = calculo.valorTotal;
     descuentoFinal = calculo.descuento;
   }
@@ -125,7 +136,13 @@ export async function createReserva(data: CreateReservaPayload) {
     descuentoFinal = raw.descuento;
   }
 
-  const fechaAgendaParaCrear = data.fechaAgenda ? new Date(data.fechaAgenda as string | Date) : null;
+  if (data.fechaAgenda && esFechaHoraPasada(data.fechaAgenda, data.horaAgenda)) {
+    throw new Error('No se puede agendar una reserva en una fecha u hora pasada');
+  }
+
+  const fechaAgendaParaCrear = data.fechaAgenda
+    ? new Date(data.fechaAgenda as string | Date)
+    : null;
   const horaAgendaParaCrear = data.horaAgenda ? String(data.horaAgenda) : null;
 
   const maxRetries = 10;
@@ -162,8 +179,12 @@ export async function createReserva(data: CreateReservaPayload) {
           estadoPago: finalEstadoPago as any,
           // Fase 2: ciclo de vida opcional en creación (simulador/agente); default SIN_AGENDAR
           ...(data.estado !== undefined && { estado: data.estado }),
-          ...(data.motivoCancelacion !== undefined && { motivoCancelacion: data.motivoCancelacion }),
-          ...(data.fechaCancelacion !== undefined && { fechaCancelacion: data.fechaCancelacion ? new Date(data.fechaCancelacion) : null }),
+          ...(data.motivoCancelacion !== undefined && {
+            motivoCancelacion: data.motivoCancelacion,
+          }),
+          ...(data.fechaCancelacion !== undefined && {
+            fechaCancelacion: data.fechaCancelacion ? new Date(data.fechaCancelacion) : null,
+          }),
           valorTotal: valorTotalFinal,
           abono: montoAbono,
           ...(montoDevuelto > 0 && { montoDevuelto }),
@@ -172,30 +193,43 @@ export async function createReserva(data: CreateReservaPayload) {
           // primera devolución posterior pisaba el monto sembrado.
           ...(montoDevuelto > 0 && {
             devoluciones: {
-              create: [{
-                monto: montoDevuelto,
-                metodoPago: (data as any).metodoPagoDevolucion || (data as any).metodoPago || 'TRANSFERENCIA',
-                fecha: new Date(),
-                notas: (data as any).notasDevolucion || 'Devolución inicial registrada al crear la reserva',
-              }],
+              create: [
+                {
+                  monto: montoDevuelto,
+                  metodoPago:
+                    (data as any).metodoPagoDevolucion ||
+                    (data as any).metodoPago ||
+                    'TRANSFERENCIA',
+                  fecha: new Date(),
+                  notas:
+                    (data as any).notasDevolucion ||
+                    'Devolución inicial registrada al crear la reserva',
+                },
+              ],
             },
           }),
           // Fase 2: snapshot de tarifa/promoción/descuento (solo si tarifaId presente)
           ...(tarifaId !== undefined && { tarifaId }),
           ...(promocionId !== undefined && { promocionId }),
           ...(descuentoFinal !== undefined && { descuento: descuentoFinal }),
-          pasajeros: pasajerosCreate ? {
-            create: pasajerosCreate,
-          } : undefined,
-          pagos: abonoInicialValido ? {
-            create: [{
-              monto: montoAbonoInicial,
-              metodoPago: (data as any).metodoPago || 'TRANSFERENCIA',
-              fecha: new Date(),
-              comprobante: (data as any).comprobantePago || null,
-              notas: (data as any).notasPago || 'Abono inicial al crear la reserva',
-            }],
-          } : undefined,
+          pasajeros: pasajerosCreate
+            ? {
+                create: pasajerosCreate,
+              }
+            : undefined,
+          pagos: abonoInicialValido
+            ? {
+                create: [
+                  {
+                    monto: montoAbonoInicial,
+                    metodoPago: (data as any).metodoPago || 'TRANSFERENCIA',
+                    fecha: new Date(),
+                    comprobante: (data as any).comprobantePago || null,
+                    notas: (data as any).notasPago || 'Abono inicial al crear la reserva',
+                  },
+                ],
+              }
+            : undefined,
         },
         include: {
           pasajeros: true,
@@ -217,7 +251,10 @@ export async function createReserva(data: CreateReservaPayload) {
   throw new Error('No se pudo generar un número de reserva único tras múltiples intentos.');
 }
 
-export async function updateReserva(id: number, data: UpdateReservaPayload & { pasajeros?: Partial<PasajeroDTO>[] }) {
+export async function updateReserva(
+  id: number,
+  data: UpdateReservaPayload & { pasajeros?: Partial<PasajeroDTO>[] },
+) {
   const {
     id: _unusedId,
     cerradaAt: _unusedCerradaAt,
@@ -251,7 +288,9 @@ export async function updateReserva(id: number, data: UpdateReservaPayload & { p
     const prevReserva = await tx.reserva.findUnique({ where: { id, deletedAt: null } });
     if (!prevReserva) throw new Error('Reserva no encontrada');
     if (prevReserva.cerradaAt) {
-      throw new Error(`La reserva #${prevReserva.numeroReserva || prevReserva.id} se encuentra cerrada contablemente y no admite modificaciones`);
+      throw new Error(
+        `La reserva #${prevReserva.numeroReserva || prevReserva.id} se encuentra cerrada contablemente y no admite modificaciones`,
+      );
     }
     if (prevReserva.estado === 'COMPLETADA') {
       throw new Error('No se puede editar una reserva completada');
@@ -283,6 +322,23 @@ export async function updateReserva(id: number, data: UpdateReservaPayload & { p
       finalEstadoPago = derivarEstadoPago(vTotal, totalPagado, devueltoPrev);
     }
 
+    if (fechaAgenda !== undefined && fechaAgenda !== null) {
+      const fechaOriginal = prevReserva.fechaAgenda ? dateKeyLocal(prevReserva.fechaAgenda) : null;
+      const horaOriginal = prevReserva.horaAgenda || null;
+      const nuevaFecha = dateKeyLocal(fechaAgenda);
+      const nuevaHora = horaAgenda !== undefined ? horaAgenda || null : horaOriginal;
+      const cambioAgenda = nuevaFecha !== fechaOriginal || nuevaHora !== horaOriginal;
+      if (cambioAgenda && esFechaHoraPasada(fechaAgenda, nuevaHora)) {
+        throw new Error('No se puede agendar una reserva en una fecha u hora pasada');
+      }
+    } else if (fechaAgenda === undefined && horaAgenda !== undefined && prevReserva.fechaAgenda) {
+      const horaOriginal = prevReserva.horaAgenda || null;
+      const nuevaHora = horaAgenda || null;
+      if (nuevaHora !== horaOriginal && esFechaHoraPasada(prevReserva.fechaAgenda, nuevaHora)) {
+        throw new Error('No se puede agendar una reserva en una fecha u hora pasada');
+      }
+    }
+
     let fechaAgendaUpdate: Date | null | undefined = undefined;
     if (fechaAgenda !== undefined) {
       fechaAgendaUpdate = fechaAgenda ? new Date(fechaAgenda as string | Date) : null;
@@ -308,7 +364,9 @@ export async function updateReserva(id: number, data: UpdateReservaPayload & { p
       });
 
       if (updateResult.count === 0) {
-        throw new ConflictError('La reserva cambió en otro dispositivo. Recarga e intenta de nuevo.');
+        throw new ConflictError(
+          'La reserva cambió en otro dispositivo. Recarga e intenta de nuevo.',
+        );
       }
     } else {
       await tx.reserva.update({
@@ -328,11 +386,16 @@ export async function updateReserva(id: number, data: UpdateReservaPayload & { p
 
       // Defensa en profundidad: si ningún pasajero trae ID pero la cantidad coincide con los existentes,
       // asociar por posición para evitar borrar cupos/vuelos si un cliente legacy no manda IDs.
-      const normalizedPasajeros = (pasajeros.length > 0 && pasajeros.every((p) => p.id === undefined) && pasajeros.length === currentPasajeros.length)
-        ? pasajeros.map((p, idx) => ({ ...p, id: currentPasajeros[idx].id }))
-        : pasajeros;
+      const normalizedPasajeros =
+        pasajeros.length > 0 &&
+        pasajeros.every((p) => p.id === undefined) &&
+        pasajeros.length === currentPasajeros.length
+          ? pasajeros.map((p, idx) => ({ ...p, id: currentPasajeros[idx].id }))
+          : pasajeros;
 
-      const payloadIds = normalizedPasajeros.filter((p) => p.id !== undefined).map((p) => p.id as number);
+      const payloadIds = normalizedPasajeros
+        .filter((p) => p.id !== undefined)
+        .map((p) => p.id as number);
 
       const idsToDelete = currentIds.filter((pid: number) => !payloadIds.includes(pid));
       if (idsToDelete.length > 0) {
@@ -372,7 +435,7 @@ export async function updateReserva(id: number, data: UpdateReservaPayload & { p
         // Buscar si existe un pasajero previo que ya haya firmado el deslinde y cuya identidad
         // legal (Nombre + RUT/DNI) coincida con la de este pasajero entrante:
         const matchingSignedPax = currentPasajeros.find(
-          (cp) => cp.firmaDeslinde && !usedSignedPaxIds.has(cp.id) && esMismaPersona(cp, p)
+          (cp) => cp.firmaDeslinde && !usedSignedPaxIds.has(cp.id) && esMismaPersona(cp, p),
         );
         if (matchingSignedPax) {
           usedSignedPaxIds.add(matchingSignedPax.id);
@@ -390,7 +453,11 @@ export async function updateReserva(id: number, data: UpdateReservaPayload & { p
 
             // Si la firma provenía de otro cupo (ej. se intercambiaron o reordenaron pasajeros),
             // asegurar que la firma digital esté asociada a este cupo p.id:
-            if (matchingSignedPax.id !== p.id && matchingSignedPax.deslindeFirma && (tx as any).deslindeFirma) {
+            if (
+              matchingSignedPax.id !== p.id &&
+              matchingSignedPax.deslindeFirma &&
+              (tx as any).deslindeFirma
+            ) {
               await (tx as any).deslindeFirma.upsert({
                 where: { pasajeroId: p.id },
                 create: {
@@ -438,7 +505,8 @@ export async function updateReserva(id: number, data: UpdateReservaPayload & { p
           nextPasajeroCorrelative++;
 
           const firmaDeslindeFinal = Boolean(matchingSignedPax);
-          const firmaFechaFinal = matchingSignedPax?.firmaFecha ?? (matchingSignedPax ? new Date() : null);
+          const firmaFechaFinal =
+            matchingSignedPax?.firmaFecha ?? (matchingSignedPax ? new Date() : null);
 
           const nuevoPasajero = await tx.pasajero.create({
             data: {
