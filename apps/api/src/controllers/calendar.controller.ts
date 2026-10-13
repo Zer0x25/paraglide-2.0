@@ -98,15 +98,24 @@ export class CalendarController {
   async getSyncInfo(req: FastifyRequest, reply: FastifyReply) {
     const baseUrl = resolveSafeBaseUrl(req);
 
-    // Token universal para el panel de administración (todos los vuelos)
-    const universalTokenInfo = await calendarService.generateFeedToken('all');
-    const universalToken = universalTokenInfo.token;
-    const universalHttpUrl = `${baseUrl}/api/public/calendar/feed.ics?token=${universalToken}`;
-    const universalWebcalUrl = universalHttpUrl.replace(/^https?:\/\//i, 'webcal://');
+    const user = (req as any).user as { role?: string; pilotoId?: number | null } | undefined;
+    const isPilotoRole = user?.role === 'PILOTO';
 
-    // Obtener pilotos activos para generar sus feeds personalizados
+    // Si el usuario es PILOTO, aislar estrictamente a su propio pilotoId y no exponer el token universal
+    const pilotosWhere: any = { activo: true, deletedAt: null };
+    if (isPilotoRole) {
+      if (!user?.pilotoId) {
+        return reply.send({
+          universal: null,
+          pilotos: [],
+          googleCalendar: { enabled: false, calendarId: null, oneClickSubscribeUrl: null },
+        });
+      }
+      pilotosWhere.id = user.pilotoId;
+    }
+
     const pilotos = await prisma.piloto.findMany({
-      where: { activo: true, deletedAt: null },
+      where: pilotosWhere,
       orderBy: { nombre: 'asc' },
       select: { id: true, nombre: true, categoria: true },
     });
@@ -128,6 +137,24 @@ export class CalendarController {
         };
       }),
     );
+
+    if (isPilotoRole) {
+      return reply.send({
+        universal: null,
+        pilotos: pilotosFeeds,
+        googleCalendar: {
+          enabled: false,
+          calendarId: null,
+          oneClickSubscribeUrl: null,
+        },
+      });
+    }
+
+    // Token universal para el panel de administración / recepción (todos los vuelos)
+    const universalTokenInfo = await calendarService.generateFeedToken('all');
+    const universalToken = universalTokenInfo.token;
+    const universalHttpUrl = `${baseUrl}/api/public/calendar/feed.ics?token=${universalToken}`;
+    const universalWebcalUrl = universalHttpUrl.replace(/^https?:\/\//i, 'webcal://');
 
     const hasOfficialGoogleCalendar = Boolean(
       config.googleCalendarId &&
@@ -187,11 +214,25 @@ export class CalendarController {
   ) {
     const scope = req.body?.scope ?? 'all';
     const pilotoId = req.body?.pilotoId;
+    const user = (req as any).user as { role?: string; pilotoId?: number | null } | undefined;
 
     if (scope !== 'all' && scope !== 'piloto') {
       return reply
         .status(400)
         .send({ success: false, message: 'scope debe ser "all" o "piloto".' });
+    }
+    if (user?.role === 'PILOTO') {
+      if (scope !== 'piloto' || Number(pilotoId) !== user.pilotoId) {
+        return reply.status(403).send({
+          success: false,
+          message: 'Un piloto solo puede rotar su propio token de calendario.',
+        });
+      }
+    } else if (scope === 'all' && user?.role && user.role !== 'ADMIN') {
+      return reply.status(403).send({
+        success: false,
+        message: 'Solo un administrador puede rotar el token universal de calendario.',
+      });
     }
     if (scope === 'piloto' && !pilotoId) {
       return reply

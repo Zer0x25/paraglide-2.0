@@ -59,6 +59,7 @@ export async function agendarGrupoVuelos(data: {
     }
 
     const totalPasajeros = reserva.pasajeros.length;
+    const reservaPasajeroIds = reserva.pasajeros.map((p) => p.id);
     // Sin valor pactado ni valorTotal, el vuelo vale 0: nunca inventar dinero
     // (mismo criterio que el tool MCP crear_y_agendar_reserva).
     const valorUnitario =
@@ -66,13 +67,51 @@ export async function agendarGrupoVuelos(data: {
       (toNum(reserva.valorTotal) > 0 ? toNum(reserva.valorTotal) / totalPasajeros : 0);
 
     const vuelosCreados = [];
+    const pilotosAsignadosEnBloque = new Set<number>();
 
     for (const pasajero of reserva.pasajeros) {
-      const pilotoId = asignaciones![pasajero.id];
+      const pilotoId = Number(asignaciones![pasajero.id]);
       if (!pilotoId) {
         throw new Error(
           `No hay piloto disponible para el pasajero ${pasajero.nombre} a las ${data.fechaHora}`,
         );
+      }
+
+      if (pilotosAsignadosEnBloque.has(pilotoId)) {
+        throw new Error(
+          `Conflicto de horario: El piloto #${pilotoId} fue asignado a más de un pasajero en el mismo bloque (${data.fechaHora})`,
+        );
+      }
+      pilotosAsignadosEnBloque.add(pilotoId);
+
+      const pesoPax = Number(pasajero.peso || 0);
+      if (pesoPax > 115) {
+        throw new Error(
+          `Seguridad aeronáutica: Límite de peso excedido para ${pasajero.nombre} (${pesoPax}kg > 115kg)`,
+        );
+      }
+
+      const piloto = await tx.piloto.findUnique({ where: { id: pilotoId, deletedAt: null } });
+      if (!piloto || piloto.activo === false) {
+        throw new Error(`El piloto seleccionado (#${pilotoId}) no existe o no se encuentra activo`);
+      }
+      if (piloto.pesoMaximoPasajero && pesoPax > Number(piloto.pesoMaximoPasajero)) {
+        throw new Error(
+          `El peso del pasajero ${pasajero.nombre} (${pesoPax}kg) excede el máximo permitido para el piloto ${piloto.nombre || `#${pilotoId}`} (${piloto.pesoMaximoPasajero}kg)`,
+        );
+      }
+
+      const conflictoHorario = await tx.vuelo.findFirst({
+        where: {
+          pilotoId,
+          fechaHora: targetDate,
+          deletedAt: null,
+          estado: { not: 'CANCELADO' },
+          pasajeroId: { notIn: reservaPasajeroIds },
+        },
+      });
+      if (conflictoHorario) {
+        throw new Error('Conflicto de horario: El piloto ya tiene un vuelo asignado a esta hora');
       }
 
       const vueloPrevio = await tx.vuelo.findFirst({
@@ -86,7 +125,6 @@ export async function agendarGrupoVuelos(data: {
         });
       }
 
-      const piloto = await tx.piloto.findUnique({ where: { id: pilotoId, deletedAt: null } });
       const pagoPiloto = piloto?.tarifaPorVuelo || 0;
 
       const vuelo = await tx.vuelo.create({

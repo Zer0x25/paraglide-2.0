@@ -19,29 +19,49 @@ Este documento mantiene el estado de ejecución, trazabilidad de sesiones, evide
 ## 2. Última Sesión de Trabajo
 
 - **Fecha:** 2026-10-13
-- **Objetivo:** Auditoría Exhaustiva de Pre-producción (Production-Readiness Review) y Endurecimiento Crítico (Resiliencia, Seguridad, UX Concurrente y SRE).
+- **Objetivo:** Auditoría Exhaustiva de Pre-producción y Remediación de Vulnerabilidades Críticas y Brechas Operativas / SRE (`fix(security,sre)`).
 - **Autor / Ejecutor:** Agente Asistente de IA (Antigravity) en coordinación con el Desarrollador.
 - **Entregables Realizados:**
-  1. **Auditoría Holística de Pre-producción**: Evaluación de 5 dimensiones críticas (Arquitectura/Concurrencia, Seguridad/Resiliencia, Day-2 SRE, Producto/UX, y Cumplimiento de Invariantes).
-  2. **Fix Fastify `trustProxy` (Commit `2682659`)**: Habilitación de `trustProxy: true` para que Fastify extraiga la IP real del cliente detrás del reverse proxy Caddy y Next.js rewrite, restaurando precisión de rate-limiting y auditoría.
-  3. **Graceful Shutdown & OTEL Gating (Commit `e60002c`)**: Cierre ordenado de conexiones HTTP de Fastify y pool de Prisma ante `SIGTERM`/`SIGINT`. Condicionamiento del exportador de trazas en consola a `OTEL_CONSOLE_EXPORTER=true`.
-  4. **Eliminación de Mock Meteorológico Ficticio (Commit `7b2f0ba`)**: Supresión del fallback benigno hardcodeado (`estadoPista: 'ABIERTA'`) cuando la BD falla, propagando el error real para no habilitar vuelos sin telemetría confirmada.
-  5. **Verificación de DB en Healthcheck Público (Commit `a77714a`)**: Adición de ping activo `SELECT 1` a Postgres en `/health`. Si la BD no responde, el endpoint retorna HTTP 503 permitiendo al orquestador intervenir.
-  6. **Debounce de Invalidaciones SSE en Web (Commit `1de5187`)**: Ventana de debounce de 300ms en `useDatosStream` para agrupar ráfagas de eventos `datos-cambios` y evitar tormentas de re-fetching que colapsen el pool de Prisma (`connection_limit=10`).
-  7. **Prevención de Doble Submit en Reservas (Commit `743717c`)**: Guard de reentrada síncrono, deshabilitación de botones y spinner en `ReservaFormModal`, con prueba unitaria antirregresión añadida en `useReservasController.antirregresion.test.tsx`.
-  8. **Guardrail Hook Pre-Tool para Base de Datos (Commit `c427793`)**: Hook automatizado que intercepta llamadas de terminal y deniega en tiempo de ejecución referencias a la base o puerto de producción (`5678`).
+  1. **Auditoría Holística y Endurecimiento de Resiliencia**:
+     - `trustProxy: true` habilitado en Fastify para restaurar precisión de IP real del cliente detrás del proxy Caddy.
+     - Supresión del mock benigno en meteorología (`7b2f0ba`) y ping activo `SELECT 1` a Postgres en `/health` retornando 503 ante fallas (`a77714a`).
+     - Debounce de 300ms en `useDatosStream` para ráfagas SSE (`1de5187`) y prevención de doble submit con guard síncrono en reservas (`743717c`).
+     - Guardrail hook Pre-Tool para aislamiento inmutable de la base de producción (`5678`) (`c427793`).
+  2. **Aislamiento y rotación de tokens de calendario**:
+     - Acceso condicional en `CalendarController.getSyncInfo`: usuarios con rol `PILOTO` solo acceden a su propio feed ICS; feed universal oculto y protegido para administradores.
+     - En `regenerateFeedToken`, validación de que un piloto solo puede rotar su propio token y únicamente administradores pueden rotar el universal.
+     - Endpoint `/reconcile` protegido exclusivamente para `ADMIN`.
+  3. **Validaciones de entrada estrictas en API y mitigación de inyecciones**:
+     - `gastos.controller.ts`: validación de montos numéricos finitos > 0, fechas válidas y longitudes de texto.
+     - `public.controller.ts`: validación de rango de peso límite en deslinde público (0 a 200 kg).
+     - `plantillas.service.ts`: sanitización de variables HTML en renderizado de plantillas.
+     - `vuelos.lifecycle.ts`: verificación de disponibilidad de piloto y estado de equipos antes de agendar.
+  4. **Control de acceso y autorización RBAC**:
+     - Adición de `RouteShorthandOptions` con preHandlers de autorización (`onlyAdmin` y `adminOrRecepcion`) en rutas de `equipos`, `pasajeros`, `pilotos`, `plantillas`, `reportes`, `reservas`, `metricas` y `gastos`.
+     - `pilotos.controller.ts`: función de aserción `assertCanEditPilotoDisponibilidad` que impide a pilotos alterar disponibilidad ajena.
+  5. **Seguridad y ciclo de vida SSE con Graceful Shutdown**:
+     - Introducción de tickets efímeros de un solo uso (`emitirSseTicket` / `consumirSseTicket`) en `eventos.routes.ts` para eliminar tokens JWT de query strings.
+     - Cierre ordenado de conexiones SSE activas (`closeAllSseConnections`) integrado en el shutdown graceful del servidor en `server.ts` con timeout forzado de 8s.
+  6. **Observabilidad y SRE**:
+     - Supresión de tracing OTEL en healthchecks (`/api/public/health`) y recursos estáticos (`/favicon.ico`, `/assets/`, `/sw.js`, etc.) en `observability.plugin.ts` para evitar saturación de logs.
+     - Configuración de rotación de logs `json-file` (`max-size: 10m`, `max-file: 3`) en `docker-compose.yml`.
+  7. **Autenticación y Cookies Seguras**:
+     - `auth.service.ts`: bloqueo de auto-aprovisionamiento con Google SSO si el email no existe previamente en la base de datos.
+     - `authStore.ts`: flags seguras en cookies (`SameSite=lax`, `path=/`, `secure` condicional a HTTPS) y limpieza simétrica en logout.
+     - Suite unitaria `authStore.test.ts` actualizada para reflejar los nuevos atributos de seguridad.
 - **Evidencia de Calidad:**
-  - `npm run check:quick`: 0 fallos (build shared, typecheck 4 workspaces, 31 suites api, 50 suites web, 1 suite mcp).
-  - Formato incremental Prettier aplicado sobre todos los archivos de código modificados.
-  - Pushed a `origin/main` (commit `c427793`).
+  - Monorepo `typecheck` (`tsc --noEmit`) en `@parapente/shared`, `api`, `web` y `@parapente/mcp` finalizado con 0 errores.
+  - Quality gate `npm run check:quick` ejecutado y aprobado con código 0 (50 archivos de test en web con 283 tests pasando, suite unitaria api y 15 tests unitarios en mcp).
+  - Formateo incremental `npm run format` ejecutado y verificado sobre todos los archivos modificados.
+  - Aislamiento inmutable de BD respetado (sin referencias a puerto 5678).
 
 ---
 
 ## 3. Tareas en Curso (WIP) y Backlog Inmediato
 
 ### En Curso (WIP)
-- [x] Auditoría exhaustiva de pre-producción y aplicación de 6 parches críticos de resiliencia y seguridad.
-- [x] Push de parches atómicos a `origin/main`.
+- [x] Auditoría exhaustiva de pre-producción y remediación de vulnerabilidades críticas (`fix(security,sre)`).
+- [x] Fusión limpia con `main` resolviendo conflictos en controladores, servidor y documentación.
 - [x] Validación completa de CI local y verificación de tipos monorepo (`check:quick`).
 
 ### Siguiente Acción Prioritaria (Next Action)
