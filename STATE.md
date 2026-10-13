@@ -18,40 +18,39 @@ Este documento mantiene el estado de ejecución, trazabilidad de sesiones, evide
 
 ## 2. Última Sesión de Trabajo
 
-- **Fecha:** 2026-10-07
-- **Objetivo:** Optimización y Desacople de CI/CD: Quality Gate Automatizado, Corrección de Registro GHCR y Flags de Deploy.
+- **Fecha:** 2026-10-13
+- **Objetivo:** Auditoría Exhaustiva de Pre-producción (Production-Readiness Review) y Endurecimiento Crítico (Resiliencia, Seguridad, UX Concurrente y SRE).
 - **Autor / Ejecutor:** Agente Asistente de IA (Antigravity) en coordinación con el Desarrollador.
 - **Entregables Realizados:**
-  1. **Separación CI vs CD**: Creación de workflow independiente `.github/workflows/ci.yml` que valida monorepo (`build:shared`, `typecheck`, `lint` y tests unitarios de api, web y mcp) en cada push y PR en ~2 min sin Docker ni VM.
-  2. **Fix GHCR Package Namespace**: Corrección de nombres de imagen a `ghcr.io/zer0x25/paraglide-2.0-api` y `ghcr.io/zer0x25/paraglide-2.0-web`, resolviendo el fallo 403 por apuntar al repo legacy `paraglide`.
-  3. **Control por Flags & Triggers en CD (`deploy.yml`)**:
-     - `workflow_dispatch`: flags `build_images` y `deploy_to_vm` configurables por UI.
-     - `push a main`: solo compila o despliega si el mensaje de commit incluye `[deploy]` o `[build-image]`, evitando deploys no deseados en micro-commits.
-     - `tags v*.*.*`: release formal compila y despliega automáticamente.
-  4. **Gate Pre-Deploy**: Incorporación de `npm run check:quick` como prerrequisito antes del build de imágenes Docker.
-  5. **Sincronización de Compose y Configs**: Actualización de imágenes en `docker-compose.yml`, `docker-compose.staging.yml`, `.env.example`, `README.md` y rutas tolerantes en `scripts/deploy-status.sh`.
-  6. **Integración Release Please + CD**: Configuración de `workflow_call` en `deploy.yml` y encadenamiento en `release-please.yml` para que al mergear el Release PR se dispare el build y deploy automáticamente.
-  7. **Habilitación de Permisos de Actions**: Configuración de `can_approve_pull_request_reviews=true` y `default_workflow_permissions=write` vía API de GitHub para permitir que GitHub Actions cree Pull Requests automáticamente.
-  8. **Smart CI (Módulos Afectados)**: Integración de `dorny/paths-filter` en `ci.yml` para ejecutar exclusivamente typecheck, lint y tests de los módulos modificados (`api`, `web`, `mcp`, `shared`), recortando drásticamente el tiempo de ejecución en PRs y commits.
+  1. **Auditoría Holística de Pre-producción**: Evaluación de 5 dimensiones críticas (Arquitectura/Concurrencia, Seguridad/Resiliencia, Day-2 SRE, Producto/UX, y Cumplimiento de Invariantes).
+  2. **Fix Fastify `trustProxy` (Commit `2682659`)**: Habilitación de `trustProxy: true` para que Fastify extraiga la IP real del cliente detrás del reverse proxy Caddy y Next.js rewrite, restaurando precisión de rate-limiting y auditoría.
+  3. **Graceful Shutdown & OTEL Gating (Commit `e60002c`)**: Cierre ordenado de conexiones HTTP de Fastify y pool de Prisma ante `SIGTERM`/`SIGINT`. Condicionamiento del exportador de trazas en consola a `OTEL_CONSOLE_EXPORTER=true`.
+  4. **Eliminación de Mock Meteorológico Ficticio (Commit `7b2f0ba`)**: Supresión del fallback benigno hardcodeado (`estadoPista: 'ABIERTA'`) cuando la BD falla, propagando el error real para no habilitar vuelos sin telemetría confirmada.
+  5. **Verificación de DB en Healthcheck Público (Commit `a77714a`)**: Adición de ping activo `SELECT 1` a Postgres en `/health`. Si la BD no responde, el endpoint retorna HTTP 503 permitiendo al orquestador intervenir.
+  6. **Debounce de Invalidaciones SSE en Web (Commit `1de5187`)**: Ventana de debounce de 300ms en `useDatosStream` para agrupar ráfagas de eventos `datos-cambios` y evitar tormentas de re-fetching que colapsen el pool de Prisma (`connection_limit=10`).
+  7. **Prevención de Doble Submit en Reservas (Commit `743717c`)**: Guard de reentrada síncrono, deshabilitación de botones y spinner en `ReservaFormModal`, con prueba unitaria antirregresión añadida en `useReservasController.antirregresion.test.tsx`.
+  8. **Guardrail Hook Pre-Tool para Base de Datos (Commit `c427793`)**: Hook automatizado que intercepta llamadas de terminal y deniega en tiempo de ejecución referencias a la base o puerto de producción (`5678`).
 - **Evidencia de Calidad:**
-  - Sintaxis YAML validada con parser estricto (`ci.yml`, `deploy.yml`, `release-please.yml`).
-  - Nombres de imágenes y variables de entorno homologados al estándar monorepo.
-  - Pull Request de Release creado exitosamente por el bot: [PR #2](https://github.com/Zer0x25/paraglide-2.0/pull/2).
-  - DoD cumplido: aislamiento de DBs respetado y formateo verificado.
+  - `npm run check:quick`: 0 fallos (build shared, typecheck 4 workspaces, 31 suites api, 50 suites web, 1 suite mcp).
+  - Formato incremental Prettier aplicado sobre todos los archivos de código modificados.
+  - Pushed a `origin/main` (commit `c427793`).
 
 ---
 
 ## 3. Tareas en Curso (WIP) y Backlog Inmediato
 
 ### En Curso (WIP)
-- [x] Optimizar pipeline de CI/CD: separar CI rápido de CD con flags y corregir GHCR.
-- [x] Documentar marco de gobernanza en [`docs/gobernanza.md`](docs/gobernanza.md) y [`docs/README.md`](docs/README.md).
-- [x] Establecer plantillas y especificación de referencia en [`specs/`](specs/README.md).
-- [x] Formalizar Definition of Done (DoD) en [`AGENTS.md`](AGENTS.md).
+- [x] Auditoría exhaustiva de pre-producción y aplicación de 6 parches críticos de resiliencia y seguridad.
+- [x] Push de parches atómicos a `origin/main`.
+- [x] Validación completa de CI local y verificación de tipos monorepo (`check:quick`).
 
 ### Siguiente Acción Prioritaria (Next Action)
-- [ ] Ejecutar instalación de dependencias base (`npm install`) para habilitar el gate de pruebas rápidas en local (`npm run check:quick`).
-- [ ] Redactar las siguientes especificaciones SDD+BDD para los módulos de Deslinde Digital y Asignación de Pilotos en pista (`specs/SPEC-002-DESLINDE.md`).
+- [ ] **Despliegue y Validación en Staging**: Levantar o actualizar el stack de staging (`npm run staging:up`) y correr la suite de estrés/integración de staging (`npm run test:staging:quick`).
+- [ ] **Revisión de Release PR**: Monitorear el PR automático de `release-please` generado en GitHub tras los commits `fix(...)` para preparar el release productivo (ej. v0.9.6).
+- [ ] **Hardening Operacional Pendiente**:
+  - Script cron de backup automatizado para Postgres en Docker (`pg_dump` con rotación).
+  - Configuración de alertas en Caddy / healthchecks hacia canal de monitoreo o webhook.
+  - Headers de seguridad HTTP recomendados en reverse proxy (CSP, HSTS).
 
 ---
 
