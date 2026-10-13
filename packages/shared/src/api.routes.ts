@@ -1,23 +1,49 @@
-import type { 
-  VueloDTO, CreateVueloPayload,
-  ReservaDTO, CreateReservaPayload, UpdateReservaPayload, CancelarReservaPayload,
-  PilotoDTO, SugerirPilotoPayload,
-  EquipoDTO, CreateEquipoPayload, CreateMantenimientoPayload,
-  CondicionPistaDTO, CreateCondicionPistaPayload,
-  PasajeroDTO, CreatePasajeroPayload, UpdatePasajeroPayload, ActualizarEstadoPasajerosPayload,
-  PlantillaMensajeDTO, CreatePlantillaMensajePayload,
-  DashboardStatsDTO, MetricasFinancierasDTO,
+import type {
+  VueloDTO,
+  CreateVueloPayload,
+  ReservaDTO,
+  CreateReservaPayload,
+  UpdateReservaPayload,
+  CancelarReservaPayload,
+  PilotoDTO,
+  SugerirPilotoPayload,
+  EquipoDTO,
+  CreateEquipoPayload,
+  CreateMantenimientoPayload,
+  CondicionPistaDTO,
+  CreateCondicionPistaPayload,
+  PasajeroDTO,
+  CreatePasajeroPayload,
+  UpdatePasajeroPayload,
+  ActualizarEstadoPasajerosPayload,
+  PlantillaMensajeDTO,
+  CreatePlantillaMensajePayload,
+  DashboardStatsDTO,
+  MetricasFinancierasDTO,
   LogAuditoriaDTO,
-  TarifaDTO, CreateTarifaPayload,
-  PromocionDTO, CreatePromocionPayload,
-  FaqDTO, CreateFaqPayload,
-  DeslindeVersionDTO, CreateDeslindePayload,
-  ReglaOperativaDTO, UpsertReglaPayload,
+  TarifaDTO,
+  CreateTarifaPayload,
+  PromocionDTO,
+  CreatePromocionPayload,
+  FaqDTO,
+  CreateFaqPayload,
+  DeslindeVersionDTO,
+  CreateDeslindePayload,
+  ReglaOperativaDTO,
+  UpsertReglaPayload,
   ConfiguracionBloqueDTO,
-  ResolucionDiaDTO, CalcularValorPayload, CalculoValorDTO,
-  EmpresaDTO, UpdateEmpresaPayload,
-  NotificacionConfigDTO, UpdateNotificacionConfigPayload,
-  UserDTO, UserListableDTO, CreateUserPayload, UpdateUserPayload, ChangePasswordPayload
+  ResolucionDiaDTO,
+  CalcularValorPayload,
+  CalculoValorDTO,
+  EmpresaDTO,
+  UpdateEmpresaPayload,
+  NotificacionConfigDTO,
+  UpdateNotificacionConfigPayload,
+  UserDTO,
+  UserListableDTO,
+  CreateUserPayload,
+  UpdateUserPayload,
+  ChangePasswordPayload,
 } from './schemas/index';
 import type { ListEnvelope } from './schemas/pagination';
 import type { CreatePagoPayload, CreateDevolucionPayload } from './schemas/pagos';
@@ -33,9 +59,21 @@ export interface AppApiContract {
     crear: (payload: any) => Promise<VueloDTO>;
     actualizar: (id: number, payload: any) => Promise<VueloDTO>;
     eliminar: (id: number) => Promise<void>;
-    actualizarEstado: (id: number, payload: { estado: string; version?: number }) => Promise<VueloDTO>;
-    agendarGrupo: (payload: { reservaId: number; fechaHora: string; asignaciones?: Record<number, number>; version?: number }) => Promise<{ success: boolean; vuelos: VueloDTO[] }>;
-    asignacionAutomatica: (payload: { fechaHora: string; pasajeros: { id: number; peso: number }[] }) => Promise<{ asignaciones: Record<number, number>; error?: string }>;
+    actualizarEstado: (
+      id: number,
+      payload: { estado: string; version?: number },
+    ) => Promise<VueloDTO>;
+    agendarGrupo: (payload: {
+      reservaId: number;
+      fechaHora: string;
+      asignaciones?: Record<number, number>;
+      valorPactadoPorPasajero?: number;
+      version?: number;
+    }) => Promise<{ success: boolean; vuelos: VueloDTO[] }>;
+    asignacionAutomatica: (payload: {
+      fechaHora: string;
+      pasajeros: { id: number; peso: number }[];
+    }) => Promise<{ asignaciones: Record<number, number>; error?: string }>;
   };
   reservas: {
     listar: (query?: Record<string, any>) => Promise<ListEnvelope<ReservaDTO>>;
@@ -43,11 +81,20 @@ export interface AppApiContract {
     crear: (payload: CreateReservaPayload) => Promise<ReservaDTO>;
     actualizar: (id: number, payload: UpdateReservaPayload) => Promise<ReservaDTO>;
     eliminar: (id: number) => Promise<void>;
-    agregarPago: (id: number, payload: CreatePagoPayload & { version?: number }) => Promise<ReservaDTO>;
+    agregarPago: (
+      id: number,
+      payload: CreatePagoPayload & { version?: number },
+    ) => Promise<ReservaDTO>;
     eliminarPago: (id: number, pagoId: number, version?: number) => Promise<ReservaDTO>;
-    crearDevolucion: (id: number, payload: CreateDevolucionPayload & { version?: number }) => Promise<ReservaDTO>;
+    crearDevolucion: (
+      id: number,
+      payload: CreateDevolucionPayload & { version?: number },
+    ) => Promise<ReservaDTO>;
     eliminarDevolucion: (id: number, devolucionId: number, version?: number) => Promise<ReservaDTO>;
-    actualizarEstadoPasajeros: (id: number, payload: ActualizarEstadoPasajerosPayload) => Promise<ReservaDTO>;
+    actualizarEstadoPasajeros: (
+      id: number,
+      payload: ActualizarEstadoPasajerosPayload,
+    ) => Promise<ReservaDTO>;
     cancelar: (id: number, payload: CancelarReservaPayload) => Promise<ReservaDTO>;
     desagendar: (id: number, payload?: { version?: number }) => Promise<ReservaDTO>;
     calcularValor: (payload: CalcularValorPayload) => Promise<CalculoValorDTO>;
@@ -60,7 +107,10 @@ export interface AppApiContract {
     actualizar: (id: number, payload: Partial<PilotoDTO>) => Promise<PilotoDTO>;
     eliminar: (id: number) => Promise<void>;
     obtenerDisponibilidad: (id: number) => Promise<any>;
-    guardarDisponibilidad: (id: number, payload: { version: number; fechas: any[] }) => Promise<any>;
+    guardarDisponibilidad: (
+      id: number,
+      payload: { version: number; fechas: any[] },
+    ) => Promise<any>;
     resetDisponibilidad: (id: number, q?: { desde?: string; hasta?: string }) => Promise<any>;
     sugerir: (payload: SugerirPilotoPayload) => Promise<PilotoDTO[]>;
   };
@@ -88,7 +138,10 @@ export interface AppApiContract {
   configuracion: {
     listar: () => Promise<ConfiguracionBloqueDTO[]>;
     crear: (payload: Partial<ConfiguracionBloqueDTO>) => Promise<ConfiguracionBloqueDTO>;
-    actualizar: (id: number, payload: Partial<ConfiguracionBloqueDTO>) => Promise<ConfiguracionBloqueDTO>;
+    actualizar: (
+      id: number,
+      payload: Partial<ConfiguracionBloqueDTO>,
+    ) => Promise<ConfiguracionBloqueDTO>;
     eliminar: (id: number) => Promise<void>;
     resolver: (q: { desde: string; hasta: string }) => Promise<Record<string, ResolucionDiaDTO>>;
     limpiarExpiradas: () => Promise<{ archivadas: number }>;
@@ -99,9 +152,17 @@ export interface AppApiContract {
   plantillas: {
     listar: (query?: Record<string, any>) => Promise<ListEnvelope<PlantillaMensajeDTO>>;
     crear: (payload: CreatePlantillaMensajePayload) => Promise<PlantillaMensajeDTO>;
-    actualizar: (id: number, payload: Partial<CreatePlantillaMensajePayload>) => Promise<PlantillaMensajeDTO>;
+    actualizar: (
+      id: number,
+      payload: Partial<CreatePlantillaMensajePayload>,
+    ) => Promise<PlantillaMensajeDTO>;
     eliminar: (id: number) => Promise<void>;
-    renderizar: (payload: { plantillaId?: number; plantillaDraft?: CreatePlantillaMensajePayload; reservaId?: number; vueloId?: number }) => Promise<{ cuerpo: string }>;
+    renderizar: (payload: {
+      plantillaId?: number;
+      plantillaDraft?: CreatePlantillaMensajePayload;
+      reservaId?: number;
+      vueloId?: number;
+    }) => Promise<{ cuerpo: string }>;
   };
   auditoria: {
     listar: (query?: Record<string, any>) => Promise<ListEnvelope<LogAuditoriaDTO>>;
@@ -127,7 +188,10 @@ export interface AppApiContract {
   deslindes: {
     listar: () => Promise<DeslindeVersionDTO[]>;
     crear: (payload: CreateDeslindePayload) => Promise<DeslindeVersionDTO>;
-    actualizar: (id: number, payload: Partial<CreateDeslindePayload>) => Promise<DeslindeVersionDTO>;
+    actualizar: (
+      id: number,
+      payload: Partial<CreateDeslindePayload>,
+    ) => Promise<DeslindeVersionDTO>;
     eliminar: (id: number) => Promise<void>;
     // `revision` = token de concurrencia optimista; `version` (número legal) es inmutable
     activar: (id: number, payload: { revision: number }) => Promise<DeslindeVersionDTO>;

@@ -1,7 +1,8 @@
-"use client";
+'use client';
 
 import { useState, useEffect } from 'react';
 import { Lock, Trash2, CheckCircle2 } from 'lucide-react';
+import { dateKeyLocal, horaLocalHHMM } from '@parapente/shared';
 import { VueloModalHeader } from './VueloModalHeader';
 import { VueloModalSelectReserva, pasajeroPendiente } from './VueloModalSelectReserva';
 import { VueloModalDateTime } from './VueloModalDateTime';
@@ -26,13 +27,15 @@ interface VueloModalProps {
     hora: string;
     valorPactado: string;
   };
-  setFormData: React.Dispatch<React.SetStateAction<{
-    pilotoId: string;
-    pasajeroId: string;
-    fecha: string;
-    hora: string;
-    valorPactado: string;
-  }>>;
+  setFormData: React.Dispatch<
+    React.SetStateAction<{
+      pilotoId: string;
+      pasajeroId: string;
+      fecha: string;
+      hora: string;
+      valorPactado: string;
+    }>
+  >;
   groupPilotSelections: Record<number, string>;
   setGroupPilotSelections: React.Dispatch<React.SetStateAction<Record<number, string>>>;
   reservas: ReservaConPasajeros[];
@@ -49,7 +52,11 @@ interface VueloModalProps {
   openConfigBloques: () => void;
   setDate: (d: Date) => void;
   onOpenPagos?: (reserva: ReservaConPasajeros) => void;
-  onCompletarReserva?: (reservaId: number, vueloId: number, versionReserva?: number) => Promise<void>;
+  onCompletarReserva?: (
+    reservaId: number,
+    vueloId: number,
+    versionReserva?: number,
+  ) => Promise<void>;
   vuelosQueryRefetch?: () => void;
   editingEstado?: string;
   setEditingEstado?: (estado: string) => void;
@@ -100,27 +107,28 @@ export function VueloModal({
   const currentReserva = filterReservaId
     ? reservas.find((r) => r.id === filterReservaId)
     : currentPasajero?.reservaId
-    ? reservas.find((r) => r.id === currentPasajero.reservaId)
-    : editingFlight?.reservaId
-    ? reservas.find((r) => r.id === editingFlight.reservaId)
-    : editingFlight?.reserva?.id
-    ? (reservas.find((r) => r.id === editingFlight.reserva?.id) ?? (editingFlight.reserva as unknown as ReservaConPasajeros))
-    : null;
+      ? reservas.find((r) => r.id === currentPasajero.reservaId)
+      : editingFlight?.reservaId
+        ? reservas.find((r) => r.id === editingFlight.reservaId)
+        : editingFlight?.reserva?.id
+          ? (reservas.find((r) => r.id === editingFlight.reserva?.id) ??
+            (editingFlight.reserva as unknown as ReservaConPasajeros))
+          : null;
 
   const fechaHoraVuelo = editingFlight?.fechaHora
     ? new Date(editingFlight.fechaHora)
     : formData.fecha && formData.hora
-    ? new Date(`${formData.fecha}T${formData.hora}:00`)
-    : null;
+      ? new Date(`${formData.fecha}T${formData.hora}:00`)
+      : null;
 
   const paso15Min = Boolean(fechaHoraVuelo && now >= fechaHoraVuelo.getTime() + 15 * 60 * 1000);
-  const esCerrada = Boolean(
-    currentReserva?.cerradaAt ||
-    editingFlight?.reserva?.cerradaAt
-  );
+  const esCerrada = Boolean(currentReserva?.cerradaAt || editingFlight?.reserva?.cerradaAt);
 
   const horaDesbloqueo = fechaHoraVuelo
-    ? new Date(fechaHoraVuelo.getTime() + 15 * 60 * 1000).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })
+    ? new Date(fechaHoraVuelo.getTime() + 15 * 60 * 1000).toLocaleTimeString('es-CL', {
+        hour: '2-digit',
+        minute: '2-digit',
+      })
     : null;
 
   const handleMarcarCompletada = async () => {
@@ -135,10 +143,12 @@ export function VueloModal({
 
   const poolPasajeros = currentReserva
     ? pasajeros.filter((p) => p.reservaId === currentReserva.id)
-    : (currentPasajero?.reservaId ? pasajeros.filter((p) => p.reservaId === currentPasajero.reservaId) : pasajeros);
+    : currentPasajero?.reservaId
+      ? pasajeros.filter((p) => p.reservaId === currentPasajero.reservaId)
+      : pasajeros;
 
   const currentGroupPassengers = filterReservaId
-    ? ((currentReserva?.pasajeros?.filter(pasajeroPendiente) as Pasajero[] | undefined) || [])
+    ? (currentReserva?.pasajeros?.filter(pasajeroPendiente) as Pasajero[] | undefined) || []
     : [];
 
   const handleSelectReserva = (resId: number | null) => {
@@ -146,20 +156,22 @@ export function VueloModal({
     if (resId) {
       const selectedReserva = reservas.find((r) => r.id === resId);
       const groupPassengers = pasajeros.filter((p) => p.reservaId === resId);
-      const existingFlight = vuelos?.find((v) => groupPassengers.some((gp) => gp.id === v.pasajeroId));
+      const existingFlight = vuelos?.find((v) =>
+        groupPassengers.some((gp) => gp.id === v.pasajeroId),
+      );
 
       let defaultFecha = formData.fecha;
       let defaultHora = formData.hora;
 
       if (existingFlight) {
-        const start = new Date(existingFlight.fechaHora);
-        const localDate = new Date(start.getTime() - start.getTimezoneOffset() * 60000);
-        defaultFecha = localDate.toISOString().split('T')[0];
-        defaultHora = localDate.toISOString().split('T')[1].substring(0, 5);
-        setDate(start);
+        defaultFecha = dateKeyLocal(existingFlight.fechaHora);
+        defaultHora = horaLocalHHMM(existingFlight.fechaHora);
+        setDate(new Date(existingFlight.fechaHora));
       } else if (selectedReserva?.fechaAgenda) {
-        const fr = selectedReserva.fechaAgenda as string | Date;
-        defaultFecha = typeof fr === 'string' ? fr.split('T')[0] : new Date(fr).toISOString().split('T')[0];
+        defaultFecha = dateKeyLocal(selectedReserva.fechaAgenda);
+        defaultHora = selectedReserva.horaAgenda
+          ? horaLocalHHMM(selectedReserva.horaAgenda)
+          : formData.hora;
       }
 
       setFormData((prev) => ({ ...prev, fecha: defaultFecha, hora: defaultHora }));
@@ -207,7 +219,9 @@ export function VueloModal({
                   Reserva cerrada contablemente (Solo lectura)
                 </span>
                 <span className="text-xs text-slate-500 dark:text-slate-400 mt-1 block">
-                  Esta reserva fue sellada y congelada con snapshot inmutable. Por integridad contable y legal, sus vuelos, pasajeros y pagos no admiten modificaciones operativas.
+                  Esta reserva fue sellada y congelada con snapshot inmutable. Por integridad
+                  contable y legal, sus vuelos, pasajeros y pagos no admiten modificaciones
+                  operativas.
                 </span>
               </div>
             </div>
@@ -314,7 +328,11 @@ export function VueloModal({
               </button>
               <button
                 type="submit"
-                disabled={esCerrada || isBloqueado || (!editingId && availableBlocks.length === 0 && !!formData.fecha)}
+                disabled={
+                  esCerrada ||
+                  isBloqueado ||
+                  (!editingId && availableBlocks.length === 0 && !!formData.fecha)
+                }
                 className={`px-5 py-2.5 min-w-[120px] rounded-2xl text-xs font-black transition flex items-center justify-center gap-2 whitespace-nowrap text-center ${
                   esCerrada
                     ? 'bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border border-slate-300 dark:border-slate-700 cursor-not-allowed shadow-none'
@@ -329,7 +347,13 @@ export function VueloModal({
                 ) : (
                   <>
                     <CheckCircle2 size={16} />
-                    <span>{editingId ? 'Guardar Cambios' : filterReservaId ? 'Confirmar y Crear Vuelos' : 'Confirmar Vuelo'}</span>
+                    <span>
+                      {editingId
+                        ? 'Guardar Cambios'
+                        : filterReservaId
+                          ? 'Confirmar y Crear Vuelos'
+                          : 'Confirmar Vuelo'}
+                    </span>
                   </>
                 )}
               </button>

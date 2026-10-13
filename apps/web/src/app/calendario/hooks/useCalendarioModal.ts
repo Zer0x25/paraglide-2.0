@@ -237,38 +237,40 @@ export function useCalendarioModal({
       } else if (filterReservaId) {
         const groupPassengers = pasajeros.filter((p) => p.reservaId === filterReservaId);
         const reservaOrigen = reservas.find((r) => r.id === filterReservaId);
-        const valorUnitario = (() => {
-          const total = Number(reservaOrigen?.valorTotal ?? 0);
-          const count = reservaOrigen?.pasajeros?.length || groupPassengers.length || 1;
-          return count > 0 && total > 0 ? Math.round(total / count) : 0;
-        })();
-        const promises = groupPassengers
-          .filter((p) => groupPilotSelections[p.id])
-          .map((p) => {
-            const pFlight = vuelos.find((v) => v.pasajeroId === p.id);
-            const valor = valorUnitario || parseFloat(formData.valorPactado || '0');
-            if (pFlight) {
-              return typedApiOutbox.vuelos.actualizar(pFlight.id, {
-                pilotoId: parseInt(groupPilotSelections[p.id]),
-                pasajeroId: p.id,
-                fechaHora: fechaHoraIso,
-                valorPactado: valor,
-              });
-            } else {
-              return typedApiOutbox.vuelos.crear({
-                pilotoId: parseInt(groupPilotSelections[p.id]),
-                pasajeroId: p.id,
-                fechaHora: fechaHoraIso,
-                valorPactado: valor,
-              });
-            }
-          });
-        if (promises.length === 0) {
+        const asignaciones: Record<number, number> = {};
+        for (const p of groupPassengers) {
+          if (groupPilotSelections[p.id]) {
+            asignaciones[p.id] = parseInt(groupPilotSelections[p.id], 10);
+          }
+        }
+        if (Object.keys(asignaciones).length === 0) {
           toast.error('Por favor asigna al menos un piloto a uno de los pasajeros.');
           return;
         }
-        await Promise.all(promises);
-        toast.success('¡Vuelos del grupo guardados/actualizados con éxito!');
+
+        const totalPax = groupPassengers.length;
+        const asignadosCount = Object.keys(asignaciones).length;
+        if (asignadosCount < totalPax) {
+          toast.warning(`Asignados ${asignadosCount} de ${totalPax} pasajeros.`);
+        }
+
+        const valorUnitario = (() => {
+          const total = Number(reservaOrigen?.valorTotal ?? 0);
+          const count = reservaOrigen?.pasajeros?.length || totalPax || 1;
+          return count > 0 && total > 0
+            ? Math.round(total / count)
+            : parseFloat(formData.valorPactado || '0');
+        })();
+
+        await typedApiOutbox.vuelos.agendarGrupo({
+          reservaId: filterReservaId,
+          fechaHora: fechaHoraIso,
+          asignaciones,
+          valorPactadoPorPasajero: valorUnitario > 0 ? valorUnitario : undefined,
+          version: reservaOrigen?.version ?? 0,
+        });
+
+        toast.success('¡Vuelos del grupo agendados con éxito! 🪂');
       } else {
         const pasajeroSel = pasajeros.find((p) => p.id === Number(formData.pasajeroId));
         const reservaSingle = pasajeroSel?.reservaId

@@ -1,12 +1,21 @@
-"use client";
+'use client';
 
 import { useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../../../services/api';
 import { dateFnsLocalizer, Views } from 'react-big-calendar';
-import { format, startOfWeek, getDay, addDays, startOfMonth, endOfMonth, endOfWeek, isSameDay } from 'date-fns';
+import {
+  format,
+  startOfWeek,
+  getDay,
+  addDays,
+  startOfMonth,
+  endOfMonth,
+  endOfWeek,
+  isSameDay,
+} from 'date-fns';
 import { es } from 'date-fns/locale';
-import { type ResolucionDiaDTO, dateKeyLocal } from '@parapente/shared';
+import { type ResolucionDiaDTO, dateKeyLocal, horaLocalHHMM } from '@parapente/shared';
 import { useMediaQuery } from '../../../hooks/useMediaQuery';
 import type { Vuelo, Piloto, Pasajero, ConfiguracionBloque } from './types';
 import type { ReservaConPasajeros } from '../../../types/reservaDetalle';
@@ -20,7 +29,11 @@ const locales = { es };
 export const localizer = dateFnsLocalizer({
   format,
   startOfWeek: (date: Date, options?: Parameters<typeof startOfWeek>[1]) =>
-    startOfWeek(date, { ...(options as Record<string, unknown>), weekStartsOn: 1, locale: es } as Parameters<typeof startOfWeek>[1]),
+    startOfWeek(date, {
+      ...(options as Record<string, unknown>),
+      weekStartsOn: 1,
+      locale: es,
+    } as Parameters<typeof startOfWeek>[1]),
   getDay,
   locales,
 });
@@ -70,7 +83,9 @@ export function useCalendarioController() {
   const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
   const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
   const [isPagosModalOpen, setIsPagosModalOpen] = useState(false);
-  const [selectedReservaPagos, setSelectedReservaPagos] = useState<ReservaConPasajeros | null>(null);
+  const [selectedReservaPagos, setSelectedReservaPagos] = useState<ReservaConPasajeros | null>(
+    null,
+  );
   const [mostrarAgendas, setMostrarAgendas] = useState(false);
 
   // Queries
@@ -80,8 +95,12 @@ export function useCalendarioController() {
   });
   const configuraciones = configuracionesQuery.data ?? [];
 
-  const resDesdeISO = new Date(Date.UTC(date.getFullYear(), date.getMonth(), 1)).toISOString().slice(0, 10);
-  const resHastaISO = new Date(Date.UTC(date.getFullYear(), date.getMonth() + 1, 0)).toISOString().slice(0, 10);
+  const resDesdeISO = new Date(Date.UTC(date.getFullYear(), date.getMonth(), 1))
+    .toISOString()
+    .slice(0, 10);
+  const resHastaISO = new Date(Date.UTC(date.getFullYear(), date.getMonth() + 1, 0))
+    .toISOString()
+    .slice(0, 10);
   const resolucionQuery = useQuery<Record<string, ResolucionDiaDTO>>({
     queryKey: ['configuracion-resolucion', resDesdeISO, resHastaISO],
     queryFn: () => api.configuracion.resolver({ desde: resDesdeISO, hasta: resHastaISO }),
@@ -101,7 +120,16 @@ export function useCalendarioController() {
 
   const vuelosQuery = useQuery<Vuelo[]>({
     queryKey: ['vuelos', 'calendario', desdeISO, hastaISO],
-    queryFn: async () => (await api.vuelos.listar({ desde: desdeISO, hasta: hastaISO, pageSize: 500, sort: 'fechaHora.asc', campos: 'vista-calendario' })).data as Vuelo[],
+    queryFn: async () =>
+      (
+        await api.vuelos.listar({
+          desde: desdeISO,
+          hasta: hastaISO,
+          pageSize: 500,
+          sort: 'fechaHora.asc',
+          campos: 'vista-calendario',
+        })
+      ).data as Vuelo[],
     staleTime: esMesHistorico ? Infinity : 30_000,
     gcTime: esMesHistorico ? 1000 * 60 * 60 : 1000 * 60 * 5,
   });
@@ -109,7 +137,8 @@ export function useCalendarioController() {
 
   const pilotosQuery = useQuery<Piloto[]>({
     queryKey: ['pilotos', 'activos'],
-    queryFn: async () => (await api.pilotos.listar({ activo: 'true', pageSize: 500 })).data as unknown as Piloto[],
+    queryFn: async () =>
+      (await api.pilotos.listar({ activo: 'true', pageSize: 500 })).data as unknown as Piloto[],
     staleTime: 60_000,
   });
   const pilotos = pilotosQuery.data ?? [];
@@ -123,12 +152,18 @@ export function useCalendarioController() {
 
   const reservasQuery = useQuery<ReservaConPasajeros[]>({
     queryKey: ['reservas', 'calendario-activas'],
-    queryFn: async () => (await api.reservas.listar({ desde: new Date().toISOString(), pageSize: 200 })).data as ReservaConPasajeros[],
+    queryFn: async () =>
+      (await api.reservas.listar({ desde: new Date().toISOString(), pageSize: 200 }))
+        .data as ReservaConPasajeros[],
     staleTime: 60_000,
   });
   const reservas = reservasQuery.data ?? [];
 
-  const loading = vuelosQuery.isPending || pilotosQuery.isPending || pasajerosQuery.isPending || reservasQuery.isPending;
+  const loading =
+    vuelosQuery.isPending ||
+    pilotosQuery.isPending ||
+    pasajerosQuery.isPending ||
+    reservasQuery.isPending;
 
   // Sub-hook: Modal de Vuelo / Agendamiento
   const modalController = useCalendarioModal({
@@ -180,7 +215,8 @@ export function useCalendarioController() {
   });
 
   // Sincronización de URL params (?reservaId=...)
-  const allDataReady = !!vuelosQuery.data && !!pilotosQuery.data && !!pasajerosQuery.data && !!reservasQuery.data;
+  const allDataReady =
+    !!vuelosQuery.data && !!pilotosQuery.data && !!pasajerosQuery.data && !!reservasQuery.data;
   const handledReservaParam = useRef(false);
 
   /* eslint-disable react-hooks/set-state-in-effect -- hidratación una vez al montar desde URL params ?reservaId; no es derivado calculable en render */
@@ -196,7 +232,9 @@ export function useCalendarioController() {
         modalController.setFilterReservaId(resId);
         const reserva = reservas.find((r: ReservaConPasajeros) => r.id === resId);
         const groupPassengers = pasajeros.filter((p: Pasajero) => p.reservaId === resId);
-        const existingFlight = vuelos.find((v: Vuelo) => groupPassengers.some((gp: Pasajero) => gp.id === v.pasajeroId));
+        const existingFlight = vuelos.find((v: Vuelo) =>
+          groupPassengers.some((gp: Pasajero) => gp.id === v.pasajeroId),
+        );
 
         let defaultFecha = '';
         let defaultHora = '';
@@ -204,17 +242,22 @@ export function useCalendarioController() {
         if (existingFlight) {
           const start = new Date(existingFlight.fechaHora);
           defaultFecha = dateKeyLocal(start);
-          const localDate = new Date(start.getTime() - start.getTimezoneOffset() * 60000);
-          defaultHora = localDate.toISOString().split('T')[1].substring(0, 5);
+          defaultHora = horaLocalHHMM(start);
           setDate(start);
         } else if (reserva && reserva.fechaAgenda) {
-          const fr = reserva.fechaAgenda as string | Date;
-          defaultFecha = typeof fr === 'string' ? fr.split('T')[0] : new Date(fr).toISOString().split('T')[0];
-          setDate(typeof fr === 'string' ? new Date(fr) : new Date(fr));
+          defaultFecha = dateKeyLocal(reserva.fechaAgenda);
+          defaultHora = reserva.horaAgenda ? horaLocalHHMM(reserva.horaAgenda) : '';
+          setDate(new Date(reserva.fechaAgenda));
         }
 
         modalController.setEditingId(null);
-        modalController.setFormData({ pilotoId: '', pasajeroId: '', fecha: defaultFecha, hora: defaultHora, valorPactado: '' });
+        modalController.setFormData({
+          pilotoId: '',
+          pasajeroId: '',
+          fecha: defaultFecha,
+          hora: defaultHora,
+          valorPactado: '',
+        });
 
         const autoSelections: Record<number, string> = {};
         groupPassengers.forEach((p: Pasajero) => {
