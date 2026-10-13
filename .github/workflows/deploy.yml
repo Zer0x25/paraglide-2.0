@@ -239,9 +239,10 @@ jobs:
           # Persistir para futuros `docker compose up` manuales sin pasar por Actions
           grep -q "^GOOGLE_CLIENT_ID=" .env 2>/dev/null && sed -i "s/^GOOGLE_CLIENT_ID=.*/GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}/" .env || echo "GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}" >> .env
           grep -q "^NEXT_PUBLIC_GOOGLE_CLIENT_ID=" .env 2>/dev/null && sed -i "s/^NEXT_PUBLIC_GOOGLE_CLIENT_ID=.*/NEXT_PUBLIC_GOOGLE_CLIENT_ID=${NEXT_PUBLIC_GOOGLE_CLIENT_ID}/" .env || echo "NEXT_PUBLIC_GOOGLE_CLIENT_ID=${NEXT_PUBLIC_GOOGLE_CLIENT_ID}" >> .env
-          docker compose down --remove-orphans || true
+          echo "📥 Descargando imágenes pre-compiladas desde GHCR sin detener PostgreSQL..."
           docker compose pull api web
-          docker compose up -d --no-build --force-recreate --remove-orphans
+          docker compose up -d --remove-orphans db
+          docker compose up -d --no-build --force-recreate --no-deps api web
           docker image prune -af --filter "until=2h"
 
       - name: Apply database schema (prisma db push)
@@ -250,11 +251,11 @@ jobs:
           [ ! -d "$TARGET_DIR" ] && TARGET_DIR="/home/zer0x/server.lab/repos/paraglide"
           cd "$TARGET_DIR"
           echo "🔄 Aplicando prisma db push contra la BD de produccion..."
-          docker compose exec -T api sh -c "npx prisma db push --schema=apps/api/prisma/schema.prisma --skip-generate" || {
-            echo "❌ db push falló. Revisa el drift del esquema antes de continuar (un cambio destructivo requiere revisión manual; ver ADR 015)."
+          docker compose exec -T api sh -c "npx prisma db push --schema=apps/api/prisma/schema.prisma --skip-generate && npx tsx apps/api/scripts/indexes-especiales.ts" || {
+            echo "❌ db push o restauración de índices especiales falló. Revisa el drift del esquema antes de continuar (ver ADR 015)."
             exit 1
           }
-          echo "✅ Esquema de BD sincronizado."
+          echo "✅ Esquema de BD e índices parciales sincronizados atómicamente."
 
       - name: Seed prod defaults (reglas/tarifas/promoción, idempotente)
         run: |

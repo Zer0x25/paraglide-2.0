@@ -3,6 +3,7 @@ import { calendarService } from '../services/calendar.service';
 import { googleCalendarService } from '../services/google-calendar.service';
 import { prisma } from '../plugins/prisma';
 import { config } from '../config';
+import { resolveSafeBaseUrl } from '../utils/url.util';
 
 export class CalendarController {
   /**
@@ -95,30 +96,7 @@ export class CalendarController {
    * GET /api/calendar/sync-info
    */
   async getSyncInfo(req: FastifyRequest, reply: FastifyReply) {
-    const forwardedHost = (req.headers['x-forwarded-host'] as string | undefined)
-      ?.split(',')[0]
-      ?.trim();
-    const forwardedProto = (req.headers['x-forwarded-proto'] as string | undefined)
-      ?.split(',')[0]
-      ?.trim();
-    const rawHost = (req.headers['host'] as string | undefined) || 'localhost:3001';
-    const effectiveHost = forwardedHost || rawHost;
-    const protocol =
-      forwardedProto || (req.headers['x-forwarded-proto'] as string | undefined) || 'http';
-
-    let baseUrl: string;
-    if (
-      effectiveHost &&
-      !effectiveHost.startsWith('api:') &&
-      !effectiveHost.startsWith('db:') &&
-      !effectiveHost.startsWith('web:')
-    ) {
-      baseUrl = `${protocol}://${effectiveHost}`;
-    } else if (config.webUrl) {
-      baseUrl = config.webUrl;
-    } else {
-      baseUrl = `${protocol}://${rawHost}`;
-    }
+    const baseUrl = resolveSafeBaseUrl(req);
 
     const user = (req as any).user as { role?: string; pilotoId?: number | null } | undefined;
     const isPilotoRole = user?.role === 'PILOTO';

@@ -44,7 +44,11 @@ describe('ReportesService (Unit Tests)', () => {
             condicionFisica: 'Optima',
             firmaDeslinde: true,
             reservaId: 100,
-            reserva: { numeroReserva: 'RES-001', nombreTitular: 'Pasajero Uno', telefono: '+56912345678' },
+            reserva: {
+              numeroReserva: 'RES-001',
+              nombreTitular: 'Pasajero Uno',
+              telefono: '+56912345678',
+            },
           },
         },
         {
@@ -83,7 +87,9 @@ describe('ReportesService (Unit Tests)', () => {
       const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
       (prisma.vuelo.findMany as any).mockRejectedValue(new Error('DB connection failure'));
 
-      await expect(service.getManifiestoDiario('2026-08-14')).rejects.toThrow('DB connection failure');
+      await expect(service.getManifiestoDiario('2026-08-14')).rejects.toThrow(
+        'DB connection failure',
+      );
       warnSpy.mockRestore();
     });
   });
@@ -123,6 +129,27 @@ describe('ReportesService (Unit Tests)', () => {
       expect(result.totalVuelosGlobal).toBe(1);
       expect(result.totalMontoGlobal).toBe(30000);
       expect(result.pilotos[0].totalAPagar).toBe(30000);
+    });
+  });
+
+  describe('generarLiquidacionesCsv', () => {
+    it('debería escapar fórmulas maliciosas en campos de texto para evitar CSV Injection', async () => {
+      (prisma.vuelo.findMany as any).mockResolvedValue([
+        {
+          id: 1,
+          fechaHora: new Date('2026-08-10T10:00:00Z'),
+          estado: 'COMPLETADO',
+          piloto: { nombre: "=cmd|' /C calc'!A0", tarifaPorVuelo: 25000 },
+          pasajero: { nombre: '+56912345678', rutDni: '@malicious' },
+          pagoPiloto: 25000,
+          valorPactado: 70000,
+        },
+      ]);
+
+      const result = await service.generarLiquidacionesCsv({ mes: 7, year: 2026 });
+      expect(result.csvContent).toContain(`"'=cmd|' /C calc'!A0"`);
+      expect(result.csvContent).toContain(`"'+56912345678"`);
+      expect(result.csvContent).toContain(`"'@malicious"`);
     });
   });
 });
