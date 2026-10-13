@@ -69,15 +69,19 @@ describe('useWarmupData (ADR 009 - precarga offline de ±15 días)', () => {
 
   it('ejecuta prefetch de datos operativos y calentamiento RSC cuando hay token', async () => {
     (Cookies.get as unknown as ReturnType<typeof vi.fn>).mockReturnValue('mock-jwt-token');
-    const spyFetch = vi.spyOn(window, 'fetch').mockImplementation(() => Promise.resolve(new Response()));
+    const spyFetch = vi
+      .spyOn(window, 'fetch')
+      .mockImplementation(() => Promise.resolve(new Response()));
     const { queryClient, Wrapper } = crearWrapper();
     const spyPrefetch = vi.spyOn(queryClient, 'prefetchQuery');
     const spyPrefetchInfinite = vi.spyOn(queryClient, 'prefetchInfiniteQuery');
 
     renderHook(() => useWarmupData(), { wrapper: Wrapper });
 
-    expect(spyPrefetch).toHaveBeenCalled();
-    expect(spyPrefetchInfinite).toHaveBeenCalled();
+    await waitFor(() => {
+      expect(spyPrefetch).toHaveBeenCalled();
+      expect(spyPrefetchInfinite).toHaveBeenCalled();
+    });
 
     const queryKeys = spyPrefetch.mock.calls.map((call) => call[0].queryKey);
     expect(queryKeys.some((k) => k[0] === 'dashboard')).toBe(true);
@@ -100,8 +104,22 @@ describe('useWarmupData (ADR 009 - precarga offline de ±15 días)', () => {
     // Verifica que se ejecutó el precalentamiento activo de RSC hacia el Service Worker
     await waitFor(() => {
       const fetchCalls = spyFetch.mock.calls;
-      expect(fetchCalls.some((call) => String(call[0]).includes('/reservas') && (call[1] as unknown as { headers?: Record<string,string> } | undefined)?.headers?.RSC === '1')).toBe(true);
-      expect(fetchCalls.some((call) => String(call[0]).includes('/calendario') && (call[1] as unknown as { headers?: Record<string,string> } | undefined)?.headers?.RSC === '1')).toBe(true);
+      expect(
+        fetchCalls.some(
+          (call) =>
+            String(call[0]).includes('/reservas') &&
+            (call[1] as unknown as { headers?: Record<string, string> } | undefined)?.headers
+              ?.RSC === '1',
+        ),
+      ).toBe(true);
+      expect(
+        fetchCalls.some(
+          (call) =>
+            String(call[0]).includes('/calendario') &&
+            (call[1] as unknown as { headers?: Record<string, string> } | undefined)?.headers
+              ?.RSC === '1',
+        ),
+      ).toBe(true);
     });
     spyFetch.mockRestore();
   });

@@ -1,16 +1,10 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
 import { pantallaTokensService, PantallaTokenTipo } from '../services/pantallaTokens.service';
-import { config } from '../config';
+import { resolveSafeBaseUrl } from '../utils/url.util';
 
 function buildUrl(req: FastifyRequest, token: string): string {
-  // Deducir la URL base del request (Host + protocolo reenviados por Caddy/Cloudflare),
-  // en lugar de fijar PUBLIC_WEB_URL. Así funciona en prod, dev y test.prod sin config.
-  const protocol = (req.headers['x-forwarded-proto'] as string) || req.protocol || 'http';
-  const host =
-    (req.headers['x-forwarded-host'] as string) ||
-    (req.headers.host as string) ||
-    config.webUrl.replace(/^https?:\/\//, '');
-  return `${protocol}://${host}/pantalla?token=${token}`;
+  const baseUrl = resolveSafeBaseUrl(req);
+  return `${baseUrl}/pantalla?token=${token}`;
 }
 
 function parseTipo(raw?: string): PantallaTokenTipo | null {

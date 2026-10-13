@@ -88,7 +88,9 @@ describe('outbox.service', () => {
 
   it('replayOutbox reenvía y vacía la cola (ok)', async () => {
     await enqueue({ entidad: 'piloto', metodo: 'POST', url: '/pilotos', payload: { nombre: 'x' } });
-    const api = { request: vi.fn().mockResolvedValue({}) } as unknown as import('axios').AxiosInstance;
+    const api = {
+      request: vi.fn().mockResolvedValue({}),
+    } as unknown as import('axios').AxiosInstance;
     const result = await replayOutbox(api);
     expect(result.ok).toBe(1);
     expect(result.remaining).toBe(0);
@@ -164,6 +166,28 @@ describe('outbox.service', () => {
     const res2 = deepReplaceId(res1, -1258, 205);
     expect((res2.asignaciones as Record<string, number>)['205']).toBe(5);
     expect((res2.asignaciones as Record<string, number>)['10']).toBe(3);
+  });
+
+  it('deepReplaceId respeta límites de palabra/número sin corromper fechas, RUTs ni IDs más largos', () => {
+    const payload = {
+      fecha: '2026-12-25',
+      rut: '125799-K',
+      urlId: '/reservas/-125799',
+      targetId: -1257,
+      targetStr: 'prefix -1257 suffix',
+    };
+
+    const res = deepReplaceId(payload, -1257, 87);
+    expect(res.targetId).toBe(87);
+    expect(res.targetStr).toBe('prefix 87 suffix');
+    // NO debe haber mutado -125799 ni fechas ni RUTs
+    expect(res.urlId).toBe('/reservas/-125799');
+    expect(res.fecha).toBe('2026-12-25');
+    expect(res.rut).toBe('125799-K');
+
+    // Comprobar que un tempId como -12 no sustituye el mes en una fecha '2026-12-25' porque '6' antecede a '-12'
+    const resFecha = deepReplaceId(payload, -12, 99);
+    expect(resFecha.fecha).toBe('2026-12-25');
   });
 
   it('replayOutbox remapea tempId a realId en peticiones dependientes posteriores', async () => {
@@ -255,7 +279,7 @@ describe('outbox.service', () => {
         method: 'PUT',
         url: '/vuelos/2',
         data: expect.objectContaining({ version: 3 }),
-      })
+      }),
     );
 
     const conflictos = await listConflictos();

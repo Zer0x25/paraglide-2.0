@@ -3,6 +3,7 @@ import { calendarService } from '../services/calendar.service';
 import { googleCalendarService } from '../services/google-calendar.service';
 import { prisma } from '../plugins/prisma';
 import { config } from '../config';
+import { resolveSafeBaseUrl } from '../utils/url.util';
 
 export class CalendarController {
   /**
@@ -11,14 +12,14 @@ export class CalendarController {
    */
   async getFeed(
     req: FastifyRequest<{ Querystring: { token?: string; pilotoId?: string } }>,
-    reply: FastifyReply
+    reply: FastifyReply,
   ) {
     const { token, pilotoId } = req.query;
 
     if (!token) {
       return reply.status(401).send({
         error: 'Unauthorized',
-        message: 'Se requiere un token de suscripción de calendario válido (?token=...).'
+        message: 'Se requiere un token de suscripción de calendario válido (?token=...).',
       });
     }
 
@@ -32,7 +33,7 @@ export class CalendarController {
             : 'El token de sincronización de calendario no es válido o ha sido revocado.';
       return reply.status(401).send({
         error: 'Unauthorized',
-        message
+        message,
       });
     }
 
@@ -59,7 +60,7 @@ export class CalendarController {
       req.log.error(error);
       return reply.status(500).send({
         error: 'Internal Server Error',
-        message: 'No se pudo generar el feed de calendario.'
+        message: 'No se pudo generar el feed de calendario.',
       });
     }
   }
@@ -68,10 +69,7 @@ export class CalendarController {
    * Endpoint público para descargar archivo .ics de una reserva / voucher
    * GET /api/public/calendar/reserva/:id.ics
    */
-  async getVoucherIcs(
-    req: FastifyRequest<{ Params: { id: string } }>,
-    reply: FastifyReply
-  ) {
+  async getVoucherIcs(req: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) {
     const identifier = req.params.id;
     if (!identifier) {
       return reply.status(400).send({ error: 'Identificador de reserva inválido' });
@@ -88,7 +86,7 @@ export class CalendarController {
     } catch (error: any) {
       return reply.status(404).send({
         error: 'Not Found',
-        message: error.message || 'Reserva no encontrada'
+        message: error.message || 'Reserva no encontrada',
       });
     }
   }
@@ -98,20 +96,7 @@ export class CalendarController {
    * GET /api/calendar/sync-info
    */
   async getSyncInfo(req: FastifyRequest, reply: FastifyReply) {
-    const forwardedHost = (req.headers['x-forwarded-host'] as string | undefined)?.split(',')[0]?.trim();
-    const forwardedProto = (req.headers['x-forwarded-proto'] as string | undefined)?.split(',')[0]?.trim();
-    const rawHost = (req.headers['host'] as string | undefined) || 'localhost:3001';
-    const effectiveHost = forwardedHost || rawHost;
-    const protocol = forwardedProto || (req.headers['x-forwarded-proto'] as string | undefined) || 'http';
-
-    let baseUrl: string;
-    if (effectiveHost && !effectiveHost.startsWith('api:') && !effectiveHost.startsWith('db:') && !effectiveHost.startsWith('web:')) {
-      baseUrl = `${protocol}://${effectiveHost}`;
-    } else if (config.webUrl) {
-      baseUrl = config.webUrl;
-    } else {
-      baseUrl = `${protocol}://${rawHost}`;
-    }
+    const baseUrl = resolveSafeBaseUrl(req);
 
     // Token universal para el panel de administración (todos los vuelos)
     const universalTokenInfo = await calendarService.generateFeedToken('all');
@@ -141,13 +126,13 @@ export class CalendarController {
           httpUrl,
           webcalUrl,
         };
-      })
+      }),
     );
 
     const hasOfficialGoogleCalendar = Boolean(
       config.googleCalendarId &&
       config.googleCalendarClientEmail &&
-      config.googleCalendarPrivateKey
+      config.googleCalendarPrivateKey,
     );
 
     const googleCalendarUrl = hasOfficialGoogleCalendar
@@ -198,25 +183,34 @@ export class CalendarController {
    */
   async regenerateFeedToken(
     req: FastifyRequest<{ Body: { scope?: 'all' | 'piloto'; pilotoId?: number } }>,
-    reply: FastifyReply
+    reply: FastifyReply,
   ) {
     const scope = req.body?.scope ?? 'all';
     const pilotoId = req.body?.pilotoId;
 
     if (scope !== 'all' && scope !== 'piloto') {
-      return reply.status(400).send({ success: false, message: 'scope debe ser "all" o "piloto".' });
+      return reply
+        .status(400)
+        .send({ success: false, message: 'scope debe ser "all" o "piloto".' });
     }
     if (scope === 'piloto' && !pilotoId) {
-      return reply.status(400).send({ success: false, message: 'pilotoId es requerido para el scope "piloto".' });
+      return reply
+        .status(400)
+        .send({ success: false, message: 'pilotoId es requerido para el scope "piloto".' });
     }
     if (scope === 'piloto') {
-      const piloto = await prisma.piloto.findUnique({ where: { id: Number(pilotoId), deletedAt: null } });
+      const piloto = await prisma.piloto.findUnique({
+        where: { id: Number(pilotoId), deletedAt: null },
+      });
       if (!piloto) {
         return reply.status(404).send({ success: false, message: 'Piloto no encontrado.' });
       }
     }
 
-    const tokenInfo = await calendarService.regenerateFeedToken(scope, scope === 'piloto' ? Number(pilotoId) : undefined);
+    const tokenInfo = await calendarService.regenerateFeedToken(
+      scope,
+      scope === 'piloto' ? Number(pilotoId) : undefined,
+    );
     return reply.send({
       success: true,
       data: tokenInfo,
