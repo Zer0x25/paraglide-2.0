@@ -114,6 +114,43 @@ export function useAgendamientoRapidoController({
     };
   }, [fecha, reserva]);
 
+  // Ejecución proactiva automática del Smart Match al tener fecha y hora válidas
+  useEffect(() => {
+    if (!reserva || !fecha || !hora || diaBloqueado) return;
+
+    let activo = true;
+    const autoMatchProactivo = async () => {
+      setLoadingMatch(true);
+      const fechaHora = fechaHoraLocalToIso(fecha, hora);
+      type PaxPeso = { id: number; peso: number };
+      const paxs: PaxPeso[] = (reserva.pasajeros ?? []).map((p) => ({
+        id: p.id as number,
+        peso: (p.pesoVerificado ?? p.peso ?? 75) as number,
+      }));
+
+      try {
+        const res = await api.vuelos.asignacionAutomatica({
+          fechaHora,
+          pasajeros: paxs,
+        });
+        if (!activo) return;
+        const matchAsignaciones = (res as { asignaciones?: Record<number, number> }).asignaciones;
+        if (matchAsignaciones && Object.keys(matchAsignaciones).length > 0) {
+          setAsignaciones(matchAsignaciones);
+        }
+      } catch {
+        // Silencioso en modo proactivo, el botón manual mostrará detalles
+      } finally {
+        if (activo) setLoadingMatch(false);
+      }
+    };
+
+    autoMatchProactivo();
+    return () => {
+      activo = false;
+    };
+  }, [fecha, hora, reserva, diaBloqueado]);
+
   const ejecutarAutoMatch = async () => {
     if (!reserva || !fecha || !hora) return;
 

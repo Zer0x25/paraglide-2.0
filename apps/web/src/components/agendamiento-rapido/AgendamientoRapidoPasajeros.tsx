@@ -1,10 +1,12 @@
-"use client";
+'use client';
 
 import { UserCheck } from 'lucide-react';
 import type { PilotoDTO } from '@parapente/shared';
 import type { ReservaConPasajeros } from '@/types/reservaDetalle';
 
-type PasajeroSoftDelete = ReservaConPasajeros['pasajeros'][number] & { deletedAt?: string | Date | null };
+type PasajeroSoftDelete = ReservaConPasajeros['pasajeros'][number] & {
+  deletedAt?: string | Date | null;
+};
 
 interface AgendamientoRapidoPasajerosProps {
   pasajeros: PasajeroSoftDelete[];
@@ -44,12 +46,16 @@ export function AgendamientoRapidoPasajeros({
                 <div>
                   <div className="flex items-center space-x-2">
                     <span className="font-extrabold text-sm text-slate-900 dark:text-white">
-                      {idx + 1}. {p.nombre} {p.numeroPasajero && <span className="text-slate-400 font-normal ml-1">#{p.numeroPasajero}</span>}
+                      {idx + 1}. {p.nombre}{' '}
+                      {p.numeroPasajero && (
+                        <span className="text-slate-400 font-normal ml-1">#{p.numeroPasajero}</span>
+                      )}
                     </span>
                     <span className="text-xs text-slate-400 font-bold">({pesoPax} kg)</span>
                   </div>
                   <p className="text-[11px] text-slate-400 mt-0.5">
-                    {p.rutDni || 'Sin RUT'} • {p.firmaDeslinde ? '✓ Deslinde Firmado' : 'Deslinde Pendiente'}
+                    {p.rutDni || 'Sin RUT'} •{' '}
+                    {p.firmaDeslinde ? '✓ Deslinde Firmado' : 'Deslinde Pendiente'}
                   </p>
                 </div>
 
@@ -60,7 +66,7 @@ export function AgendamientoRapidoPasajeros({
                       const val = e.target.value ? Number(e.target.value) : undefined;
                       if (p.id == null) return;
                       const pid = p.id as number;
-                      setAsignaciones(prev => {
+                      setAsignaciones((prev) => {
                         const copy = { ...prev };
                         if (val) copy[pid] = val;
                         else delete copy[pid];
@@ -70,11 +76,26 @@ export function AgendamientoRapidoPasajeros({
                     className="w-full border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 text-xs bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-bold outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="">-- Seleccionar Piloto --</option>
-                    {pilotos.map((pi) => (
-                      <option key={pi.id} value={pi.id}>
-                        {pi.nombre} ({pi.categoria || 'MASTER'} • max {pi.pesoMaximoPasajero || 110}kg)
-                      </option>
-                    ))}
+                    {pilotos.map((pi) => {
+                      const yaAsignadoAOtro = Object.entries(asignaciones).some(
+                        ([otroPaxId, pilId]) => Number(otroPaxId) !== p.id && pilId === pi.id,
+                      );
+                      const excedePeso = Boolean(
+                        pi.pesoMaximoPasajero && pesoPax > pi.pesoMaximoPasajero,
+                      );
+                      const deshabilitado = yaAsignadoAOtro || excedePeso;
+                      return (
+                        <option key={pi.id} value={pi.id} disabled={deshabilitado}>
+                          {pi.nombre} ({pi.categoria || 'MASTER'} • max{' '}
+                          {pi.pesoMaximoPasajero || 110}kg)
+                          {yaAsignadoAOtro
+                            ? ' (Asignado en grupo)'
+                            : excedePeso
+                              ? ' (Excede peso)'
+                              : ''}
+                        </option>
+                      );
+                    })}
                   </select>
                 </div>
               </div>
