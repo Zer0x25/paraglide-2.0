@@ -47,6 +47,7 @@ export function ConfigBloqueFormModal({
       <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-xl w-full max-w-2xl p-5 sm:p-6 relative my-auto max-h-[90vh] overflow-y-auto">
         <button
           onClick={onClose}
+          aria-label="Cerrar modal"
           className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
         >
           <X size={24} />
@@ -204,6 +205,7 @@ export function ConfigBloqueFormModal({
                             newH.splice(i, 1);
                             setHorariosForm(newH);
                           }}
+                          aria-label="Eliminar bloque horario"
                           className="text-red-400 hover:text-red-600"
                         >
                           <X size={16} />

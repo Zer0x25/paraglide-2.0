@@ -5,3 +5,7 @@
 ## 2026-10-01 - Add aria-labels to ConfigBloqueCard
 **Learning:** Found an accessibility issue specific to this app's components.
 **Action:** Added `aria-label` attributes to icon-only buttons to improve screen-reader accessibility.
+
+## 2024-11-20 - Add aria-labels to ConfigBloqueFormModal
+**Learning:** Found an accessibility issue specific to this app's components, where some icon-only buttons lacked `aria-label`s.
+**Action:** Added `aria-label` attributes to icon-only buttons such as the "Cerrar modal" and "Eliminar bloque horario" buttons.
