@@ -198,33 +198,38 @@ export class PublicService {
         reserva.shortId = newShortIdReserva;
       }
 
-      if (reserva.pasajeros) {
-        for (const pax of reserva.pasajeros) {
-          let paxNeedsUpdate = false;
-          let newTokenPublicoPax = pax.tokenPublico;
-          let newShortIdPax = pax.shortId;
+      if (
+        Array.isArray(reserva.pasajeros) &&
+        reserva.pasajeros.some((p: any) => !p.tokenPublico || !p.shortId)
+      ) {
+        await Promise.all(
+          reserva.pasajeros.map(async (pax: any) => {
+            let paxNeedsUpdate = false;
+            let newTokenPublicoPax = pax.tokenPublico;
+            let newShortIdPax = pax.shortId;
 
-          if (!newTokenPublicoPax) {
-            newTokenPublicoPax = crypto.randomBytes(24).toString('hex');
-            paxNeedsUpdate = true;
-          }
-          if (!newShortIdPax) {
-            newShortIdPax = crypto.randomUUID().replace(/-/g, '').slice(0, 8);
-            paxNeedsUpdate = true;
-          }
+            if (!newTokenPublicoPax) {
+              newTokenPublicoPax = crypto.randomBytes(24).toString('hex');
+              paxNeedsUpdate = true;
+            }
+            if (!newShortIdPax) {
+              newShortIdPax = crypto.randomUUID().replace(/-/g, '').slice(0, 8);
+              paxNeedsUpdate = true;
+            }
 
-          if (paxNeedsUpdate && (prisma.pasajero as any).update) {
-            await prisma.pasajero.update({
-              where: { id: pax.id },
-              data: {
-                tokenPublico: newTokenPublicoPax,
-                shortId: newShortIdPax,
-              },
-            });
-            pax.tokenPublico = newTokenPublicoPax;
-            pax.shortId = newShortIdPax;
-          }
-        }
+            if (paxNeedsUpdate && (prisma.pasajero as any).update) {
+              await prisma.pasajero.update({
+                where: { id: pax.id },
+                data: {
+                  tokenPublico: newTokenPublicoPax,
+                  shortId: newShortIdPax,
+                },
+              });
+              pax.tokenPublico = newTokenPublicoPax;
+              pax.shortId = newShortIdPax;
+            }
+          }),
+        );
       }
     } catch {
       // Ignorar errores de auto-update si prisma está mockeado en tests

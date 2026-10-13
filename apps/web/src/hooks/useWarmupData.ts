@@ -3,30 +3,20 @@ import { useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import Cookies from 'js-cookie';
 import api from '../services/api';
+import { listOutbox } from '../services/outbox/outbox.service';
 
 /**
  * Hook de precarga (warmup) de datos operativos y rutas para soporte offline (ADR 009).
  *
  * Al iniciar la app (o al autenticarse y tener red), realiza en segundo plano:
- * 1. Prefetch de rutas con Next.js router para poblar la caché RSC del Service Worker.
- * 2. Prefetch de datos operativos de una ventana de ±15 días (mes en curso y colindantes):
- *    - Stats del dashboard
- *    - Reservas (activas y generales)
- *    - Vuelos de la vista calendario
- *    - Pilotos (totales y activos)
- *    - Pasajeros
- *    - Configuración y resolución de bloques
- *    - Equipos y plantillas
- *
- * TanStack Query + PersistQueryClientProvider almacenan automáticamente estos
- * datos en IndexedDB. Si el usuario pierde conexión, todas las vistas principales
- * cuentan con datos inmediatos y navegación fluida sin pantallas en blanco ni ERR_FAILED.
+ * 1. Espera a que el Outbox offline drene cualquier mutación pendiente antes de
+ *    consumir ancho de banda en conexiones móviles (3G/4G en pista).
+ * 2. Prefetch de rutas con Next.js router (filtradas por rol del usuario) para poblar la caché RSC del Service Worker.
+ * 3. Prefetch de datos operativos de una ventana de ±15 días (mes en curso y colindantes).
  */
 export function useWarmupData() {
   const queryClient = useQueryClient();
   const hasRunRef = useRef(false);
-  // Hook incondicional (regla de hooks): el try/catch previo lo llamaba de forma
-  // condicional y podía desordenar los hooks entre renders.
   const router = useRouter();
 
   useEffect(() => {
@@ -35,25 +25,45 @@ export function useWarmupData() {
     if (hasRunRef.current) return;
     hasRunRef.current = true;
 
-    const routes = [
-      '/',
-      '/pilotos',
-      '/reservas',
-      '/calendario',
-      '/configuracion',
-      '/analiticas',
-      '/equipos',
-      '/plantillas',
-      '/reportes',
-      '/meteorologia',
-      '/pantalla',
-      '/auditoria',
-      '/admin/users',
-      '/admin/modules',
-    ];
+    let userRole = 'ADMIN';
+    try {
+      const rawUser = localStorage.getItem('user');
+      if (rawUser) {
+        const parsed = JSON.parse(rawUser);
+        if (parsed?.role) userRole = String(parsed.role);
+      }
+    } catch {
+      // Fallback a lista estándar si no se puede leer el rol
+    }
+
+    const baseRoutes = ['/', '/pilotos', '/reservas', '/calendario', '/meteorologia', '/pantalla'];
+    const recepcionOrAdminRoutes = ['/configuracion', '/equipos', '/plantillas', '/reportes'];
+    const adminOnlyRoutes = ['/analiticas', '/auditoria', '/admin/users', '/admin/modules'];
+
+    const routes =
+      userRole === 'PILOTO'
+        ? baseRoutes
+        : userRole === 'RECEPCION'
+          ? [...baseRoutes, ...recepcionOrAdminRoutes]
+          : [...baseRoutes, ...recepcionOrAdminRoutes, ...adminOnlyRoutes];
+
+    const waitForOutboxDrain = async () => {
+      try {
+        for (let attempt = 0; attempt < 10; attempt++) {
+          const pending = await listOutbox();
+          if (!pending || pending.length === 0) break;
+          await new Promise((r) => setTimeout(r, 1500));
+        }
+      } catch {
+        // Si IndexedDB no está disponible en test, continuar sin bloquear
+      }
+    };
 
     const warmup = async () => {
       try {
+        // Prioridad absoluta a la sincronización de mutaciones pendientes en cola offline
+        await waitForOutboxDrain();
+
         // 0. Prefetch de rutas clave con router de Next.js
         if (router) {
           for (const route of routes) {
@@ -66,15 +76,13 @@ export function useWarmupData() {
         }
 
         // Calentamiento activo del Service Worker para soporte offline real:
-        // Asegura que el SW esté activo antes de emitir peticiones si está soportado,
-        // y ejecuta el calentamiento en lotes para no saturar la red ni la CPU.
+        // Ejecuta en lotes pequeños (BATCH_SIZE = 2) para no saturar enlaces móviles en pista.
         const warmRoutes = async () => {
           if (typeof window === 'undefined' || typeof window.fetch !== 'function') return;
 
           if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
             try {
               await navigator.serviceWorker.ready;
-              // Si el Service Worker está instalando o activando, esperar a que tome control (clients.claim)
               if (!navigator.serviceWorker.controller) {
                 await new Promise<void>((resolve) => {
                   const onController = () => {
@@ -91,31 +99,32 @@ export function useWarmupData() {
           }
 
           const origin = window.location?.origin || '';
-          const BATCH_SIZE = 3;
+          const BATCH_SIZE = 2;
           for (let i = 0; i < routes.length; i += BATCH_SIZE) {
             const batch = routes.slice(i, i + BATCH_SIZE);
             await Promise.allSettled(
               batch.flatMap((route) => {
                 const targetUrl = origin ? `${origin}${route}` : route;
-                const rscTargetUrl = targetUrl.includes('?') ? `${targetUrl}&_rsc` : `${targetUrl}?_rsc`;
+                const rscTargetUrl = targetUrl.includes('?')
+                  ? `${targetUrl}&_rsc`
+                  : `${targetUrl}?_rsc`;
                 return [
-                  // Payload RSC directo con _rsc (evita redirect 307 de Next.js 16 y alimenta pages-rsc)
-                  window.fetch(rscTargetUrl, {
-                    headers: { RSC: '1' },
-                    credentials: 'same-origin',
-                  }).then((res) => res.text()).catch(() => {}),
-                  // Payload RSC base
-                  window.fetch(targetUrl, {
-                    headers: { RSC: '1' },
-                    credentials: 'same-origin',
-                  }).then((res) => res.text()).catch(() => {}),
-                  // Documento HTML para recargas directas (F5) o cambio de pestaña
-                  window.fetch(targetUrl, {
-                    headers: { Accept: 'text/html' },
-                    credentials: 'same-origin',
-                  }).then((res) => res.text()).catch(() => {}),
+                  window
+                    .fetch(rscTargetUrl, {
+                      headers: { RSC: '1' },
+                      credentials: 'same-origin',
+                    })
+                    .then((res) => res.text())
+                    .catch(() => {}),
+                  window
+                    .fetch(targetUrl, {
+                      headers: { Accept: 'text/html' },
+                      credentials: 'same-origin',
+                    })
+                    .then((res) => res.text())
+                    .catch(() => {}),
                 ];
-              })
+              }),
             );
           }
         };

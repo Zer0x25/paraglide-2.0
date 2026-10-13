@@ -1,11 +1,14 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
 import { plantillasService } from '../services/plantillas.service';
 import { pantallaTokensService } from '../services/pantallaTokens.service';
-import { config } from '../config';
 import { CreatePlantillaMensajePayloadSchema } from '@parapente/shared';
+import { resolveSafeBaseUrl } from '../utils/url.util';
 
 export class PlantillasController {
-  async getAll(req: FastifyRequest<{ Querystring: Record<string, string | undefined> }>, reply: FastifyReply) {
+  async getAll(
+    req: FastifyRequest<{ Querystring: Record<string, string | undefined> }>,
+    reply: FastifyReply,
+  ) {
     const plantillas = await plantillasService.getAll(req.query || {});
     return reply.send(plantillas);
   }
@@ -48,7 +51,7 @@ export class PlantillasController {
         plantillaDraft?: { tipo?: string; cuerpo?: string };
       };
     }>,
-    reply: FastifyReply
+    reply: FastifyReply,
   ) {
     const body = req.body || {};
 
@@ -84,12 +87,8 @@ export class PlantillasController {
     const renderizado = plantillasService.render(templateText || '', vars);
     if (renderizado.includes('{{link_pantalla}}')) {
       const { token } = await pantallaTokensService.getOrCreate('DIARIO');
-      const protocol = (req.headers['x-forwarded-proto'] as string) || req.protocol || 'http';
-      const host =
-        (req.headers['x-forwarded-host'] as string) ||
-        (req.headers.host as string) ||
-        config.webUrl.replace(/^https?:\/\//, '');
-      const urlPantalla = `${protocol}://${host}/pantalla?token=${token}`;
+      const baseUrl = resolveSafeBaseUrl(req);
+      const urlPantalla = `${baseUrl}/pantalla?token=${token}`;
       return reply.send({ texto: renderizado.replaceAll('{{link_pantalla}}', urlPantalla) });
     }
     return reply.send({ texto: renderizado });

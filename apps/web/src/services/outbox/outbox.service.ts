@@ -30,7 +30,9 @@ type CountCb = (n: number) => void;
 const countSubscribers = new Set<CountCb>();
 
 async function notificar(): Promise<void> {
-  const n = await listOutbox().then((l) => l.length).catch(() => 0);
+  const n = await listOutbox()
+    .then((l) => l.length)
+    .catch(() => 0);
   countSubscribers.forEach((cb) => cb(n));
 }
 
@@ -44,7 +46,9 @@ async function notificar(): Promise<void> {
  */
 export async function enqueue(
   entry: Omit<OutboxEntry, 'id' | 'createdAt' | 'intentos'>,
-  opciones?: { /** Id preexistente (X-Client-Id del primer intento) para idempotencia end-to-end (ADR 009). */ id?: string }
+  opciones?: {
+    /** Id preexistente (X-Client-Id del primer intento) para idempotencia end-to-end (ADR 009). */ id?: string;
+  },
 ): Promise<OutboxEntry> {
   const db = await getDB();
   const full: OutboxEntry = {
@@ -70,7 +74,11 @@ export async function removeFromOutbox(id: string): Promise<void> {
   await notificar();
 }
 
-export async function markConflict(entry: OutboxEntry, error: unknown, status?: number): Promise<void> {
+export async function markConflict(
+  entry: OutboxEntry,
+  error: unknown,
+  status?: number,
+): Promise<void> {
   const db = await getDB();
   const conflicto: OutboxConflicto = {
     id: entry.id,
@@ -112,15 +120,28 @@ export async function listConflictos(): Promise<OutboxConflicto[]> {
   return (await db.getAll(STORE_CONFLICTOS)) as OutboxConflicto[];
 }
 
+/**
+ * Reemplaza ocurrencias del token `oldStr` respetando límites de palabra/número
+ * para no corromper fechas (ej. "2026-12-25"), RUTs ni IDs más largos ("-125799").
+ */
+function replaceTokenWithBoundaries(text: string, oldStr: string, newStr: string): string {
+  if (!oldStr || !text.includes(oldStr)) return text;
+  const escaped = oldStr.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const boundaryRegex = new RegExp(`(?<![\\dA-Za-z])${escaped}(?![\\dA-Za-z])`, 'g');
+  return text.replace(boundaryRegex, newStr);
+}
+
 export function deepReplaceId<T>(target: T, oldId: number | string, newId: number): T {
   if (target === null || target === undefined) return target;
   if (typeof target === 'number') {
     return (target === Number(oldId) ? newId : target) as unknown as T;
   }
   if (typeof target === 'string') {
-    if (target === String(oldId)) return String(newId) as unknown as T;
-    if ((target as string).includes(String(oldId))) {
-      return (target as string).split(String(oldId)).join(String(newId)) as unknown as T;
+    const oldStr = String(oldId);
+    const newStr = String(newId);
+    if (target === oldStr) return newStr as unknown as T;
+    if ((target as string).includes(oldStr)) {
+      return replaceTokenWithBoundaries(target as string, oldStr, newStr) as unknown as T;
     }
     return target;
   }
@@ -142,7 +163,13 @@ function isNetworkError(err: unknown): boolean {
   if (err !== null && typeof err === 'object') {
     const e = err as { code?: unknown; message?: unknown; response?: unknown; request?: unknown };
     if (e.code === 'ERR_NETWORK') return true;
-    if (typeof e.message === 'string' && (e.message === 'Network Error' || e.message.includes('NetworkError') || e.message.includes('Failed to fetch'))) return true;
+    if (
+      typeof e.message === 'string' &&
+      (e.message === 'Network Error' ||
+        e.message.includes('NetworkError') ||
+        e.message.includes('Failed to fetch'))
+    )
+      return true;
     if (!e.response && Boolean(e.request)) return true;
   }
   return false;
@@ -151,7 +178,7 @@ function isNetworkError(err: unknown): boolean {
 const MAX_INTENTOS = 5;
 
 export async function replayOutbox(
-  api: import('axios').AxiosInstance
+  api: import('axios').AxiosInstance,
 ): Promise<{ ok: number; conflicts: number; remaining: number }> {
   const entries = await listOutbox();
   let ok = 0;
@@ -165,7 +192,7 @@ export async function replayOutbox(
 
     for (const [tempId, realId] of idMapping.entries()) {
       if (effectiveUrl.includes(String(tempId))) {
-        effectiveUrl = effectiveUrl.split(String(tempId)).join(String(realId));
+        effectiveUrl = replaceTokenWithBoundaries(effectiveUrl, String(tempId), String(realId));
       }
       if (effectivePayload) {
         effectivePayload = deepReplaceId(effectivePayload, tempId, realId);
@@ -218,11 +245,15 @@ export async function replayOutbox(
       // Si es error de red durante el replay, abortar el ciclo de inmediato
       // para no quemar intentos innecesariamente mientras la conexión móvil se estabiliza.
       if (isNetworkError(err)) {
-        console.warn('[outbox] Conexión inestable durante replay, pausando cola:', (err as Error)?.message);
+        console.warn(
+          '[outbox] Conexión inestable durante replay, pausando cola:',
+          (err as Error)?.message,
+        );
         break;
       }
 
-      const resObj = (err as { response?: { status?: number; data?: Record<string, unknown> } })?.response;
+      const resObj = (err as { response?: { status?: number; data?: Record<string, unknown> } })
+        ?.response;
       const status = resObj?.status;
       const dataObj = resObj?.data;
       const errMsg = (err as { message?: unknown })?.message;
@@ -235,7 +266,12 @@ export async function replayOutbox(
       if (status === 409) {
         await markConflict(entry, errorMsg, 409);
         conflicts++;
-      } else if (status === 400 && (errorMsg.includes('no encontrada') || errorMsg.includes('Límite de peso') || entry.intentos >= 2)) {
+      } else if (
+        status === 400 &&
+        (errorMsg.includes('no encontrada') ||
+          errorMsg.includes('Límite de peso') ||
+          entry.intentos >= 2)
+      ) {
         // Errores 400 estructurales de validación de negocio no deben seguir bloqueando la cola
         await markConflict(entry, `Error 400: ${errorMsg}`, 400);
         conflicts++;
@@ -263,7 +299,7 @@ export async function replayOutbox(
  */
 export async function reintentarConflicto(
   id: string,
-  api: import('axios').AxiosInstance
+  api: import('axios').AxiosInstance,
 ): Promise<{ success: boolean; error?: string }> {
   const db = await getDB();
   const conflicto = (await db.get(STORE_CONFLICTOS, id)) as OutboxConflicto | undefined;
@@ -280,7 +316,12 @@ export async function reintentarConflicto(
       const serverNested = serverObj?.['data'] as Record<string, unknown> | undefined;
       const freshVersionRaw = serverObj?.['version'] ?? serverNested?.['version'];
       const freshVersion = typeof freshVersionRaw === 'number' ? freshVersionRaw : undefined;
-      if (typeof freshVersion === 'number' && dataToSend !== null && typeof dataToSend === 'object' && !Array.isArray(dataToSend)) {
+      if (
+        typeof freshVersion === 'number' &&
+        dataToSend !== null &&
+        typeof dataToSend === 'object' &&
+        !Array.isArray(dataToSend)
+      ) {
         dataToSend = { ...(dataToSend as Record<string, unknown>), version: freshVersion };
       }
     } catch {
@@ -339,7 +380,7 @@ let replayEnCurso = false;
  * apertura/reconexión SSE, botón manual). Ver ADR 009.
  */
 export async function replayIfIdle(
-  api: import('axios').AxiosInstance
+  api: import('axios').AxiosInstance,
 ): Promise<{ ok: number; conflicts: number; remaining: number } | null> {
   if (replayEnCurso) return null;
   replayEnCurso = true;
