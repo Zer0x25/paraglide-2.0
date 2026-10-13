@@ -3,13 +3,20 @@ import { NodeSDK } from '@opentelemetry/sdk-node';
 import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
 
 // Inicializar OpenTelemetry (Trazas)
+// Solo habilitar ConsoleSpanExporter cuando se solicite explícitamente (OTEL_CONSOLE_EXPORTER=true)
+// para evitar saturar stdout/disco y bloquear el event loop en producción.
+const enableConsoleTraces = process.env.OTEL_CONSOLE_EXPORTER === 'true';
 const sdk = new NodeSDK({
-  traceExporter: new (require('@opentelemetry/sdk-trace-base').ConsoleSpanExporter)(),
-  instrumentations: [getNodeAutoInstrumentations()]
+  ...(enableConsoleTraces
+    ? { traceExporter: new (require('@opentelemetry/sdk-trace-base').ConsoleSpanExporter)() }
+    : {}),
+  instrumentations: [getNodeAutoInstrumentations()],
 });
 sdk.start();
+
 import { buildApp } from './app';
 import { config } from './config';
+import { closeAllSseConnections } from './routes/eventos.routes';
 import { iniciarHigieneBloques } from './services/higiene.service';
 import { iniciarMeteoScheduler } from './services/meteoScheduler.service';
 import { iniciarNotificacionesScheduler } from './services/notificacionesScheduler.service';
@@ -32,6 +39,32 @@ async function start() {
     iniciarCalendarScheduler();
     // Cierre contable de reservas históricas (>7 días): barrido inicial + ciclo diario 04:00 UTC
     iniciarCierreContableScheduler();
+
+    let shuttingDown = false;
+    const gracefulShutdown = async (signal: string) => {
+      if (shuttingDown) return;
+      shuttingDown = true;
+      console.log(`[Server] Señal ${signal} recibida. Iniciando apagado ordenado...`);
+      const forceExitTimer = setTimeout(() => {
+        console.error('[Server] Tiempo máximo de apagado excedido, forzando salida.');
+        process.exit(1);
+      }, 8_000);
+      forceExitTimer.unref?.();
+
+      try {
+        closeAllSseConnections();
+        await app.close();
+        await sdk.shutdown().catch(() => {});
+        console.log('[Server] Conexiones HTTP y Prisma cerradas correctamente.');
+        process.exit(0);
+      } catch (shutdownErr) {
+        console.error('[Server] Error durante el apagado ordenado:', shutdownErr);
+        process.exit(1);
+      }
+    };
+
+    process.once('SIGTERM', () => void gracefulShutdown('SIGTERM'));
+    process.once('SIGINT', () => void gracefulShutdown('SIGINT'));
   } catch (err) {
     console.error(err);
     process.exit(1);

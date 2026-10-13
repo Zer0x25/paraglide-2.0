@@ -3,8 +3,27 @@ import { pilotosService } from '../services/pilotos.service';
 import { logAudit } from '../services/auditoria.service';
 import { PilotoSchema } from '@parapente/shared';
 
+function assertCanEditPilotoDisponibilidad(
+  req: FastifyRequest,
+  targetPilotoId: number,
+  reply: FastifyReply,
+): boolean {
+  const user = (req as any).user as { role?: string; pilotoId?: number | null } | undefined;
+  if (user?.role === 'PILOTO' && user.pilotoId !== targetPilotoId) {
+    reply.code(403).send({
+      error: 'Forbidden',
+      message: 'Un piloto solo puede modificar su propia disponibilidad.',
+    });
+    return false;
+  }
+  return true;
+}
+
 export class PilotosController {
-  async getAll(req: FastifyRequest<{ Querystring: Record<string, string | undefined> }>, reply: FastifyReply) {
+  async getAll(
+    req: FastifyRequest<{ Querystring: Record<string, string | undefined> }>,
+    reply: FastifyReply,
+  ) {
     const pilotos = await pilotosService.getAll(req.query);
     return reply.send(pilotos);
   }
@@ -43,10 +62,15 @@ export class PilotosController {
     return reply.send(pilotoActualizado);
   }
 
-  async toggleDisponibilidad(req: FastifyRequest<{ Params: { id: string }, Body: { fecha: string } }>, reply: FastifyReply) {
+  async toggleDisponibilidad(
+    req: FastifyRequest<{ Params: { id: string }; Body: { fecha: string } }>,
+    reply: FastifyReply,
+  ) {
     const { id } = req.params;
+    const pilotoIdNum = Number(id);
+    if (!assertCanEditPilotoDisponibilidad(req, pilotoIdNum, reply)) return;
     const { fecha } = req.body;
-    const result = await pilotosService.toggleDisponibilidad(Number(id), fecha);
+    const result = await pilotosService.toggleDisponibilidad(pilotoIdNum, fecha);
     await logAudit(req, {
       accion: 'EDITAR',
       entidad: 'PILOTO',
@@ -57,10 +81,15 @@ export class PilotosController {
   }
 
   async resetDisponibilidad(
-    req: FastifyRequest<{ Params: { id: string }; Querystring: { desde?: string; hasta?: string } }>,
+    req: FastifyRequest<{
+      Params: { id: string };
+      Querystring: { desde?: string; hasta?: string };
+    }>,
     reply: FastifyReply,
   ) {
     const { id } = req.params;
+    const pilotoIdNum = Number(id);
+    if (!assertCanEditPilotoDisponibilidad(req, pilotoIdNum, reply)) return;
     const { desde, hasta } = req.query ?? {};
     const formatoFecha = /^\d{4}-\d{2}-\d{2}$/;
     if (desde != null && !formatoFecha.test(desde)) {
@@ -72,7 +101,7 @@ export class PilotosController {
     if (desde && hasta && desde > hasta) {
       return reply.status(400).send({ error: '"desde" debe ser anterior o igual a "hasta"' });
     }
-    const result = await pilotosService.resetDisponibilidad(Number(id), desde, hasta);
+    const result = await pilotosService.resetDisponibilidad(pilotoIdNum, desde, hasta);
     await logAudit(req, {
       accion: 'EDITAR',
       entidad: 'PILOTO',
@@ -85,19 +114,30 @@ export class PilotosController {
     return reply.send(result);
   }
 
-  async getBloquesDisponibilidad(req: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) {
+  async getBloquesDisponibilidad(
+    req: FastifyRequest<{ Params: { id: string } }>,
+    reply: FastifyReply,
+  ) {
     const { id } = req.params;
     const result = await pilotosService.getBloquesDisponibilidad(Number(id));
     return reply.send(result);
   }
 
-  async setBloquesDisponibilidad(req: FastifyRequest<{ Params: { id: string }, Body: { fecha: string; bloques: { horaInicio: string; horaFin: string }[] } }>, reply: FastifyReply) {
+  async setBloquesDisponibilidad(
+    req: FastifyRequest<{
+      Params: { id: string };
+      Body: { fecha: string; bloques: { horaInicio: string; horaFin: string }[] };
+    }>,
+    reply: FastifyReply,
+  ) {
     const { id } = req.params;
+    const pilotoIdNum = Number(id);
+    if (!assertCanEditPilotoDisponibilidad(req, pilotoIdNum, reply)) return;
     const { fecha, bloques } = req.body;
     if (!fecha) {
       return reply.code(400).send({ error: 'El campo fecha es obligatorio' });
     }
-    const result = await pilotosService.setBloquesDisponibilidad(Number(id), fecha, bloques || []);
+    const result = await pilotosService.setBloquesDisponibilidad(pilotoIdNum, fecha, bloques || []);
     await logAudit(req, {
       accion: 'EDITAR',
       entidad: 'PILOTO',
@@ -107,15 +147,31 @@ export class PilotosController {
     return reply.send(result);
   }
 
-  async saveDisponibilidad(req: FastifyRequest<{ Params: { id: string }, Body: { version: number; fechas: { fecha: string; disponible: boolean; bloques: { horaInicio: string; horaFin: string }[] }[] } }>, reply: FastifyReply) {
+  async saveDisponibilidad(
+    req: FastifyRequest<{
+      Params: { id: string };
+      Body: {
+        version: number;
+        fechas: {
+          fecha: string;
+          disponible: boolean;
+          bloques: { horaInicio: string; horaFin: string }[];
+        }[];
+      };
+    }>,
+    reply: FastifyReply,
+  ) {
     const { id } = req.params;
+    const pilotoIdNum = Number(id);
+    if (!assertCanEditPilotoDisponibilidad(req, pilotoIdNum, reply)) return;
     const { version, fechas } = req.body;
-    const result = await pilotosService.saveDisponibilidad(Number(id), version, fechas || []);
+    const result = await pilotosService.saveDisponibilidad(pilotoIdNum, version, fechas || []);
     if (result.conflict) {
       return reply.code(409).send({
         statusCode: 409,
         error: 'Conflicto',
-        message: 'Los datos de disponibilidad cambiaron en otro dispositivo. Recarga e intenta de nuevo.',
+        message:
+          'Los datos de disponibilidad cambiaron en otro dispositivo. Recarga e intenta de nuevo.',
       });
     }
     await logAudit(req, {
@@ -127,7 +183,12 @@ export class PilotosController {
     return reply.send(result);
   }
 
-  async sugerirPiloto(req: FastifyRequest<{ Body: { fechaHora: string; pesoPasajero?: number; pasajeroId?: number } }>, reply: FastifyReply) {
+  async sugerirPiloto(
+    req: FastifyRequest<{
+      Body: { fechaHora: string; pesoPasajero?: number; pasajeroId?: number };
+    }>,
+    reply: FastifyReply,
+  ) {
     const { fechaHora, pesoPasajero, pasajeroId } = req.body;
     if (!fechaHora) {
       return reply.code(400).send({ error: 'El campo fechaHora es obligatorio' });

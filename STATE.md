@@ -18,39 +18,50 @@ Este documento mantiene el estado de ejecución, trazabilidad de sesiones, evide
 
 ## 2. Última Sesión de Trabajo
 
-- **Fecha:** 2026-10-07
-- **Objetivo:** Optimización y Desacople de CI/CD: Quality Gate Automatizado, Corrección de Registro GHCR y Flags de Deploy.
+- **Fecha:** 2026-10-13
+- **Objetivo:** Remediación de vulnerabilidades críticas pre-producción y brechas operativas / SRE (parche `fix(security,sre)`).
 - **Autor / Ejecutor:** Agente Asistente de IA (Antigravity) en coordinación con el Desarrollador.
 - **Entregables Realizados:**
-  1. **Separación CI vs CD**: Creación de workflow independiente `.github/workflows/ci.yml` que valida monorepo (`build:shared`, `typecheck`, `lint` y tests unitarios de api, web y mcp) en cada push y PR en ~2 min sin Docker ni VM.
-  2. **Fix GHCR Package Namespace**: Corrección de nombres de imagen a `ghcr.io/zer0x25/paraglide-2.0-api` y `ghcr.io/zer0x25/paraglide-2.0-web`, resolviendo el fallo 403 por apuntar al repo legacy `paraglide`.
-  3. **Control por Flags & Triggers en CD (`deploy.yml`)**:
-     - `workflow_dispatch`: flags `build_images` y `deploy_to_vm` configurables por UI.
-     - `push a main`: solo compila o despliega si el mensaje de commit incluye `[deploy]` o `[build-image]`, evitando deploys no deseados en micro-commits.
-     - `tags v*.*.*`: release formal compila y despliega automáticamente.
-  4. **Gate Pre-Deploy**: Incorporación de `npm run check:quick` como prerrequisito antes del build de imágenes Docker.
-  5. **Sincronización de Compose y Configs**: Actualización de imágenes en `docker-compose.yml`, `docker-compose.staging.yml`, `.env.example`, `README.md` y rutas tolerantes en `scripts/deploy-status.sh`.
-  6. **Integración Release Please + CD**: Configuración de `workflow_call` en `deploy.yml` y encadenamiento en `release-please.yml` para que al mergear el Release PR se dispare el build y deploy automáticamente.
-  7. **Habilitación de Permisos de Actions**: Configuración de `can_approve_pull_request_reviews=true` y `default_workflow_permissions=write` vía API de GitHub para permitir que GitHub Actions cree Pull Requests automáticamente.
-  8. **Smart CI (Módulos Afectados)**: Integración de `dorny/paths-filter` en `ci.yml` para ejecutar exclusivamente typecheck, lint y tests de los módulos modificados (`api`, `web`, `mcp`, `shared`), recortando drásticamente el tiempo de ejecución en PRs y commits.
+  1. **Aislamiento y rotación de tokens de calendario**:
+     - Acceso condicional en `CalendarController.getSyncInfo`: si el usuario tiene rol `PILOTO`, solo se le expone su propio feed de vuelos y se oculta el feed universal.
+     - En `regenerateFeedToken`, validación de que un piloto solo puede rotar su propio token y únicamente administradores pueden rotar el universal.
+  2. **Validaciones de entrada estrictas en API**:
+     - `gastos.controller.ts`: validación de montos numéricos finitos > 0, fechas válidas y longitudes de texto.
+     - `public.controller.ts`: validación de rango de peso límite en deslinde público (0 a 200 kg).
+     - `plantillas.service.ts`: sanitización de variables HTML en renderizado de plantillas.
+     - `vuelos.lifecycle.ts`: verificación de disponibilidad de piloto y estado de equipos antes de agendar.
+  3. **Control de acceso y autorización RBAC**:
+     - Adición de `RouteShorthandOptions` con preHandlers de autorización (`onlyAdmin` y `adminOrRecepcion`) en rutas de `equipos`, `pasajeros`, `pilotos`, `plantillas`, `reportes`, `reservas`, `metricas` y `gastos`.
+     - `pilotos.controller.ts`: función de aserción `assertCanEditPilotoDisponibilidad` que impide a pilotos alterar disponibilidad ajena.
+  4. **Seguridad y ciclo de vida SSE**:
+     - Introducción de tickets efímeros de un solo uso (`emitirSseTicket` / `consumirSseTicket`) en `eventos.routes.ts` para eliminar tokens JWT de query strings.
+     - Cierre ordenado de conexiones SSE activas (`closeAllSseConnections`) integrado en el shutdown graceful del servidor en `server.ts`.
+  5. **Observabilidad y SRE**:
+     - Supresión de tracing OTEL en healthchecks (`/api/public/health`) y recursos estáticos (`/favicon.ico`, `/assets/`, `/sw.js`, etc.) en `observability.plugin.ts` para evitar saturación de logs.
+     - Configuración de rotación de logs `json-file` (`max-size: 10m`, `max-file: 3`) en `docker-compose.yml`.
+  6. **Autenticación y Cookies Seguras**:
+     - `auth.service.ts`: bloqueo de auto-aprovisionamiento con Google SSO si el email no existe previamente en la base de datos.
+     - `authStore.ts`: flags seguras en cookies (`SameSite=lax`, `path=/`, `secure` condicional a HTTPS) y limpieza simétrica en logout.
+     - Suite unitaria `authStore.test.ts` actualizada para reflejar los nuevos atributos de seguridad.
 - **Evidencia de Calidad:**
-  - Sintaxis YAML validada con parser estricto (`ci.yml`, `deploy.yml`, `release-please.yml`).
-  - Nombres de imágenes y variables de entorno homologados al estándar monorepo.
-  - Pull Request de Release creado exitosamente por el bot: [PR #2](https://github.com/Zer0x25/paraglide-2.0/pull/2).
-  - DoD cumplido: aislamiento de DBs respetado y formateo verificado.
+  - Monorepo `typecheck` (`tsc --noEmit`) en `@parapente/shared`, `api`, `web` y `@parapente/mcp` finalizado con 0 errores.
+  - Quality gate `npm run check:quick` ejecutado y aprobado con código 0 (50 archivos de test en web con 283 tests pasando, suite unitaria api y 15 tests unitarios en mcp).
+  - Formateo incremental `npm run format` ejecutado y verificado sobre todos los archivos modificados.
+  - Aislamiento inmutable de BD respetado (sin referencias a puerto 5678).
 
 ---
 
 ## 3. Tareas en Curso (WIP) y Backlog Inmediato
 
 ### En Curso (WIP)
+- [x] Aplicar y verificar remediaciones de seguridad pre-producción y brechas operativas (`fix(security,sre)`).
 - [x] Optimizar pipeline de CI/CD: separar CI rápido de CD con flags y corregir GHCR.
 - [x] Documentar marco de gobernanza en [`docs/gobernanza.md`](docs/gobernanza.md) y [`docs/README.md`](docs/README.md).
 - [x] Establecer plantillas y especificación de referencia en [`specs/`](specs/README.md).
 - [x] Formalizar Definition of Done (DoD) en [`AGENTS.md`](AGENTS.md).
 
 ### Siguiente Acción Prioritaria (Next Action)
-- [ ] Ejecutar instalación de dependencias base (`npm install`) para habilitar el gate de pruebas rápidas en local (`npm run check:quick`).
+- [ ] Realizar commit atómico convencional `fix(security,sre): remediate pre-production critical vulnerabilities and operational gaps` con los cambios verificados.
 - [ ] Redactar las siguientes especificaciones SDD+BDD para los módulos de Deslinde Digital y Asignación de Pilotos en pista (`specs/SPEC-002-DESLINDE.md`).
 
 ---

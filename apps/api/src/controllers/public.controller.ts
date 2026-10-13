@@ -1,10 +1,23 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
 import { FirmaDeslindePayloadSchema } from '@parapente/shared';
 import { publicService, RegistrarFirmaDTO } from '../services/public.service';
+import { prisma } from '../plugins/prisma';
 
 export class PublicController {
-  getHealth(_request: FastifyRequest, reply: FastifyReply) {
-    return reply.send(publicService.getHealth());
+  async getHealth(_request: FastifyRequest, reply: FastifyReply) {
+    const baseHealth = publicService.getHealth();
+    if (typeof (prisma as any)?.$queryRaw === 'function') {
+      try {
+        await (prisma as any).$queryRaw`SELECT 1`;
+      } catch (err) {
+        return reply.status(503).send({
+          ...baseHealth,
+          status: 'degraded',
+          db: 'unreachable',
+        });
+      }
+    }
+    return reply.send(baseHealth);
   }
 
   async getDeslindeActivo(_request: FastifyRequest, reply: FastifyReply) {
@@ -51,7 +64,7 @@ export class PublicController {
 
   async postFirmaDeslinde(
     request: FastifyRequest<{ Params: { id: string }; Body: RegistrarFirmaDTO }>,
-    reply: FastifyReply
+    reply: FastifyReply,
   ) {
     const { id } = request.params;
     const body = (request.body as any) || {};
@@ -81,17 +94,28 @@ export class PublicController {
       return reply.send(res);
     } catch (err: any) {
       const msg = String(err?.message ?? '').toLowerCase();
-      if (err.statusCode === 400 || msg.includes('cancelada') || msg.includes('cerrada') || msg.includes('no se puede') || msg.includes('requerida')) {
+      if (
+        err.statusCode === 400 ||
+        msg.includes('cancelada') ||
+        msg.includes('cerrada') ||
+        msg.includes('no se puede') ||
+        msg.includes('requerida')
+      ) {
         return reply.status(400).send({ error: err.message });
       }
       if (err.statusCode === 404 || msg.includes('no encontrado')) {
         return reply.status(404).send({ error: err.message });
       }
-      return reply.status(500).send({ error: err.message || 'Error al registrar firma de deslinde' });
+      return reply
+        .status(500)
+        .send({ error: err.message || 'Error al registrar firma de deslinde' });
     }
   }
 
-  async getPantalla(request: FastifyRequest<{ Querystring: { token?: string } }>, reply: FastifyReply) {
+  async getPantalla(
+    request: FastifyRequest<{ Querystring: { token?: string } }>,
+    reply: FastifyReply,
+  ) {
     const rawToken = request.query ? request.query.token : undefined;
     const authHeader = request.headers.authorization;
     const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : undefined;
