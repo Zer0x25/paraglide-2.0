@@ -52,7 +52,7 @@ export function useReservaForm({
     reset,
     watch,
     setValue,
-    formState: { errors, isDirty },
+    formState: { errors, isDirty, isSubmitting },
   } = useForm<CreateReservaPayload>({
     resolver: zodResolver(CreateReservaPayloadSchema) as unknown as Resolver<CreateReservaPayload>,
     defaultValues: {
@@ -82,7 +82,11 @@ export function useReservaForm({
     },
   });
 
-  const { fields: pasajerosFields, append, remove } = useFieldArray({
+  const {
+    fields: pasajerosFields,
+    append,
+    remove,
+  } = useFieldArray({
     control,
     name: 'pasajeros',
   });
@@ -98,6 +102,7 @@ export function useReservaForm({
   const [tarifaSeleccionada, setTarifaSeleccionada] = useState<number | ''>('');
   const [promoSeleccionada, setPromoSeleccionada] = useState<number | ''>('');
   const [detalleCalculo, setDetalleCalculo] = useState<string | null>(null);
+  const [submittingInterno, setSubmittingInterno] = useState(false);
 
   const tarifasQuery = useQuery({
     queryKey: ['tarifas'],
@@ -121,7 +126,9 @@ export function useReservaForm({
     staleTime: 60_000,
   });
   const puntoDeEncuentro =
-    reglasQuery.data?.find((r: ReglaOperativaDTO) => r.categoria === 'PUNTO_ENCUENTRO' && r.esDefault)?.valor ||
+    reglasQuery.data?.find(
+      (r: ReglaOperativaDTO) => r.categoria === 'PUNTO_ENCUENTRO' && r.esDefault,
+    )?.valor ||
     reglasQuery.data?.find((r: ReglaOperativaDTO) => r.clave === 'puntoDeEncuentro')?.valor ||
     'Zona de Despegue';
 
@@ -137,7 +144,7 @@ export function useReservaForm({
   const calcularValor = async (
     tarifaId: number | '',
     promocionId: number | '',
-    cantidadOverride?: number
+    cantidadOverride?: number,
   ) => {
     setDetalleCalculo(null);
     if (!tarifaId) return;
@@ -152,7 +159,9 @@ export function useReservaForm({
       setDetalleCalculo(res.detalle);
       toast.info(`Valor calculado: ${formatCLP(res.valorTotal)} (${res.detalle})`);
     } catch (error: unknown) {
-      toast.error(getApiErrorMessage(error, 'No se pudo calcular el valor con esa tarifa/promoción.'));
+      toast.error(
+        getApiErrorMessage(error, 'No se pudo calcular el valor con esa tarifa/promoción.'),
+      );
     }
   };
 
@@ -245,7 +254,10 @@ export function useReservaForm({
     const nombreTitular = watch('nombreTitular');
     const rutTitular = watch('rutDniTitular');
     const telefonoTitular = watch('telefono');
-    setValue(`pasajeros.0.nombre`, nombreTitular || '', { shouldValidate: true, shouldDirty: true });
+    setValue(`pasajeros.0.nombre`, nombreTitular || '', {
+      shouldValidate: true,
+      shouldDirty: true,
+    });
     setValue(`pasajeros.0.rutDni`, rutTitular || '', { shouldDirty: true });
     setValue(`pasajeros.0.telefono`, telefonoTitular || '', { shouldDirty: true });
   };
@@ -269,7 +281,9 @@ export function useReservaForm({
         ? fieldErrors.pasajeros
         : Object.values(fieldErrors.pasajeros as Record<string, unknown>);
       for (let i = 0; i < pErrors.length; i++) {
-        const pErr = pErrors[i] as FieldErrors<NonNullable<CreateReservaPayload['pasajeros']>[number]>;
+        const pErr = pErrors[i] as FieldErrors<
+          NonNullable<CreateReservaPayload['pasajeros']>[number]
+        >;
         if (pErr?.nombre?.message) {
           toast.error(`Pasajero ${i + 1}: ${String(pErr.nombre.message)}`);
           return;
@@ -284,40 +298,42 @@ export function useReservaForm({
   };
 
   const onSubmit = async (data: CreateReservaPayload) => {
-    // Solo la creación envía importes derivados; en edición no viajan (punto 3).
-    if (!editingId) {
-      data.estadoPago = derivarEstadoPago(data.valorTotal || 0, data.abono || 0);
-    }
-
-    if (data.email === '') data.email = null;
-    if (data.rutDniTitular === '') data.rutDniTitular = null;
-    if (data.telefono === '') data.telefono = null;
-
-    data.esGiftCard = Boolean(data.esGiftCard);
-
-    if (data.pasajeros) {
-      data.pasajeros = data.pasajeros.map((p) => ({
-        ...p,
-        ...(p.id !== undefined && p.id !== null ? { id: Number(p.id) } : {}),
-        rutDni: p.rutDni || null,
-        telefono: p.telefono || null,
-        contactoEmergencia: p.contactoEmergencia || null,
-        telefonoEmergencia: p.telefonoEmergencia || null,
-        condicionFisica: p.condicionFisica || null,
-        peso: p.peso ? Number(p.peso) : null,
-        firmaDeslinde: Boolean(p.firmaDeslinde),
-      }));
-    }
-
-    if (typeof tarifaSeleccionada === 'number') {
-      data.tarifaId = tarifaSeleccionada;
-      data.promocionId = typeof promoSeleccionada === 'number' ? promoSeleccionada : null;
-    } else if (editingId && tarifaSeleccionada === '') {
-      data.tarifaId = null;
-      data.promocionId = null;
-    }
-
+    if (submittingInterno) return;
+    setSubmittingInterno(true);
     try {
+      // Solo la creación envía importes derivados; en edición no viajan (punto 3).
+      if (!editingId) {
+        data.estadoPago = derivarEstadoPago(data.valorTotal || 0, data.abono || 0);
+      }
+
+      if (data.email === '') data.email = null;
+      if (data.rutDniTitular === '') data.rutDniTitular = null;
+      if (data.telefono === '') data.telefono = null;
+
+      data.esGiftCard = Boolean(data.esGiftCard);
+
+      if (data.pasajeros) {
+        data.pasajeros = data.pasajeros.map((p) => ({
+          ...p,
+          ...(p.id !== undefined && p.id !== null ? { id: Number(p.id) } : {}),
+          rutDni: p.rutDni || null,
+          telefono: p.telefono || null,
+          contactoEmergencia: p.contactoEmergencia || null,
+          telefonoEmergencia: p.telefonoEmergencia || null,
+          condicionFisica: p.condicionFisica || null,
+          peso: p.peso ? Number(p.peso) : null,
+          firmaDeslinde: Boolean(p.firmaDeslinde),
+        }));
+      }
+
+      if (typeof tarifaSeleccionada === 'number') {
+        data.tarifaId = tarifaSeleccionada;
+        data.promocionId = typeof promoSeleccionada === 'number' ? promoSeleccionada : null;
+      } else if (editingId && tarifaSeleccionada === '') {
+        data.tarifaId = null;
+        data.promocionId = null;
+      }
+
       if (editingId) {
         // Punto 3: abono/montoDevuelto/estadoPago son importes derivados (pagos y
         // devoluciones). La edición de la reserva no los envía: el servidor los
@@ -339,7 +355,9 @@ export function useReservaForm({
     } catch (error: unknown) {
       if ((error as ApiErrorWithResponse)?.queued || isQueuedError(error as Error)) {
         setIsModalOpen(false);
-        toast.info('Sin conexión: la reserva se guardó localmente y se enviará automáticamente al reconectar 🪂');
+        toast.info(
+          'Sin conexión: la reserva se guardó localmente y se enviará automáticamente al reconectar 🪂',
+        );
         return;
       }
       console.error('Error guardando reserva:', error);
@@ -349,6 +367,8 @@ export function useReservaForm({
       } else {
         toast.error(getApiErrorMessage(error, 'Error al guardar la reserva.'));
       }
+    } finally {
+      setSubmittingInterno(false);
     }
   };
 
@@ -357,6 +377,7 @@ export function useReservaForm({
     handleSubmit,
     errors,
     isDirty,
+    isSubmitting: isSubmitting || submittingInterno,
     setValue,
     pasajerosFields,
     append,

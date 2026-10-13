@@ -8,7 +8,9 @@ const mockUpdateReserva = vi.fn().mockResolvedValue({ id: 1 });
 const mockListarTarifas = vi.fn().mockResolvedValue({ data: [] });
 const mockListarPromos = vi.fn().mockResolvedValue({ data: [] });
 const mockListarReglas = vi.fn().mockResolvedValue([]);
-const mockCalcularValor = vi.fn().mockResolvedValue({ valorTotal: 90000, detalle: 'Tarifa×1 - 10%', descuento: 10000 });
+const mockCalcularValor = vi
+  .fn()
+  .mockResolvedValue({ valorTotal: 90000, detalle: 'Tarifa×1 - 10%', descuento: 10000 });
 
 vi.mock('../../../hooks/useReservas', () => ({
   useReservas: vi.fn(() => ({
@@ -50,7 +52,7 @@ vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn(), info: vi.f
 import { useReservasController } from './useReservasController';
 
 function wrapper({ children }: { children: React.ReactNode }) {
-  const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, }});
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return React.createElement(QueryClientProvider, { client: qc }, children);
 }
 
@@ -76,9 +78,15 @@ describe('useReservasController — antirregresión tarifa/promoción en edició
     // esperar queries iniciales
     await waitFor(() => expect(mockListarTarifas).toHaveBeenCalled());
 
-    const reservaConTarifa = { ...baseReserva, tarifaId: 5, promocionId: 9 } as unknown as typeof baseReserva;
+    const reservaConTarifa = {
+      ...baseReserva,
+      tarifaId: 5,
+      promocionId: 9,
+    } as unknown as typeof baseReserva;
 
-    act(() => { result.current.handleEditModal(reservaConTarifa); });
+    act(() => {
+      result.current.handleEditModal(reservaConTarifa);
+    });
 
     expect(result.current.editingId).toBe(1);
     expect(result.current.tarifaSeleccionada).toBe(5);
@@ -89,7 +97,9 @@ describe('useReservasController — antirregresión tarifa/promoción en edició
     const { result } = renderHook(() => useReservasController(), { wrapper });
     await waitFor(() => expect(mockListarTarifas).toHaveBeenCalled());
 
-    act(() => { result.current.handleEditModal(baseReserva); });
+    act(() => {
+      result.current.handleEditModal(baseReserva);
+    });
 
     expect(result.current.tarifaSeleccionada).toBe('');
     expect(result.current.promoSeleccionada).toBe('');
@@ -100,12 +110,18 @@ describe('useReservasController — antirregresión tarifa/promoción en edició
     await waitFor(() => expect(mockListarTarifas).toHaveBeenCalled());
 
     const r1 = { ...baseReserva, tarifaId: 5, promocionId: 9 } as unknown as typeof baseReserva;
-    act(() => { result.current.handleEditModal(r1); });
+    act(() => {
+      result.current.handleEditModal(r1);
+    });
     expect(result.current.tarifaSeleccionada).toBe(5);
 
     // Simular cerrar y volver a editar la misma reserva (bug original: se perdía)
-    act(() => { result.current.setIsModalOpen(false); });
-    act(() => { result.current.handleEditModal(r1); });
+    act(() => {
+      result.current.setIsModalOpen(false);
+    });
+    act(() => {
+      result.current.handleEditModal(r1);
+    });
     expect(result.current.tarifaSeleccionada).toBe(5);
     expect(result.current.promoSeleccionada).toBe(9);
   });
@@ -115,7 +131,9 @@ describe('useReservasController — antirregresión tarifa/promoción en edició
     await waitFor(() => expect(mockListarTarifas).toHaveBeenCalled());
 
     const r = { ...baseReserva, tarifaId: 5, promocionId: 9 } as unknown as typeof baseReserva;
-    act(() => { result.current.handleEditModal(r); });
+    act(() => {
+      result.current.handleEditModal(r);
+    });
 
     // onSubmit recibe data del form; tarifa/promo vienen del estado del hook
     const payload = {
@@ -132,7 +150,9 @@ describe('useReservasController — antirregresión tarifa/promoción en edició
       pasajeros: [{ nombre: 'Pax 1', rutDni: '22222222-2', peso: 70 }],
     } as unknown as Parameters<typeof result.current.onSubmit>[0];
 
-    await act(async () => { await result.current.onSubmit(payload); });
+    await act(async () => {
+      await result.current.onSubmit(payload);
+    });
 
     expect(mockUpdateReserva).toHaveBeenCalledTimes(1);
     const sent = mockUpdateReserva.mock.calls[0][1] as Record<string, unknown>;
@@ -146,7 +166,9 @@ describe('useReservasController — antirregresión tarifa/promoción en edició
     await waitFor(() => expect(mockListarTarifas).toHaveBeenCalled());
 
     const r = { ...baseReserva, tarifaId: 5, promocionId: 9 } as unknown as typeof baseReserva;
-    act(() => { result.current.handleEditModal(r); });
+    act(() => {
+      result.current.handleEditModal(r);
+    });
 
     // Aunque el form traiga valores de la reserva, los importes derivados no viajan:
     // el servidor los re-deriva de los pagos/devoluciones registrados.
@@ -165,7 +187,9 @@ describe('useReservasController — antirregresión tarifa/promoción en edició
       pasajeros: [{ nombre: 'Pax 1', rutDni: '22222222-2', peso: 70 }],
     } as unknown as Parameters<typeof result.current.onSubmit>[0];
 
-    await act(async () => { await result.current.onSubmit(payload); });
+    await act(async () => {
+      await result.current.onSubmit(payload);
+    });
 
     expect(mockUpdateReserva).toHaveBeenCalledTimes(1);
     const sent = mockUpdateReserva.mock.calls[0][1] as Record<string, unknown>;
@@ -180,19 +204,34 @@ describe('useReservasController — antirregresión tarifa/promoción en edició
     await waitFor(() => expect(mockListarTarifas).toHaveBeenCalled());
 
     const r = { ...baseReserva, tarifaId: 5, promocionId: 9 } as unknown as typeof baseReserva;
-    act(() => { result.current.handleEditModal(r); });
+    act(() => {
+      result.current.handleEditModal(r);
+    });
     // Usuario limpia la tarifa
-    act(() => { result.current.setTarifaSeleccionada(''); });
-    act(() => { result.current.setPromoSeleccionada(''); });
+    act(() => {
+      result.current.setTarifaSeleccionada('');
+    });
+    act(() => {
+      result.current.setPromoSeleccionada('');
+    });
 
     const payload = {
-      nombreTitular: 'Titular Test', rutDniTitular: '11111111-1', telefono: '+56911111111',
-      email: 'a@b.cl', esGiftCard: false, fechaAgenda: null, horaAgenda: null,
-      valorTotal: 80000, abono: 0, estadoPago: 'PENDIENTE' as const,
+      nombreTitular: 'Titular Test',
+      rutDniTitular: '11111111-1',
+      telefono: '+56911111111',
+      email: 'a@b.cl',
+      esGiftCard: false,
+      fechaAgenda: null,
+      horaAgenda: null,
+      valorTotal: 80000,
+      abono: 0,
+      estadoPago: 'PENDIENTE' as const,
       pasajeros: [{ nombre: 'Pax 1', rutDni: '22222222-2', peso: 70 }],
     } as unknown as Parameters<typeof result.current.onSubmit>[0];
 
-    await act(async () => { await result.current.onSubmit(payload); });
+    await act(async () => {
+      await result.current.onSubmit(payload);
+    });
 
     const sent = mockUpdateReserva.mock.calls[0][1] as Record<string, unknown>;
     expect(sent.tarifaId).toBeNull();
@@ -206,12 +245,26 @@ describe('useReservasController — antirregresión tarifa/promoción en edició
     const r = {
       ...baseReserva,
       pasajeros: [
-        { id: 42, nombre: 'Carlos Original', rutDni: '12345678-9', peso: 80, vuelos: [{ id: 101, estado: 'AGENDADO' }] },
-        { id: 43, nombre: 'Maria Original', rutDni: '98765432-1', peso: 60, vuelos: [{ id: 102, estado: 'AGENDADO' }] },
+        {
+          id: 42,
+          nombre: 'Carlos Original',
+          rutDni: '12345678-9',
+          peso: 80,
+          vuelos: [{ id: 101, estado: 'AGENDADO' }],
+        },
+        {
+          id: 43,
+          nombre: 'Maria Original',
+          rutDni: '98765432-1',
+          peso: 60,
+          vuelos: [{ id: 102, estado: 'AGENDADO' }],
+        },
       ],
     } as unknown as typeof baseReserva;
 
-    act(() => { result.current.handleEditModal(r); });
+    act(() => {
+      result.current.handleEditModal(r);
+    });
 
     const payload = {
       nombreTitular: 'Titular Editado',
@@ -231,10 +284,14 @@ describe('useReservasController — antirregresión tarifa/promoción en edició
       ],
     } as unknown as Parameters<typeof result.current.onSubmit>[0];
 
-    await act(async () => { await result.current.onSubmit(payload); });
+    await act(async () => {
+      await result.current.onSubmit(payload);
+    });
 
     expect(mockUpdateReserva).toHaveBeenCalledTimes(1);
-    const sent = mockUpdateReserva.mock.calls[0][1] as { pasajeros: Array<{ id?: number; nombre: string }> };
+    const sent = mockUpdateReserva.mock.calls[0][1] as {
+      pasajeros: Array<{ id?: number; nombre: string }>;
+    };
     expect(sent.pasajeros).toHaveLength(3);
     expect(sent.pasajeros[0].id).toBe(42);
     expect(sent.pasajeros[0].nombre).toBe('Carlos Renombrado');
@@ -242,5 +299,57 @@ describe('useReservasController — antirregresión tarifa/promoción en edició
     expect(sent.pasajeros[1].nombre).toBe('Maria Actualizada');
     expect(sent.pasajeros[2].id).toBeUndefined();
     expect(sent.pasajeros[2].nombre).toBe('Nuevo Pasajero 3');
+  });
+
+  it('onSubmit previene ejecuciones concurrentes / doble submit', async () => {
+    let resolveCreate: (v: unknown) => void;
+    mockCreateReserva.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveCreate = resolve;
+        }),
+    );
+
+    const { result } = renderHook(() => useReservasController(), { wrapper });
+    await waitFor(() => expect(mockListarTarifas).toHaveBeenCalled());
+
+    const payload = {
+      nombreTitular: 'Nuevo Titular',
+      rutDniTitular: '11111111-1',
+      telefono: '+56911111111',
+      email: 'a@b.cl',
+      esGiftCard: false,
+      fechaAgenda: null,
+      horaAgenda: null,
+      valorTotal: 80000,
+      abono: 0,
+      estadoPago: 'PENDIENTE' as const,
+      pasajeros: [{ nombre: 'Pax 1', rutDni: '22222222-2', peso: 70 }],
+    } as unknown as Parameters<typeof result.current.onSubmit>[0];
+
+    // Primer submit (queda pendiente en mockCreateReserva)
+    let p1: Promise<void>;
+    act(() => {
+      p1 = result.current.onSubmit(payload);
+    });
+
+    expect(result.current.isSubmitting).toBe(true);
+
+    // Segundo submit disparado concurrentemente (debe ser ignorado por submittingInterno)
+    act(() => {
+      void result.current.onSubmit(payload);
+    });
+
+    // Solo se debe haber llamado a createReserva 1 vez
+    expect(mockCreateReserva).toHaveBeenCalledTimes(1);
+
+    // Resolver la primera promesa
+    await act(async () => {
+      resolveCreate!({ id: 99, pasajeros: [] });
+      await p1;
+    });
+
+    expect(result.current.isSubmitting).toBe(false);
+    expect(mockCreateReserva).toHaveBeenCalledTimes(1);
   });
 });

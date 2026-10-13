@@ -25,6 +25,7 @@ export interface ReservaFormModalProps {
   onInvalid: (errors: FieldErrors<CreateReservaPayload>) => void;
   errors: FieldErrors<CreateReservaPayload>;
   isDirty: boolean;
+  isSubmitting?: boolean;
   pasajerosFields: FieldArrayWithId<CreateReservaPayload, 'pasajeros', 'id'>[];
   append: (val: CreatePasajeroPayload) => void;
   remove: (index: number) => void;
@@ -49,6 +50,7 @@ export function ReservaFormModal({
   onInvalid,
   errors,
   isDirty,
+  isSubmitting = false,
   pasajerosFields,
   append,
   remove,
@@ -69,7 +71,8 @@ export function ReservaFormModal({
       <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-2xl p-5 sm:p-6 relative my-auto max-h-[90vh] overflow-y-auto border border-slate-100 dark:border-slate-800">
         <button
           onClick={onClose}
-          className="absolute top-5 right-5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+          disabled={isSubmitting}
+          className="absolute top-5 right-5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
         >
           <X size={22} />
         </button>
@@ -118,21 +121,37 @@ export function ReservaFormModal({
             <button
               type="button"
               onClick={onClose}
-              className="px-5 py-2.5 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 font-medium text-sm transition cursor-pointer"
+              disabled={isSubmitting}
+              className="px-5 py-2.5 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed font-medium text-sm transition cursor-pointer"
             >
               Cancelar
             </button>
             <button
               type="submit"
-              disabled={!isDirty}
-              title={!isDirty ? 'No hay cambios por guardar' : undefined}
-              className={`px-6 py-2.5 rounded-xl font-bold text-sm shadow-md transition ${
-                !isDirty
+              disabled={!isDirty || isSubmitting}
+              title={
+                isSubmitting
+                  ? 'Guardando reserva...'
+                  : !isDirty
+                    ? 'No hay cambios por guardar'
+                    : undefined
+              }
+              className={`px-6 py-2.5 rounded-xl font-bold text-sm shadow-md transition flex items-center justify-center gap-2 ${
+                !isDirty || isSubmitting
                   ? 'bg-slate-300 dark:bg-slate-700 text-slate-500 dark:text-slate-400 cursor-not-allowed opacity-60'
                   : 'bg-blue-600 hover:bg-blue-700 text-white cursor-pointer'
               }`}
             >
-              {editingId ? 'Guardar Cambios' : 'Crear Reserva'}
+              {isSubmitting && (
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              )}
+              {isSubmitting
+                ? editingId
+                  ? 'Guardando...'
+                  : 'Creando...'
+                : editingId
+                  ? 'Guardar Cambios'
+                  : 'Crear Reserva'}
             </button>
           </div>
         </form>
