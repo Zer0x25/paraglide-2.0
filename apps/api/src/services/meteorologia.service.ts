@@ -4,58 +4,24 @@ import { obtenerOpenMeteo, gradosADireccion, estimarTechoNubes } from './openMet
 
 export class MeteorologiaService {
   async getUltimoEstado() {
-    try {
-      const ultimo = await prisma.condicionPista.findFirst({
-        where: { deletedAt: null },
-        orderBy: { fechaHora: 'desc' },
-      });
+    const ultimo = await prisma.condicionPista.findFirst({
+      where: { deletedAt: null },
+      orderBy: { fechaHora: 'desc' },
+    });
 
-      if (!ultimo) {
-        return {
-          id: 0,
-          fechaHora: new Date(),
-          estadoPista: 'ABIERTA',
-          velocidadViento: 12,
-          rachaViento: 16,
-          direccionViento: 'SO',
-          temperatura: 22,
-          visibilidad: 'EXCELENTE',
-          techoNubes: 1800,
-          observaciones: 'Condiciones térmicas y dinámicas óptimas para vuelos biplaza.',
-          registradoPor: 'Director de Vuelo',
-        };
-      }
-
-      return ultimo;
-    } catch (err) {
-      console.warn('Advertencia DB en getUltimoEstado, usando fallback:', err);
-      return {
-        id: 0,
-        fechaHora: new Date(),
-        estadoPista: 'ABIERTA',
-        velocidadViento: 12,
-        rachaViento: 16,
-        direccionViento: 'SO',
-        temperatura: 22,
-        visibilidad: 'EXCELENTE',
-        techoNubes: 1800,
-        observaciones: 'Condiciones normales de vuelo.',
-        registradoPor: 'Sistema',
-      };
+    if (!ultimo) {
+      return null;
     }
+
+    return ultimo;
   }
 
   async getHistorial(limit = 30) {
-    try {
-      return await prisma.condicionPista.findMany({
-        where: { deletedAt: null },
-        orderBy: { fechaHora: 'desc' },
-        take: limit,
-      });
-    } catch (err) {
-      console.warn('Advertencia DB en getHistorial, retornando arreglo vacío:', err);
-      return [];
-    }
+    return prisma.condicionPista.findMany({
+      where: { deletedAt: null },
+      orderBy: { fechaHora: 'desc' },
+      take: limit,
+    });
   }
 
   async registrar(data: CreateCondicionPistaPayload) {
@@ -87,7 +53,9 @@ export class MeteorologiaService {
     }
 
     const c = datos.current;
-    const horaLocal = c.time ? new Date(c.time).toLocaleTimeString('es-CL') : new Date().toLocaleTimeString('es-CL');
+    const horaLocal = c.time
+      ? new Date(c.time).toLocaleTimeString('es-CL')
+      : new Date().toLocaleTimeString('es-CL');
 
     return {
       estadoPista: 'ABIERTA',

@@ -26,6 +26,7 @@ export function ReservasModals({ controller: c }: ReservasModalsProps) {
         onInvalid={c.onInvalid}
         errors={c.errors}
         isDirty={c.isDirty}
+        isSubmitting={c.isSubmitting}
         pasajerosFields={c.pasajerosFields}
         append={c.append}
         remove={c.remove}

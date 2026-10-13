@@ -2,17 +2,21 @@ import 'dotenv/config';
 import { NodeSDK } from '@opentelemetry/sdk-node';
 import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
 
-// Inicializar OpenTelemetry (Trazas)
-// Solo habilitar ConsoleSpanExporter cuando se solicite explícitamente (OTEL_CONSOLE_EXPORTER=true)
+// Inicializar OpenTelemetry (Trazas) solo fuera de producción o si se habilita explícitamente
+// Solo habilitar ConsoleSpanExporter cuando se solicite explícitamente (OTEL_CONSOLE_EXPORTER=true o ENABLE_OTEL_CONSOLE=true)
 // para evitar saturar stdout/disco y bloquear el event loop en producción.
-const enableConsoleTraces = process.env.OTEL_CONSOLE_EXPORTER === 'true';
-const sdk = new NodeSDK({
-  ...(enableConsoleTraces
-    ? { traceExporter: new (require('@opentelemetry/sdk-trace-base').ConsoleSpanExporter)() }
-    : {}),
-  instrumentations: [getNodeAutoInstrumentations()],
-});
-sdk.start();
+let sdk: NodeSDK | null = null;
+const enableConsoleTraces =
+  process.env.OTEL_CONSOLE_EXPORTER === 'true' ||
+  (process.env.NODE_ENV !== 'production' && process.env.ENABLE_OTEL_CONSOLE === 'true');
+
+if (enableConsoleTraces) {
+  sdk = new NodeSDK({
+    traceExporter: new (require('@opentelemetry/sdk-trace-base').ConsoleSpanExporter)(),
+    instrumentations: [getNodeAutoInstrumentations()],
+  });
+  sdk.start();
+}
 
 import { buildApp } from './app';
 import { config } from './config';
@@ -29,6 +33,7 @@ async function start() {
     // Server boot
     await app.listen({ port: config.port, host: config.host });
     console.log(`API de Fastify escuchando en el puerto ${config.port}`);
+
     // Higiene de reglas de bloques: barrido inicial + archivado diario 03:00 UTC
     iniciarHigieneBloques();
     // Sampler de condiciones de pista vía Open-Meteo: barrido inicial + ciclo cada 15 min
@@ -44,7 +49,7 @@ async function start() {
     const gracefulShutdown = async (signal: string) => {
       if (shuttingDown) return;
       shuttingDown = true;
-      console.log(`[Server] Señal ${signal} recibida. Iniciando apagado ordenado...`);
+      console.log(`\n[Server] Recibida señal ${signal}. Iniciando apagado ordenado...`);
       const forceExitTimer = setTimeout(() => {
         console.error('[Server] Tiempo máximo de apagado excedido, forzando salida.');
         process.exit(1);
@@ -54,7 +59,9 @@ async function start() {
       try {
         closeAllSseConnections();
         await app.close();
-        await sdk.shutdown().catch(() => {});
+        if (sdk) {
+          await sdk.shutdown().catch(() => {});
+        }
         console.log('[Server] Conexiones HTTP y Prisma cerradas correctamente.');
         process.exit(0);
       } catch (shutdownErr) {

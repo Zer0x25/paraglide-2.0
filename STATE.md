@@ -19,27 +19,33 @@ Este documento mantiene el estado de ejecución, trazabilidad de sesiones, evide
 ## 2. Última Sesión de Trabajo
 
 - **Fecha:** 2026-10-13
-- **Objetivo:** Remediación de vulnerabilidades críticas pre-producción y brechas operativas / SRE (parche `fix(security,sre)`).
+- **Objetivo:** Auditoría Exhaustiva de Pre-producción y Remediación de Vulnerabilidades Críticas y Brechas Operativas / SRE (`fix(security,sre)`).
 - **Autor / Ejecutor:** Agente Asistente de IA (Antigravity) en coordinación con el Desarrollador.
 - **Entregables Realizados:**
-  1. **Aislamiento y rotación de tokens de calendario**:
-     - Acceso condicional en `CalendarController.getSyncInfo`: si el usuario tiene rol `PILOTO`, solo se le expone su propio feed de vuelos y se oculta el feed universal.
+  1. **Auditoría Holística y Endurecimiento de Resiliencia**:
+     - `trustProxy: true` habilitado en Fastify para restaurar precisión de IP real del cliente detrás del proxy Caddy.
+     - Supresión del mock benigno en meteorología (`7b2f0ba`) y ping activo `SELECT 1` a Postgres en `/health` retornando 503 ante fallas (`a77714a`).
+     - Debounce de 300ms en `useDatosStream` para ráfagas SSE (`1de5187`) y prevención de doble submit con guard síncrono en reservas (`743717c`).
+     - Guardrail hook Pre-Tool para aislamiento inmutable de la base de producción (`5678`) (`c427793`).
+  2. **Aislamiento y rotación de tokens de calendario**:
+     - Acceso condicional en `CalendarController.getSyncInfo`: usuarios con rol `PILOTO` solo acceden a su propio feed ICS; feed universal oculto y protegido para administradores.
      - En `regenerateFeedToken`, validación de que un piloto solo puede rotar su propio token y únicamente administradores pueden rotar el universal.
-  2. **Validaciones de entrada estrictas en API**:
+     - Endpoint `/reconcile` protegido exclusivamente para `ADMIN`.
+  3. **Validaciones de entrada estrictas en API y mitigación de inyecciones**:
      - `gastos.controller.ts`: validación de montos numéricos finitos > 0, fechas válidas y longitudes de texto.
      - `public.controller.ts`: validación de rango de peso límite en deslinde público (0 a 200 kg).
      - `plantillas.service.ts`: sanitización de variables HTML en renderizado de plantillas.
      - `vuelos.lifecycle.ts`: verificación de disponibilidad de piloto y estado de equipos antes de agendar.
-  3. **Control de acceso y autorización RBAC**:
+  4. **Control de acceso y autorización RBAC**:
      - Adición de `RouteShorthandOptions` con preHandlers de autorización (`onlyAdmin` y `adminOrRecepcion`) en rutas de `equipos`, `pasajeros`, `pilotos`, `plantillas`, `reportes`, `reservas`, `metricas` y `gastos`.
      - `pilotos.controller.ts`: función de aserción `assertCanEditPilotoDisponibilidad` que impide a pilotos alterar disponibilidad ajena.
-  4. **Seguridad y ciclo de vida SSE**:
+  5. **Seguridad y ciclo de vida SSE con Graceful Shutdown**:
      - Introducción de tickets efímeros de un solo uso (`emitirSseTicket` / `consumirSseTicket`) en `eventos.routes.ts` para eliminar tokens JWT de query strings.
-     - Cierre ordenado de conexiones SSE activas (`closeAllSseConnections`) integrado en el shutdown graceful del servidor en `server.ts`.
-  5. **Observabilidad y SRE**:
+     - Cierre ordenado de conexiones SSE activas (`closeAllSseConnections`) integrado en el shutdown graceful del servidor en `server.ts` con timeout forzado de 8s.
+  6. **Observabilidad y SRE**:
      - Supresión de tracing OTEL en healthchecks (`/api/public/health`) y recursos estáticos (`/favicon.ico`, `/assets/`, `/sw.js`, etc.) en `observability.plugin.ts` para evitar saturación de logs.
      - Configuración de rotación de logs `json-file` (`max-size: 10m`, `max-file: 3`) en `docker-compose.yml`.
-  6. **Autenticación y Cookies Seguras**:
+  7. **Autenticación y Cookies Seguras**:
      - `auth.service.ts`: bloqueo de auto-aprovisionamiento con Google SSO si el email no existe previamente en la base de datos.
      - `authStore.ts`: flags seguras en cookies (`SameSite=lax`, `path=/`, `secure` condicional a HTTPS) y limpieza simétrica en logout.
      - Suite unitaria `authStore.test.ts` actualizada para reflejar los nuevos atributos de seguridad.
@@ -54,15 +60,17 @@ Este documento mantiene el estado de ejecución, trazabilidad de sesiones, evide
 ## 3. Tareas en Curso (WIP) y Backlog Inmediato
 
 ### En Curso (WIP)
-- [x] Aplicar y verificar remediaciones de seguridad pre-producción y brechas operativas (`fix(security,sre)`).
-- [x] Optimizar pipeline de CI/CD: separar CI rápido de CD con flags y corregir GHCR.
-- [x] Documentar marco de gobernanza en [`docs/gobernanza.md`](docs/gobernanza.md) y [`docs/README.md`](docs/README.md).
-- [x] Establecer plantillas y especificación de referencia en [`specs/`](specs/README.md).
-- [x] Formalizar Definition of Done (DoD) en [`AGENTS.md`](AGENTS.md).
+- [x] Auditoría exhaustiva de pre-producción y remediación de vulnerabilidades críticas (`fix(security,sre)`).
+- [x] Fusión limpia con `main` resolviendo conflictos en controladores, servidor y documentación.
+- [x] Validación completa de CI local y verificación de tipos monorepo (`check:quick`).
 
 ### Siguiente Acción Prioritaria (Next Action)
-- [ ] Realizar commit atómico convencional `fix(security,sre): remediate pre-production critical vulnerabilities and operational gaps` con los cambios verificados.
-- [ ] Redactar las siguientes especificaciones SDD+BDD para los módulos de Deslinde Digital y Asignación de Pilotos en pista (`specs/SPEC-002-DESLINDE.md`).
+- [ ] **Despliegue y Validación en Staging**: Levantar o actualizar el stack de staging (`npm run staging:up`) y correr la suite de estrés/integración de staging (`npm run test:staging:quick`).
+- [ ] **Revisión de Release PR**: Monitorear el PR automático de `release-please` generado en GitHub tras los commits `fix(...)` para preparar el release productivo (ej. v0.9.6).
+- [ ] **Hardening Operacional Pendiente**:
+  - Script cron de backup automatizado para Postgres en Docker (`pg_dump` con rotación).
+  - Configuración de alertas en Caddy / healthchecks hacia canal de monitoreo o webhook.
+  - Headers de seguridad HTTP recomendados en reverse proxy (CSP, HSTS).
 
 ---
 

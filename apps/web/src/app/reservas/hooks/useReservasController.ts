@@ -1,6 +1,10 @@
 import { useState, useMemo, useRef } from 'react';
 import { toast } from 'sonner';
-import type { ReservaConPasajeros, PasajeroConVuelos, VueloConPiloto } from '@/types/reservaDetalle';
+import type {
+  ReservaConPasajeros,
+  PasajeroConVuelos,
+  VueloConPiloto,
+} from '@/types/reservaDetalle';
 import { useReservas } from '../../../hooks/useReservas';
 import { useMeteorologia } from '../../../hooks/useMeteorologia';
 import typedApi from '../../../services/api';
@@ -89,12 +93,12 @@ export function useReservasController() {
         const estadoReal = r.estado ?? 'SIN_AGENDAR';
         const pasajerosCompletados =
           r.pasajeros?.filter((p: PasajeroConVuelos) =>
-            p.vuelos?.some((v: VueloConPiloto) => v.estado === 'COMPLETADO')
+            p.vuelos?.some((v: VueloConPiloto) => v.estado === 'COMPLETADO'),
           ) || [];
         const pasajerosActivos =
           r.pasajeros?.filter(
             (p: PasajeroConVuelos) =>
-              !p.vuelos?.some((v: VueloConPiloto) => v.estado === 'COMPLETADO')
+              !p.vuelos?.some((v: VueloConPiloto) => v.estado === 'COMPLETADO'),
           ) || [];
         const todosVolaron = pasajerosCompletados.length > 0 && pasajerosActivos.length === 0;
         const estadoEfectivo =
@@ -106,7 +110,8 @@ export function useReservasController() {
       }
 
       const totalPax = r.pasajeros?.length || 0;
-      const todosFirmados = totalPax > 0 && r.pasajeros?.every((p: PasajeroConVuelos) => p.firmaDeslinde);
+      const todosFirmados =
+        totalPax > 0 && r.pasajeros?.every((p: PasajeroConVuelos) => p.firmaDeslinde);
       if (deslindeFilter === 'COMPLETOS' && !todosFirmados) return false;
       if (deslindeFilter === 'PENDIENTES' && todosFirmados) return false;
 
@@ -119,7 +124,7 @@ export function useReservasController() {
     const motivo =
       typeof window !== 'undefined'
         ? window.prompt(
-            `Ingresa el motivo de reapertura para la reserva #${reserva.numeroReserva || reserva.id}:`
+            `Ingresa el motivo de reapertura para la reserva #${reserva.numeroReserva || reserva.id}:`,
           )
         : null;
     if (!reserva.id || !motivo || !motivo.trim()) return;
@@ -211,6 +216,7 @@ export function useReservasController() {
     handleSubmit: form.handleSubmit,
     errors: form.errors,
     isDirty: form.isDirty,
+    isSubmitting: form.isSubmitting,
     pasajerosFields: form.pasajerosFields,
     append: form.append,
     remove: form.remove,

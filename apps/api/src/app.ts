@@ -41,30 +41,41 @@ import { config } from './config';
 // Inicializar Sentry (Simulado si no hay DSN)
 Sentry.init({
   dsn: config.sentryDsn,
-  integrations: [
-    nodeProfilingIntegration(),
-  ],
+  integrations: [nodeProfilingIntegration()],
   tracesSampleRate: 1.0,
   profilesSampleRate: 1.0,
 });
 
 export async function buildApp() {
   const app = Fastify({
-    logger: config.nodeEnv !== 'test' ? {
-      transport: config.nodeEnv === 'development' ? {
-        target: 'pino-pretty',
-        options: {
-          translateTime: 'HH:MM:ss Z',
-          ignore: 'pid,hostname',
-        },
-      } : undefined,
-    } : false,
+    trustProxy: true,
+    logger:
+      config.nodeEnv !== 'test'
+        ? {
+            transport:
+              config.nodeEnv === 'development'
+                ? {
+                    target: 'pino-pretty',
+                    options: {
+                      translateTime: 'HH:MM:ss Z',
+                      ignore: 'pid,hostname',
+                    },
+                  }
+                : undefined,
+          }
+        : false,
   });
 
   // Serializa Prisma.Decimal como número (no como string) en todas las respuestas JSON
   const decimalToNumber = (v: any): any => {
     if (v === null || v === undefined) return v;
-    if (Prisma.Decimal.isDecimal(v) || (typeof v === 'object' && v.constructor?.name === 'Decimal' && typeof v.toNumber === 'function')) return v.toNumber();
+    if (
+      Prisma.Decimal.isDecimal(v) ||
+      (typeof v === 'object' &&
+        v.constructor?.name === 'Decimal' &&
+        typeof v.toNumber === 'function')
+    )
+      return v.toNumber();
     if (Array.isArray(v)) return v.map(decimalToNumber);
     if (v instanceof Date) return v;
     if (typeof v === 'object') {
@@ -76,7 +87,8 @@ export async function buildApp() {
   };
   app.setReplySerializer(function (payload: any) {
     if (payload === undefined || payload === null) return payload as unknown as string;
-    if (typeof Buffer !== 'undefined' && Buffer.isBuffer(payload)) return payload as unknown as string;
+    if (typeof Buffer !== 'undefined' && Buffer.isBuffer(payload))
+      return payload as unknown as string;
     if (typeof payload === 'string') return payload;
     // Fastify puede pasar Uint8Array / ArrayBuffer para binarios (xlsx)
     if (payload instanceof Uint8Array) return payload as unknown as string;
@@ -101,7 +113,7 @@ export async function buildApp() {
         statusCode: 400,
         error: 'Bad Request',
         message: 'Error de validación',
-        details: error.errors
+        details: error.errors,
       });
     }
 
@@ -121,7 +133,7 @@ export async function buildApp() {
       return reply.status(error.statusCode).send({
         statusCode: error.statusCode,
         error: error.name,
-        message: error.message
+        message: error.message,
       });
     }
 
@@ -133,11 +145,11 @@ export async function buildApp() {
       Sentry.captureException(error);
     });
     app.log.error({ err: error, reqId: request.id }, 'Unhandled Server Error');
-    
+
     return reply.status(500).send({
       statusCode: 500,
       error: 'Internal Server Error',
-      message: config.nodeEnv === 'development' ? error.message : 'Ha ocurrido un error inesperado'
+      message: config.nodeEnv === 'development' ? error.message : 'Ha ocurrido un error inesperado',
     });
   });
 
@@ -149,7 +161,7 @@ export async function buildApp() {
 
   await app.register(rateLimit, {
     max: config.nodeEnv === 'development' ? 10000 : 1000,
-    timeWindow: '1 minute'
+    timeWindow: '1 minute',
   });
 
   await app.register(cors, {
@@ -159,17 +171,15 @@ export async function buildApp() {
     // (curl, proxy server-to-server, mismo origen) siguen pasando.
     origin: (origin, cb) => {
       const allowed =
-        config.nodeEnv !== 'production' ||
-        !origin ||
-        config.allowedOrigins.includes(origin);
+        config.nodeEnv !== 'production' || !origin || config.allowedOrigins.includes(origin);
       cb(allowed ? null : new Error('Not allowed by CORS'), allowed);
     },
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   });
-  
+
   // Auth Plugin
   await app.register(authPlugin);
-  
+
   // DB Plugin
   await app.register(prismaPlugin);
 
@@ -185,43 +195,46 @@ export async function buildApp() {
   app.register(calendarPublicRoutes, { prefix: '/api/public/calendar' });
   app.register(eventosRoutes, { prefix: '/api' });
   app.register(modulesRoutes, { prefix: '/api' });
-  
-  app.register(async (protectedApp) => {
-    protectedApp.addHook('onRequest', protectedApp.authenticate);
 
-    // ADR 009: idempotencia del outbox — dedupe de mutaciones reenviadas
-    // con X-Client-Id (debe correr tras authenticate: solo rutas privadas).
-    protectedApp.register(idempotenciaPlugin);
+  app.register(
+    async (protectedApp) => {
+      protectedApp.addHook('onRequest', protectedApp.authenticate);
 
-    protectedApp.register(pilotosRoutes, { prefix: '/pilotos' });
-    protectedApp.register(pasajerosRoutes, { prefix: '/pasajeros' });
-    protectedApp.register(vuelosRoutes, { prefix: '/vuelos' });
-    protectedApp.register(reservasRoutes, { prefix: '/reservas' });
-    protectedApp.register(configuracionBloquesRoutes, { prefix: '/configuracion-bloques' });
-    protectedApp.register(gastosRoutes, { prefix: '/gastos' });
-    protectedApp.register(dashboardRoutes, { prefix: '/dashboard' });
-    protectedApp.register(metricasRoutes, { prefix: '/metricas' });
-    protectedApp.register(reportesRoutes, { prefix: '/reportes' });
-    protectedApp.register(equiposRoutes, { prefix: '/equipos' });
-    protectedApp.register(meteorologiaRoutes, { prefix: '/meteorologia' });
-    protectedApp.register(auditoriaRoutes, { prefix: '/auditoria' });
-    protectedApp.register(tarifasRoutes, { prefix: '/tarifas' });
-    protectedApp.register(promocionesRoutes, { prefix: '/promociones' });
-    protectedApp.register(faqsRoutes, { prefix: '/faqs' });
-    protectedApp.register(deslindesRoutes, { prefix: '/deslindes' });
-    protectedApp.register(reglasOperativasRoutes, { prefix: '/reglas-operativas' });
-    protectedApp.register(empresaRoutes, { prefix: '/empresa' });
-    protectedApp.register(plantillasRoutes, { prefix: '/plantillas' });
-    protectedApp.register(notificacionesRoutes, { prefix: '/notificaciones' });
-    protectedApp.register(usersRoutes, { prefix: '/users' });
-    protectedApp.register(pantallaRoutes, { prefix: '/pantalla' });
-    protectedApp.register(calendarProtectedRoutes, { prefix: '/calendar' });
-    
-    // Dev Tools (solo fuera de producción, requiere sesión ADMIN)
-    if (config.nodeEnv !== 'production') {
-      protectedApp.register(devRoutes, { prefix: '/dev' });
-    }
-  }, { prefix: '/api' });
-  
+      // ADR 009: idempotencia del outbox — dedupe de mutaciones reenviadas
+      // con X-Client-Id (debe correr tras authenticate: solo rutas privadas).
+      protectedApp.register(idempotenciaPlugin);
+
+      protectedApp.register(pilotosRoutes, { prefix: '/pilotos' });
+      protectedApp.register(pasajerosRoutes, { prefix: '/pasajeros' });
+      protectedApp.register(vuelosRoutes, { prefix: '/vuelos' });
+      protectedApp.register(reservasRoutes, { prefix: '/reservas' });
+      protectedApp.register(configuracionBloquesRoutes, { prefix: '/configuracion-bloques' });
+      protectedApp.register(gastosRoutes, { prefix: '/gastos' });
+      protectedApp.register(dashboardRoutes, { prefix: '/dashboard' });
+      protectedApp.register(metricasRoutes, { prefix: '/metricas' });
+      protectedApp.register(reportesRoutes, { prefix: '/reportes' });
+      protectedApp.register(equiposRoutes, { prefix: '/equipos' });
+      protectedApp.register(meteorologiaRoutes, { prefix: '/meteorologia' });
+      protectedApp.register(auditoriaRoutes, { prefix: '/auditoria' });
+      protectedApp.register(tarifasRoutes, { prefix: '/tarifas' });
+      protectedApp.register(promocionesRoutes, { prefix: '/promociones' });
+      protectedApp.register(faqsRoutes, { prefix: '/faqs' });
+      protectedApp.register(deslindesRoutes, { prefix: '/deslindes' });
+      protectedApp.register(reglasOperativasRoutes, { prefix: '/reglas-operativas' });
+      protectedApp.register(empresaRoutes, { prefix: '/empresa' });
+      protectedApp.register(plantillasRoutes, { prefix: '/plantillas' });
+      protectedApp.register(notificacionesRoutes, { prefix: '/notificaciones' });
+      protectedApp.register(usersRoutes, { prefix: '/users' });
+      protectedApp.register(pantallaRoutes, { prefix: '/pantalla' });
+      protectedApp.register(calendarProtectedRoutes, { prefix: '/calendar' });
+
+      // Dev Tools (solo fuera de producción, requiere sesión ADMIN)
+      if (config.nodeEnv !== 'production') {
+        protectedApp.register(devRoutes, { prefix: '/dev' });
+      }
+    },
+    { prefix: '/api' },
+  );
+
   return app;
 }

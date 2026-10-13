@@ -17,7 +17,12 @@ const CASCADA_INVALIDACION: Partial<Record<Entidad, string[]>> = {
   reserva: ['reservas', 'vuelos', 'dashboard'],
   piloto: ['pilotos', 'vuelos'],
   pasajero: ['pasajeros', 'reservas', 'vuelos'],
-  'configuracion-bloques': ['configuracion-bloques', 'configuracion-resolucion', 'vuelos', 'pilotos'],
+  'configuracion-bloques': [
+    'configuracion-bloques',
+    'configuracion-resolucion',
+    'vuelos',
+    'pilotos',
+  ],
   tarifa: ['tarifas', 'reservas'],
   promocion: ['promociones', 'reservas'],
   'regla-operativa': ['reglas-operativas', 'reservas'],
@@ -35,7 +40,8 @@ interface SseTicketRespuesta {
 
 export function useDatosStream(onEvent?: (entidad: string) => void) {
   const queryClient = useQueryClient();
-  const token = useAuthStore((s) => s.token) || (typeof window !== 'undefined' ? Cookies.get('token') : null);
+  const token =
+    useAuthStore((s) => s.token) || (typeof window !== 'undefined' ? Cookies.get('token') : null);
   const onEventRef = useRef(onEvent);
 
   useEffect(() => {
@@ -49,6 +55,26 @@ export function useDatosStream(onEvent?: (entidad: string) => void) {
     let es: EventSource | null = null;
     let temporizador: ReturnType<typeof setTimeout> | null = null;
     let intentos = 0;
+
+    const pendingKeys = new Set<string>();
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const flushInvalidations = () => {
+      if (pendingKeys.size === 0) return;
+      for (const k of pendingKeys) {
+        queryClient.invalidateQueries({ queryKey: [k] });
+      }
+      pendingKeys.clear();
+      debounceTimer = null;
+    };
+
+    const scheduleInvalidations = (claves: string[]) => {
+      for (const k of claves) {
+        pendingKeys.add(k);
+      }
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(flushInvalidations, 300);
+    };
 
     const programarReconexion = () => {
       if (cancelado || temporizador) return;
@@ -112,9 +138,7 @@ export function useDatosStream(onEvent?: (entidad: string) => void) {
         const claves = CASCADA_INVALIDACION[entidad as Entidad] || (prefix ? [prefix] : []);
 
         if (claves.length > 0) {
-          for (const k of claves) {
-            queryClient.invalidateQueries({ queryKey: [k] });
-          }
+          scheduleInvalidations(claves);
         } else {
           // Unknown entity — invalidate everything
           queryClient.invalidateQueries();
@@ -129,7 +153,7 @@ export function useDatosStream(onEvent?: (entidad: string) => void) {
           const data = JSON.parse(ev.data);
           if (data?.enabled) {
             applyModulesChange(data.enabled);
-            queryClient.invalidateQueries({ queryKey: ['modules'] });
+            scheduleInvalidations(['modules']);
           }
         } catch {
           // ignore
@@ -143,6 +167,7 @@ export function useDatosStream(onEvent?: (entidad: string) => void) {
     return () => {
       cancelado = true;
       if (temporizador) clearTimeout(temporizador);
+      if (debounceTimer) clearTimeout(debounceTimer);
       es?.close();
       es = null;
     };

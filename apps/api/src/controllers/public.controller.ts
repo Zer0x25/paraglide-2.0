@@ -1,23 +1,12 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
 import { FirmaDeslindePayloadSchema } from '@parapente/shared';
 import { publicService, RegistrarFirmaDTO } from '../services/public.service';
-import { prisma } from '../plugins/prisma';
 
 export class PublicController {
   async getHealth(_request: FastifyRequest, reply: FastifyReply) {
-    const baseHealth = publicService.getHealth();
-    if (typeof (prisma as any)?.$queryRaw === 'function') {
-      try {
-        await (prisma as any).$queryRaw`SELECT 1`;
-      } catch (err) {
-        return reply.status(503).send({
-          ...baseHealth,
-          status: 'degraded',
-          db: 'unreachable',
-        });
-      }
-    }
-    return reply.send(baseHealth);
+    const health = await publicService.getHealth();
+    const status = health.status === 'ok' ? 200 : 503;
+    return reply.status(status).send(health);
   }
 
   async getDeslindeActivo(_request: FastifyRequest, reply: FastifyReply) {
