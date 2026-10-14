@@ -64,9 +64,28 @@ export async function simulateData(params: { months: number; flightsPerDay: numb
   );
 
   // 2. Equipos + historial de mantenimiento (idempotente: reutiliza códigos existentes)
-  const equiposExistentes = new Set(
-    (await prisma.equipo.findMany({ select: { codigo: true }, where: { deletedAt: null } })).map((e) => e.codigo),
-  );
+  const codigosBase = EQUIPOS_BASE.map(e => e.codigo);
+
+  // Fetch active equipos explicitly bypassing/working with the soft-delete filter by stating deletedAt: null
+  const activeEquipos = await prisma.equipo.findMany({
+    where: { codigo: { in: codigosBase }, deletedAt: null }
+  });
+
+  // Fetch soft-deleted equipos explicitly by querying for deletedAt: { not: null }
+  const softDeletedEquipos = await prisma.equipo.findMany({
+    where: { codigo: { in: codigosBase }, deletedAt: { not: null } }
+  });
+
+  const equiposExistentesActivos = new Map<string, typeof activeEquipos[0]>();
+  const equiposExistentesSoftDeleted = new Map<string, typeof softDeletedEquipos[0]>();
+
+  for (const eq of activeEquipos) {
+    equiposExistentesActivos.set(eq.codigo, eq);
+  }
+
+  for (const eq of softDeletedEquipos) {
+    equiposExistentesSoftDeleted.set(eq.codigo, eq);
+  }
 
   const fechaAdquisicion = new Date();
   fechaAdquisicion.setFullYear(fechaAdquisicion.getFullYear() - 2);
@@ -74,24 +93,21 @@ export async function simulateData(params: { months: number; flightsPerDay: numb
   const equipos = [];
   for (let i = 0; i < EQUIPOS_BASE.length; i++) {
     const e = EQUIPOS_BASE[i];
-    if (equiposExistentes.has(e.codigo)) {
-      // findFirst con deletedAt: null (el plugin soft-delete no cubre findUnique, ADR 006)
-      const existing = await prisma.equipo.findFirst({ where: { codigo: e.codigo, deletedAt: null } });
-      if (existing) {
-        equipos.push(existing);
-        continue;
-      }
+    const existingActive = equiposExistentesActivos.get(e.codigo);
+
+    if (existingActive) {
+      equipos.push(existingActive);
+      continue;
     }
 
     // Un código único puede estar ocupado por una fila soft-deleted (invisible para
     // findFirst con deletedAt: null): restaurarla antes de reutilizar el código,
     // porque create chocaría con el índice único.
-    const equipoSoftDeleted = await prisma.equipo.findFirst({
-      where: { codigo: e.codigo, deletedAt: { not: null } },
-    });
-    if (equipoSoftDeleted) {
+    const existingSoftDeleted = equiposExistentesSoftDeleted.get(e.codigo);
+
+    if (existingSoftDeleted) {
       const restaurado = await prisma.equipo.update({
-        where: { id: equipoSoftDeleted.id },
+        where: { id: existingSoftDeleted.id },
         data: { deletedAt: null },
       });
       equipos.push(restaurado);
