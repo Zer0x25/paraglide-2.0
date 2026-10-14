@@ -19,7 +19,9 @@ const INTERVALO_60_MIN_MS = 60 * 60 * 1000; // 3_600_000 ms
  * Retorna el resumen del ciclo o null si falló por completo.
  * Nunca lanza: captura y loguea.
  */
-export async function tickNotificaciones(): Promise<Awaited<ReturnType<typeof programarEnvios>> | null> {
+export async function tickNotificaciones(): Promise<Awaited<
+  ReturnType<typeof programarEnvios>
+> | null> {
   try {
     return await programarEnvios();
   } catch (err) {
@@ -29,10 +31,12 @@ export async function tickNotificaciones(): Promise<Awaited<ReturnType<typeof pr
 }
 
 /** Arranca el scheduler: barrido inicial + ciclo cada 60 min. Fire-and-forget. */
-export function iniciarNotificacionesScheduler(): void {
+export function iniciarNotificacionesScheduler(): () => void {
   void tickNotificaciones();
-  setInterval(() => {
+  const timer = setInterval(() => {
     void tickNotificaciones();
-  }, INTERVALO_60_MIN_MS).unref(); // unref: no impide el shutdown del proceso
+  }, INTERVALO_60_MIN_MS);
+  timer.unref();
   console.log('[notificaciones-scheduler] Scheduler iniciado (cada 60 min)');
+  return () => clearInterval(timer);
 }

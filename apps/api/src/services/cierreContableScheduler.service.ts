@@ -49,12 +49,17 @@ export async function tickCierreContable(): Promise<number> {
         await cerrarReservaContable(r.id, r.version);
         cerradas++;
       } catch (err) {
-        console.warn(`[cierre-contable] No se pudo cerrar reserva #${r.id} (${r.numeroReserva}):`, err);
+        console.warn(
+          `[cierre-contable] No se pudo cerrar reserva #${r.id} (${r.numeroReserva}):`,
+          err,
+        );
       }
     }
 
     if (cerradas > 0) {
-      console.log(`[cierre-contable] ${cerradas} reserva(s) histórica(s) congelada(s) con snapshot inmutable (>7 días).`);
+      console.log(
+        `[cierre-contable] ${cerradas} reserva(s) histórica(s) congelada(s) con snapshot inmutable (>7 días).`,
+      );
     }
 
     return cerradas;
@@ -67,22 +72,28 @@ export async function tickCierreContable(): Promise<number> {
 function msHastaProximaCuatroAM(): number {
   const ahora = new Date();
   const proxima = new Date(
-    Date.UTC(ahora.getUTCFullYear(), ahora.getUTCMonth(), ahora.getUTCDate(), 4, 0, 0)
+    Date.UTC(ahora.getUTCFullYear(), ahora.getUTCMonth(), ahora.getUTCDate(), 4, 0, 0),
   );
   if (proxima <= ahora) proxima.setUTCDate(proxima.getUTCDate() + 1);
   return proxima.getTime() - ahora.getTime();
 }
 
+let cierreTimer: ReturnType<typeof setTimeout> | null = null;
+
 function programarSiguienteCierre(): void {
   const delay = msHastaProximaCuatroAM();
-  setTimeout(() => {
+  cierreTimer = setTimeout(() => {
     void tickCierreContable().finally(programarSiguienteCierre);
-  }, delay).unref();
+  }, delay);
+  cierreTimer.unref();
 }
 
 /** Inicia el scheduler de cierre contable: barrido inicial + scheduler diario (04:00 UTC). */
-export function iniciarCierreContableScheduler(): void {
+export function iniciarCierreContableScheduler(): () => void {
   void tickCierreContable();
   programarSiguienteCierre();
   console.log('[cierre-contable] Scheduler diario de inmutabilidad iniciado (04:00 UTC)');
+  return () => {
+    if (cierreTimer) clearTimeout(cierreTimer);
+  };
 }

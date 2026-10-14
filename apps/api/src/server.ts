@@ -26,10 +26,27 @@ async function start() {
     await app.listen({ port: config.port, host: config.host });
     console.log(`API de Fastify escuchando en el puerto ${config.port}`);
 
+    // Higiene de reglas de bloques: barrido inicial + archivado diario 03:00 UTC
+    // Sampler de condiciones de pista vía Open-Meteo: barrido inicial + ciclo cada 15 min
+    // Notificaciones automatizadas 24h/2h: barrido inicial + ciclo cada 60 min
+    // Reconciliación de Google Calendar: barrido inicial + ciclo cada 60 min
+    // Cierre contable de reservas históricas (>7 días): barrido inicial + ciclo diario 04:00 UTC
+    const stopSchedulers = [
+      iniciarHigieneBloques(),
+      iniciarMeteoScheduler(),
+      iniciarNotificacionesScheduler(),
+      iniciarCalendarScheduler(),
+      iniciarCierreContableScheduler(),
+    ];
+
     // Graceful Shutdown
+    let shuttingDown = false;
     const shutdown = async (signal: string) => {
+      if (shuttingDown) return;
+      shuttingDown = true;
       console.log(`\n[Server] Recibida señal ${signal}. Iniciando apagado ordenado...`);
       try {
+        stopSchedulers.forEach((stop) => stop());
         await app.close();
         if (sdk) {
           await sdk.shutdown();
@@ -43,17 +60,6 @@ async function start() {
     };
     process.on('SIGTERM', () => void shutdown('SIGTERM'));
     process.on('SIGINT', () => void shutdown('SIGINT'));
-
-    // Higiene de reglas de bloques: barrido inicial + archivado diario 03:00 UTC
-    iniciarHigieneBloques();
-    // Sampler de condiciones de pista vía Open-Meteo: barrido inicial + ciclo cada 15 min
-    iniciarMeteoScheduler();
-    // Notificaciones automatizadas 24h/2h (esqueleto Fase 5): barrido inicial + ciclo cada 60 min
-    iniciarNotificacionesScheduler();
-    // Reconciliación de Google Calendar: barrido inicial + ciclo cada 60 min
-    iniciarCalendarScheduler();
-    // Cierre contable de reservas históricas (>7 días): barrido inicial + ciclo diario 04:00 UTC
-    iniciarCierreContableScheduler();
   } catch (err) {
     console.error(err);
     process.exit(1);
