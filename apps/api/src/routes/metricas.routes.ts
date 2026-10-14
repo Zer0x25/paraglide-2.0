@@ -37,7 +37,7 @@ const metricasRoutes: FastifyPluginAsync = async (fastify) => {
       // Pilar 4.1: agregación pushdown — Postgres agrega (GROUP BY), la app
       // solo arma el envelope. Antes se traían todas las filas del mes y se
       // agregaba con forEach en JS.
-      const [estadoCounts, completados, gastosAgrupados, gastosTotal, vuelosPorDia] =
+      const [estadoCounts, completados, gastosAgrupados, gastosTotal, vuelosPorDia, pilotosTopRaw] =
         await Promise.all([
           prisma.vuelo.groupBy({
             by: ['estado'],
@@ -72,14 +72,14 @@ const metricasRoutes: FastifyPluginAsync = async (fastify) => {
           WHERE "deletedAt" IS NULL AND "fechaHora" >= ${startDate} AND "fechaHora" < ${endDate}
           GROUP BY 1, 2
         `,
-        ]);
 
-      const pilotosTopRaw = await prisma.vuelo.groupBy({
-        by: ['pilotoId'],
-        where: { estado: 'COMPLETADO', fechaHora: { gte: startDate, lt: endDate } },
-        _count: { _all: true },
-        _sum: { valorPactado: true, pagoPiloto: true },
-      });
+          prisma.vuelo.groupBy({
+            by: ['pilotoId'],
+            where: { estado: 'COMPLETADO', fechaHora: { gte: startDate, lt: endDate } },
+            _count: { _all: true },
+            _sum: { valorPactado: true, pagoPiloto: true },
+          }),
+        ]);
 
       const pilotosNombres = await prisma.piloto.findMany({
         where: { id: { in: pilotosTopRaw.map((p) => p.pilotoId) } },
