@@ -50,7 +50,9 @@ describe('SyncCalendarModal Component', () => {
   });
 
   it('debe renderizar el modal con los datos de sincronización y plataformas disponibles', async () => {
-    vi.mocked(api.get).mockResolvedValueOnce({ data: mockSyncData } as unknown as Awaited<ReturnType<typeof api.get>>);
+    vi.mocked(api.get).mockResolvedValueOnce({ data: mockSyncData } as unknown as Awaited<
+      ReturnType<typeof api.get>
+    >);
 
     render(<SyncCalendarModal isOpen={true} onClose={vi.fn()} />);
 
@@ -69,7 +71,9 @@ describe('SyncCalendarModal Component', () => {
   });
 
   it('debe permitir cambiar de destino a un piloto específico', async () => {
-    vi.mocked(api.get).mockResolvedValueOnce({ data: mockSyncData } as unknown as Awaited<ReturnType<typeof api.get>>);
+    vi.mocked(api.get).mockResolvedValueOnce({ data: mockSyncData } as unknown as Awaited<
+      ReturnType<typeof api.get>
+    >);
 
     render(<SyncCalendarModal isOpen={true} onClose={vi.fn()} />);
 
@@ -84,7 +88,9 @@ describe('SyncCalendarModal Component', () => {
   });
 
   it('debe copiar el enlace al hacer clic en Copiar', async () => {
-    vi.mocked(api.get).mockResolvedValueOnce({ data: mockSyncData } as unknown as Awaited<ReturnType<typeof api.get>>);
+    vi.mocked(api.get).mockResolvedValueOnce({ data: mockSyncData } as unknown as Awaited<
+      ReturnType<typeof api.get>
+    >);
     vi.mocked(clipboard.copyTextToClipboard).mockResolvedValueOnce(true);
 
     render(<SyncCalendarModal isOpen={true} onClose={vi.fn()} />);
@@ -101,7 +107,7 @@ describe('SyncCalendarModal Component', () => {
     });
 
     expect(clipboard.copyTextToClipboard).toHaveBeenCalledWith(
-      expect.stringContaining('token=tok_universal_123')
+      expect.stringContaining('token=tok_universal_123'),
     );
   });
 
@@ -110,7 +116,9 @@ describe('SyncCalendarModal Component', () => {
       ...mockSyncData,
       universal: { ...mockSyncData.universal, expiraEn: '2027-09-29T12:00:00.000Z' },
     };
-    vi.mocked(api.get).mockResolvedValueOnce({ data: syncDataConExpiracion } as unknown as Awaited<ReturnType<typeof api.get>>);
+    vi.mocked(api.get).mockResolvedValueOnce({ data: syncDataConExpiracion } as unknown as Awaited<
+      ReturnType<typeof api.get>
+    >);
 
     render(<SyncCalendarModal isOpen={true} onClose={vi.fn()} />);
 
@@ -120,8 +128,12 @@ describe('SyncCalendarModal Component', () => {
   });
 
   it('debe regenerar el enlace solo tras confirmación explícita (2a)', async () => {
-    vi.mocked(api.get).mockResolvedValue({ data: mockSyncData } as unknown as Awaited<ReturnType<typeof api.get>>);
-    vi.mocked(api.post).mockResolvedValue({ success: true } as unknown as Awaited<ReturnType<typeof api.post>>);
+    vi.mocked(api.get).mockResolvedValue({ data: mockSyncData } as unknown as Awaited<
+      ReturnType<typeof api.get>
+    >);
+    vi.mocked(api.post).mockResolvedValue({ success: true } as unknown as Awaited<
+      ReturnType<typeof api.post>
+    >);
 
     render(<SyncCalendarModal isOpen={true} onClose={vi.fn()} />);
 
@@ -129,10 +141,12 @@ describe('SyncCalendarModal Component', () => {
     fireEvent.click(regenBtn);
 
     // Paso de confirmación: advertir antes de invalidar los enlaces anteriores
-    expect(await screen.findByText(/Los enlaces anteriores dejarán de funcionar/i)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/Los enlaces anteriores dejarán de funcionar/i),
+    ).toBeInTheDocument();
     expect(api.post).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole('button', { name: /Sí, regenerar/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Confirmar regeneración de enlace/i }));
 
     await waitFor(() => {
       expect(api.post).toHaveBeenCalledWith('/calendar/feed-token/regenerate', {
