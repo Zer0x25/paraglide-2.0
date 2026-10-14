@@ -5,6 +5,15 @@ based on [Conventional Commits](https://www.conventionalcommits.org/) and this
 file is maintained automatically by
 [release-please](https://github.com/googleapis/release-please).
 
+## [0.10.3](https://github.com/Zer0x25/paraglide-2.0/compare/v0.10.2...v0.10.3) (2026-10-14)
+
+
+### Bug Fixes
+
+* **core:** remediación de hallazgos de severidad alta (A-01 a A-09) y suites de antirregresión ([#61](https://github.com/Zer0x25/paraglide-2.0/issues/61)) ([154fa2e](https://github.com/Zer0x25/paraglide-2.0/commit/154fa2e666fbb18a920ce7d375e5579eb8c35166))
+* resolver hallazgos M-01 a M-03 (disponibilidad pilotos, persistencia offline y sanitizacion) ([#59](https://github.com/Zer0x25/paraglide-2.0/issues/59)) ([9ac3c41](https://github.com/Zer0x25/paraglide-2.0/commit/9ac3c418e6938a8fe1f378703adf5d65b9fc3769))
+* **security,sre:** remediate critical vulnerabilities C-01 to C-08 and add anti-regression suite ([#60](https://github.com/Zer0x25/paraglide-2.0/issues/60)) ([ae59d36](https://github.com/Zer0x25/paraglide-2.0/commit/ae59d36333b49420fbbdf2d25b5c78df175e0a38))
+
 ## [0.10.2](https://github.com/Zer0x25/paraglide-2.0/compare/v0.10.1...v0.10.2) (2026-10-14)
 
 
