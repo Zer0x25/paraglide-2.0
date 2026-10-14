@@ -28,9 +28,26 @@ export async function validateWeightAndConflict(
   fechaHora: string,
   excludeVueloId?: number,
 ) {
-  const pasajeroData = await prisma.pasajero.findUnique({
-    where: { id: pasajeroId, deletedAt: null },
-  });
+  // ⚡ Bolt: Batch independent DB queries to execute them concurrently instead of sequentially,
+  // reducing round-trip time from 3x to 1x latency.
+  const [pasajeroData, piloto, conflicto] = await Promise.all([
+    prisma.pasajero.findUnique({
+      where: { id: pasajeroId, deletedAt: null },
+    }),
+    prisma.piloto.findUnique({
+      where: { id: pilotoId, deletedAt: null },
+    }),
+    prisma.vuelo.findFirst({
+      where: {
+        pilotoId,
+        fechaHora: new Date(fechaHora),
+        deletedAt: null,
+        estado: { not: 'CANCELADO' },
+        ...(excludeVueloId ? { NOT: { id: excludeVueloId } } : {}),
+      },
+    }),
+  ]);
+
   if (!pasajeroData) {
     throw new Error('Pasajero no encontrado');
   }
@@ -42,9 +59,6 @@ export async function validateWeightAndConflict(
     );
   }
 
-  const piloto = await prisma.piloto.findUnique({
-    where: { id: pilotoId, deletedAt: null },
-  });
   if (!piloto || !piloto.activo) {
     throw new Error('El piloto seleccionado no existe o no se encuentra activo.');
   }
@@ -57,16 +71,6 @@ export async function validateWeightAndConflict(
       );
     }
   }
-
-  const conflicto = await prisma.vuelo.findFirst({
-    where: {
-      pilotoId,
-      fechaHora: new Date(fechaHora),
-      deletedAt: null,
-      estado: { not: 'CANCELADO' },
-      ...(excludeVueloId ? { NOT: { id: excludeVueloId } } : {}),
-    },
-  });
 
   if (conflicto) {
     throw new Error('Conflicto de horario. El piloto ya tiene un vuelo en esa fecha y hora.');
