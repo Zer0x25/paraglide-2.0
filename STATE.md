@@ -18,31 +18,31 @@ Este documento mantiene el estado de ejecución, trazabilidad de sesiones, evide
 
 ## 2. Última Sesión de Trabajo
 
-- **Fecha:** 2026-10-13
-- **Objetivo:** Auditoría Exhaustiva de Pre-producción (Production-Readiness Review) y Endurecimiento Crítico (Resiliencia, Seguridad, UX Concurrente y SRE).
+- **Fecha:** 2026-10-14
+- **Objetivo:** Remediación Integral de los 9 Hallazgos de Severidad Alta (A-01 a A-09) de Pre-producción.
 - **Autor / Ejecutor:** Agente Asistente de IA (Antigravity) en coordinación con el Desarrollador.
 - **Entregables Realizados:**
-  1. **Auditoría Holística de Pre-producción**: Evaluación de 5 dimensiones críticas (Arquitectura/Concurrencia, Seguridad/Resiliencia, Day-2 SRE, Producto/UX, y Cumplimiento de Invariantes).
-  2. **Fix Fastify `trustProxy` (Commit `2682659`)**: Habilitación de `trustProxy: true` para que Fastify extraiga la IP real del cliente detrás del reverse proxy Caddy y Next.js rewrite, restaurando precisión de rate-limiting y auditoría.
-  3. **Graceful Shutdown & OTEL Gating (Commit `e60002c`)**: Cierre ordenado de conexiones HTTP de Fastify y pool de Prisma ante `SIGTERM`/`SIGINT`. Condicionamiento del exportador de trazas en consola a `OTEL_CONSOLE_EXPORTER=true`.
-  4. **Eliminación de Mock Meteorológico Ficticio (Commit `7b2f0ba`)**: Supresión del fallback benigno hardcodeado (`estadoPista: 'ABIERTA'`) cuando la BD falla, propagando el error real para no habilitar vuelos sin telemetría confirmada.
-  5. **Verificación de DB en Healthcheck Público (Commit `a77714a`)**: Adición de ping activo `SELECT 1` a Postgres en `/health`. Si la BD no responde, el endpoint retorna HTTP 503 permitiendo al orquestador intervenir.
-  6. **Debounce de Invalidaciones SSE en Web (Commit `1de5187`)**: Ventana de debounce de 300ms en `useDatosStream` para agrupar ráfagas de eventos `datos-cambios` y evitar tormentas de re-fetching que colapsen el pool de Prisma (`connection_limit=10`).
-  7. **Prevención de Doble Submit en Reservas (Commit `743717c`)**: Guard de reentrada síncrono, deshabilitación de botones y spinner en `ReservaFormModal`, con prueba unitaria antirregresión añadida en `useReservasController.antirregresion.test.tsx`.
-  8. **Guardrail Hook Pre-Tool para Base de Datos (Commit `c427793`)**: Hook automatizado que intercepta llamadas de terminal y deniega en tiempo de ejecución referencias a la base o puerto de producción (`5678`).
+  1. **A-01: Zona Horaria Canónica en Bloques del Calendario**: Sustitución de `new Date().toISOString().slice(0, 10)` por `dateKeyLocal()` en `resolverConfiguracion` y uso de `horaLocalHHMM(start)` en `useCalendarioBlocks.ts`.
+  2. **A-02: Validación Integral de Agendamiento, Bloques de Piloto y Atomicidad**: Validación de bloques horarios (`PilotoDisponibilidadBloque`) y horas ocupadas en `sugerirPiloto` y `autoAssignVuelos`; validación de piloto activo y rango de peso en `validateWeightAndConflict`; atomicidad transaccional con `FOR UPDATE` y soft-delete de vuelos previos del pasajero en `createVuelo`.
+  3. **A-03: Encolado Completo de Operaciones Múltiples en PagosModal (Offline Outbox)**: Reemplazo del aborto prematuro por `ejecutarPaso` secuencial con incremento optimista de versión (`versionActual + 1`) ante `isQueuedError`, garantizando persistencia íntegra de pagos, devoluciones y estados de pasajeros sin pérdidas.
+  4. **A-04: Deducción Real de Versión en Reintento 409 del Outbox y Exclusión de Lecturas POST**: Implementación de `resolveVersionLookupUrl` para obtener versión fresca de la entidad propietaria en reintentos 409 y delegación directa a `typedApi` (sin headers de outbox) para endpoints de sólo lectura (`asignacionAutomatica`, `calcularValor`, `sugerir`, `renderizar`).
+  5. **A-05: Persistencia de Configuración de Módulos Premium**: Montaje del volumen `./apps/api/modules.config.json` en `docker-compose.yml` para el servicio API, preservando cambios en caliente a través de despliegues y recreaciones de contenedores.
+  6. **A-06: Trazabilidad Legal en Deslindes**: Consulta de `deslindeVersion` activa para fijar `versionLegal` real y actualización de `createdAt` en la firma/re-firma tanto en el endpoint interno como público.
+  7. **A-07: Auto-Resolución de Token en /pantalla y Anti-Doble Submit en Calendario**: Espera de sesión y auto-hidratación del token del día para administradores en `/pantalla`, actualización de QR al tablero en vivo, y guard síncrono (`submittingRef`) con estado reactivo `isSubmitting` en `useCalendarioModal.ts`.
+  8. **A-08: Cierre Ordenado de Schedulers, Limpieza de Métricas y Headers de Trazabilidad**: Limpieza de timers/intervals de schedulers (higiene, meteo, notificaciones, calendar, cierre contable) al recibir SIGTERM/SIGINT, limpieza del registry de `prom-client` en `onClose`, y propagación de `x-request-id` y `traceparent` en respuestas API.
+  9. **A-09: Alineación de Contratos MCP y Prevención de Duplicados en Workflow**: Mapeo canónico de DTOs en `consultas.ts` (`ReglaOperativa`, `Promocion`) y `reservas.ts` (`deslindeFirmado`), y captura controlada con mensaje instructivo en `crear_y_agendar_reserva` si `agendarGrupo` falla tras crear la reserva.
 - **Evidencia de Calidad:**
-  - `npm run check:quick`: 0 fallos (build shared, typecheck 4 workspaces, 31 suites api, 50 suites web, 1 suite mcp).
-  - Formato incremental Prettier aplicado sobre todos los archivos de código modificados.
-  - Pushed a `origin/main` (commit `c427793`).
+  - `npm run check:quick`: Código de salida `0` limpio (build `@parapente/shared`, chequeo de tipos estricto en 4 workspaces, 32 suites en API con 276 tests pasando, 50 suites en Web con 285 tests pasando, 1 suite en MCP con 16 tests pasando).
+  - Formato incremental Prettier aplicado vía `npm run format`.
+  - Commits atómicos con convención Conventional Commits aplicados en rama `fix/high-severity-findings`.
 
 ---
 
 ## 3. Tareas en Curso (WIP) y Backlog Inmediato
 
 ### En Curso (WIP)
-- [x] Auditoría exhaustiva de pre-producción y aplicación de 6 parches críticos de resiliencia y seguridad.
-- [x] Push de parches atómicos a `origin/main`.
-- [x] Validación completa de CI local y verificación de tipos monorepo (`check:quick`).
+- [x] Remediación y verificación de los 9 hallazgos de severidad ALTA (A-01 a A-09).
+- [x] Pruebas unitarias de regresión y verificación del gate `npm run check:quick`.
 
 ### Siguiente Acción Prioritaria (Next Action)
 - [ ] **Despliegue y Validación en Staging**: Levantar o actualizar el stack de staging (`npm run staging:up`) y correr la suite de estrés/integración de staging (`npm run test:staging:quick`).
