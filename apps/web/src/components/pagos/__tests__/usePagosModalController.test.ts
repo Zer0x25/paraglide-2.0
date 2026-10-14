@@ -58,9 +58,10 @@ describe('usePagosModalController — antirregresión A-03', () => {
       message: 'Encolado en Outbox',
     });
 
+    type ControllerProps = Parameters<typeof usePagosModalController>[0];
     const { result } = renderHook(() =>
       usePagosModalController({
-        reserva: mockReserva as any,
+        reserva: mockReserva as unknown as ControllerProps['reserva'],
         onSuccess,
         onClose,
       }),
@@ -74,7 +75,7 @@ describe('usePagosModalController — antirregresión A-03', () => {
     });
 
     act(() => {
-      result.current.handleAddPago({ preventDefault: () => {} } as any);
+      result.current.handleAddPago({ preventDefault: () => {} } as unknown as React.FormEvent);
       result.current.setVueloCompletado(true);
     });
 

@@ -3,6 +3,7 @@ import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act } from '../../../../test/render';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import type { VueloDTO } from '@parapente/shared';
 import { useCalendarioModal } from '../useCalendarioModal';
 import { typedApiOutbox } from '../../../../services/apiOutbox';
 
@@ -38,7 +39,7 @@ describe('useCalendarioModal — antirregresión A-07', () => {
     React.createElement(QueryClientProvider, { client: queryClient }, children);
 
   it('bloquea envíos concurrentes duplicados mediante submittingRef', async () => {
-    let resolverApi: (val?: any) => void = () => {};
+    let resolverApi: (val: VueloDTO) => void = () => {};
     vi.mocked(typedApiOutbox.vuelos.crear).mockImplementation(
       () =>
         new Promise((resolve) => {
@@ -46,10 +47,19 @@ describe('useCalendarioModal — antirregresión A-07', () => {
         }),
     );
 
-    const baseProps = {
+    type ModalProps = Parameters<typeof useCalendarioModal>[0];
+    const baseProps: ModalProps = {
       vuelos: [],
-      pilotos: [{ id: 1, nombre: 'Piloto Test', activo: true } as any],
-      pasajeros: [{ id: 10, nombre: 'Pasajero Test', reservaId: 100 } as any],
+      pilotos: [
+        { id: 1, nombre: 'Piloto Test', activo: true } as unknown as ModalProps['pilotos'][number],
+      ],
+      pasajeros: [
+        {
+          id: 10,
+          nombre: 'Pasajero Test',
+          reservaId: 100,
+        } as unknown as ModalProps['pasajeros'][number],
+      ],
       reservas: [],
       refetchVuelos: vi.fn(),
       refetchReservas: vi.fn(),
@@ -87,7 +97,7 @@ describe('useCalendarioModal — antirregresión A-07', () => {
 
     // Desbloquear el primer submit
     await act(async () => {
-      resolverApi({ id: 123 });
+      resolverApi({ id: 123 } as unknown as VueloDTO);
       await p1!;
     });
 
