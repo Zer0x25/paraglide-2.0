@@ -16,9 +16,44 @@ Este documento mantiene el estado de ejecución, trazabilidad de sesiones, evide
 
 ---
 
-## 2. Última Sesión de Trabajo
+## 2. Última Sesión de Trabajo: Remediación de Hallazgos Medios (M-01 a M-03 - PR #59)
 
 - **Fecha:** 2026-10-14
+- **Objetivo:** Resolución de Hallazgos Medios M-01 a M-03 (Disponibilidad Pilotos, Warmup/QueryProvider Offline, Soft Delete y Sanitización) + Suites de Anti-regresión (PR #59).
+- **Autor / Ejecutor:** Agente Asistente de IA (Antigravity) en coordinación con el Desarrollador.
+- **Entregables Realizados:**
+  1. **M-01: Caché Serializable, Bloques Horarios y Resiliencia en Google Calendar**:
+     - Desacople de `dateKey` del queryKey en `usePilotosDisponibilidadEfectiva` (clave basada en IDs de pilotos ordenados), evitando $N$ peticiones por cada cambio de día en calendario.
+     - Retorno de `Record<number, ...>` plano en lugar de `Map` para garantizar persistencia offline en `PersistQueryClientProvider`.
+     - Implementación de `pilotosDisponiblesEnBloque` en `agendas.util.ts` e integración en `AgendaBloqueHorario.tsx`.
+     - Caché en memoria de 5 min para `getSchoolName()` eliminando N+1 hacia `Empresa` y timeout de 10s en llamadas HTTP a Google Calendar API.
+  2. **M-02: Warmup por Rol, Persistencia Offline y Shape Optimista**:
+     - Filtro condicional por rol en `useWarmupData.ts` (omite pasajeros/reservas/tarifas para `PILOTO`, y deslindes para `RECEPCION`, eliminando ráfagas 403).
+     - Persistencia de `['vuelos', 'calendario', ...]` en IndexedDB via `shouldPersistQuery` en `QueryProvider.tsx` (buster `v4-calendario-offline`).
+     - Población de `nombre` y `estado: 'PENDIENTE'` en pasajero optimista en `useReservas.ts`.
+  3. **M-03: Soft Delete Completo, Sanitización de Variables y Validación Zod**:
+     - Inclusión de `'Tarifa'`, `'Promocion'` y `'Faq'` en `SOFT_DELETE_MODELS` de `prisma.ts`.
+     - Reemplazo seguro mediante función de sustitución en `PlantillasService.render` para evitar corrupción por caracteres `$`.
+     - Validación Zod con `CreatePlantillaMensajePayloadSchema.partial().parse` en `PlantillasController.update`.
+  4. **Suites de Anti-regresión Dedicadas**:
+     - `usePilotosDisponibilidadEfectiva.antirregresion.test.tsx` (3 tests).
+     - `QueryProvider.antirregresion.test.tsx` (4 tests).
+     - `useReservas.optimistic-pasajero.antirregresion.test.tsx` (1 test).
+     - `prisma.soft-delete.antirregresion.test.ts` (2 tests).
+     - `plantillas.controller.antirregresion.test.ts` (2 tests).
+     - Tests en `google-calendar.service.test.ts` (timeouts y caché de escuela).
+     - Tests en `agendas.util.test.ts` (`pilotosDisponiblesEnBloque`).
+- **Evidencia de Calidad:**
+  - Build de `@parapente/shared` exitoso.
+  - Monorepo `typecheck` (`tsc --noEmit`) en los 4 workspaces con 0 errores de tipos.
+  - Quality gate `npm run check:quick` pasando al 100%: Web (53 suites, 298 tests), API y MCP (15 tests).
+  - Verificación `npm run lint` en Web con 0 errores y 0 advertencias (`--max-warnings 0`).
+  - Formateo incremental `npm run format` aplicado.
+  - Integración limpia con `main` tras merge de PR #60 y #61.
+
+---
+
+## 2.1. Sesión Anterior (2026-10-14): Remediación de Puntos Críticos (C-01 a C-08 - PR #60)
 - **Objetivo:** Plan de Remediación Inmediata de Puntos Críticos (C-01 a C-08) y Desfase Horario de Bloques (A-01) con Suite de Antirregresión (PR #60).
 - **Autor / Ejecutor:** Agente Asistente de IA (Antigravity) en coordinación con el Desarrollador.
 - **Entregables Realizados:**
@@ -55,6 +90,7 @@ Este documento mantiene el estado de ejecución, trazabilidad de sesiones, evide
   - `typecheck` monorepo (`tsc --noEmit`) en `@parapente/shared`, `api`, `web` y `@parapente/mcp` finalizado con 0 errores.
   - Quality gate `npm run check:quick` ejecutado y aprobado con código 0.
   - Formateo incremental `npm run format:check` verificado con Prettier sin inconsistencias de estilo.
+
 
 ---
 

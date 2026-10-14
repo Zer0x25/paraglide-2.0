@@ -145,6 +145,9 @@ export function useWarmupData() {
         const resDesdeISO = new Date(Date.UTC(year, month, 1)).toISOString().slice(0, 10);
         const resHastaISO = new Date(Date.UTC(year, month + 1, 0)).toISOString().slice(0, 10);
 
+        const isRecepcionOrAdmin = userRole === 'ADMIN' || userRole === 'RECEPCION';
+        const isAdmin = userRole === 'ADMIN';
+
         // 1. Dashboard stats
         queryClient.prefetchQuery({
           queryKey: ['dashboard', 'stats'],
@@ -165,33 +168,35 @@ export function useWarmupData() {
           staleTime: 60_000,
         });
 
-        // 3. Pasajeros
-        queryClient.prefetchQuery({
-          queryKey: ['pasajeros'],
-          queryFn: async () => (await api.pasajeros.listar({ pageSize: 500 })).data,
-          staleTime: 60_000,
-        });
+        if (isRecepcionOrAdmin) {
+          // 3. Pasajeros (solo RECEPCION / ADMIN)
+          queryClient.prefetchQuery({
+            queryKey: ['pasajeros'],
+            queryFn: async () => (await api.pasajeros.listar({ pageSize: 500 })).data,
+            staleTime: 60_000,
+          });
 
-        // 4. Reservas (colección general y tab PROXIMAS de la lista)
-        queryClient.prefetchQuery({
-          queryKey: ['reservas'],
-          queryFn: async () => (await api.reservas.listar({ pageSize: 500 })).data,
-          staleTime: 60_000,
-        });
+          // 4. Reservas (colección general y tab PROXIMAS de la lista)
+          queryClient.prefetchQuery({
+            queryKey: ['reservas'],
+            queryFn: async () => (await api.reservas.listar({ pageSize: 500 })).data,
+            staleTime: 60_000,
+          });
 
-        queryClient.prefetchInfiniteQuery({
-          queryKey: ['reservas', { tab: 'PROXIMAS' }],
-          queryFn: async () => {
-            const params = {
-              pageSize: '20',
-              desde: new Date().toISOString(),
-              sort: 'fechaAgenda.asc',
-            };
-            return api.reservas.listar(params);
-          },
-          initialPageParam: undefined,
-          staleTime: 60_000,
-        });
+          queryClient.prefetchInfiniteQuery({
+            queryKey: ['reservas', { tab: 'PROXIMAS' }],
+            queryFn: async () => {
+              const params = {
+                pageSize: '20',
+                desde: new Date().toISOString(),
+                sort: 'fechaAgenda.asc',
+              };
+              return api.reservas.listar(params);
+            },
+            initialPageParam: undefined,
+            staleTime: 60_000,
+          });
+        }
 
         // 4. Vuelos del calendario (mes actual / ±15 días)
         queryClient.prefetchQuery({
@@ -228,54 +233,58 @@ export function useWarmupData() {
           staleTime: 60_000,
         });
 
-        // 6. Tarifas, promociones, reglas y configuración operativa
-        queryClient.prefetchQuery({
-          queryKey: ['tarifas'],
-          queryFn: () => api.tarifas.listar(),
-          staleTime: 60_000,
-        });
+        // 6. Tarifas, promociones, reglas y configuración operativa (RECEPCION / ADMIN)
+        if (isRecepcionOrAdmin) {
+          queryClient.prefetchQuery({
+            queryKey: ['tarifas'],
+            queryFn: () => api.tarifas.listar(),
+            staleTime: 60_000,
+          });
 
-        queryClient.prefetchQuery({
-          queryKey: ['promociones'],
-          queryFn: () => api.promociones.listar(),
-          staleTime: 60_000,
-        });
+          queryClient.prefetchQuery({
+            queryKey: ['promociones'],
+            queryFn: () => api.promociones.listar(),
+            staleTime: 60_000,
+          });
 
-        queryClient.prefetchQuery({
-          queryKey: ['reglas-operativas'],
-          queryFn: () => api.reglasOperativas.listar(),
-          staleTime: 60_000,
-        });
+          queryClient.prefetchQuery({
+            queryKey: ['reglas-operativas'],
+            queryFn: () => api.reglasOperativas.listar(),
+            staleTime: 60_000,
+          });
 
-        queryClient.prefetchQuery({
-          queryKey: ['deslindes'],
-          queryFn: () => api.deslindes.listar(),
-          staleTime: 60_000,
-        });
+          queryClient.prefetchQuery({
+            queryKey: ['equipos'],
+            queryFn: async () => (await api.equipos.listar({ pageSize: 500 })).data,
+            staleTime: 60_000,
+          });
 
-        queryClient.prefetchQuery({
-          queryKey: ['equipos'],
-          queryFn: async () => (await api.equipos.listar({ pageSize: 500 })).data,
-          staleTime: 60_000,
-        });
+          queryClient.prefetchQuery({
+            queryKey: ['plantillas'],
+            queryFn: async () => (await api.plantillas.listar({ pageSize: 500 })).data,
+            staleTime: 60_000,
+          });
 
-        queryClient.prefetchQuery({
-          queryKey: ['plantillas'],
-          queryFn: async () => (await api.plantillas.listar({ pageSize: 500 })).data,
-          staleTime: 60_000,
-        });
+          queryClient.prefetchQuery({
+            queryKey: ['empresa'],
+            queryFn: () => api.empresa.obtener(),
+            staleTime: 60_000,
+          });
 
-        queryClient.prefetchQuery({
-          queryKey: ['empresa'],
-          queryFn: () => api.empresa.obtener(),
-          staleTime: 60_000,
-        });
+          queryClient.prefetchQuery({
+            queryKey: ['faqs'],
+            queryFn: () => api.faqs.listar(),
+            staleTime: 60_000,
+          });
+        }
 
-        queryClient.prefetchQuery({
-          queryKey: ['faqs'],
-          queryFn: () => api.faqs.listar(),
-          staleTime: 60_000,
-        });
+        if (isAdmin) {
+          queryClient.prefetchQuery({
+            queryKey: ['deslindes'],
+            queryFn: () => api.deslindes.listar(),
+            staleTime: 60_000,
+          });
+        }
       } catch {
         // En segundo plano: los fallos no interrumpen la navegación
       }

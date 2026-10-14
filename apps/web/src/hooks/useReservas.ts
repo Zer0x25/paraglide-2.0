@@ -2,7 +2,13 @@ import { useState, useMemo } from 'react';
 import { useInfiniteQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query';
 import api from '../services/api';
 import { typedApiOutbox } from '../services/apiOutbox';
-import { ReservaDTO, CreateReservaPayload, UpdateReservaPayload, CancelarReservaPayload, derivarEstadoPago } from '@parapente/shared';
+import {
+  ReservaDTO,
+  CreateReservaPayload,
+  UpdateReservaPayload,
+  CancelarReservaPayload,
+  derivarEstadoPago,
+} from '@parapente/shared';
 type CreateReservaPayloadWithTemp = CreateReservaPayload & { _tempId?: number };
 import { useDomainMutation, isQueuedError } from './useDomainMutation';
 
@@ -14,7 +20,15 @@ export interface ReservasFiltros {
 
 interface ReservasEnvelope {
   data: ReservaDTO[];
-  pagination: { page: number; pageSize: number; total: number; totalPages: number; hasMore: boolean; nextPage?: number | null; nextCursor?: string | null };
+  pagination: {
+    page: number;
+    pageSize: number;
+    total: number;
+    totalPages: number;
+    hasMore: boolean;
+    nextPage?: number | null;
+    nextCursor?: string | null;
+  };
 }
 
 const RESERVAS_KEY = ['reservas'] as const;
@@ -112,20 +126,33 @@ export function useReservas() {
         createdAt: new Date(),
         updatedAt: new Date(),
         pasajeros: (payload.pasajeros ?? []).map((raw: unknown, idx: number) => {
-          const p = raw as { nombre?: string; nombreCompleto?: string; rutDni?: string | null; peso?: unknown; telefono?: string | null; contactoEmergencia?: string | null; telefonoEmergencia?: string | null; condicionFisica?: string | null };
+          const p = raw as {
+            nombre?: string;
+            nombreCompleto?: string;
+            rutDni?: string | null;
+            peso?: unknown;
+            telefono?: string | null;
+            contactoEmergencia?: string | null;
+            telefonoEmergencia?: string | null;
+            condicionFisica?: string | null;
+          };
+          const nombreResuelto = p.nombre || p.nombreCompleto || 'Pasajero';
           return {
-          id: -(Math.abs(provisionalId) + idx + 1),
-          reservaId: provisionalId,
-          nombreCompleto: p.nombreCompleto || p.nombre || 'Pasajero',
-          rutDni: p.rutDni ?? null,
-          peso: p.peso != null && p.peso !== '' ? Number(p.peso) : null,
-          telefono: p.telefono ?? null,
-          contactoEmergencia: p.contactoEmergencia ?? null,
-          telefonoEmergencia: p.telefonoEmergencia ?? null,
-          condicionFisica: p.condicionFisica ?? null,
-          firmaDeslinde: false,
-          estadoVuelo: 'POR_VOLAR',
-        };}),
+            id: -(Math.abs(provisionalId) + idx + 1),
+            reservaId: provisionalId,
+            nombre: nombreResuelto,
+            nombreCompleto: nombreResuelto,
+            rutDni: p.rutDni ?? null,
+            peso: p.peso != null && p.peso !== '' ? Number(p.peso) : null,
+            telefono: p.telefono ?? null,
+            contactoEmergencia: p.contactoEmergencia ?? null,
+            telefonoEmergencia: p.telefonoEmergencia ?? null,
+            condicionFisica: p.condicionFisica ?? null,
+            firmaDeslinde: false,
+            estado: 'PENDIENTE',
+            estadoVuelo: 'POR_VOLAR',
+          };
+        }),
       } as unknown as ReservaDTO;
 
       queryClient.setQueriesData<InfiniteData<ReservasEnvelope>>(
@@ -148,7 +175,7 @@ export function useReservas() {
               return page;
             }),
           };
-        }
+        },
       );
     },
     onError: (error, variables) => {
@@ -178,14 +205,17 @@ export function useReservas() {
               };
             }),
           };
-        }
+        },
       );
     },
   });
 
   // ADR 009: edición/borrado de reserva también por outbox — en pista sin
   // red la acción debe encolarse y reenviarse con idempotencia por X-Client-Id.
-  const updateMutation = useDomainMutation<ReservaDTO, { id: number; payload: UpdateReservaPayload }>({
+  const updateMutation = useDomainMutation<
+    ReservaDTO,
+    { id: number; payload: UpdateReservaPayload }
+  >({
     mutationFn: ({ id, payload }) => typedApiOutbox.reservas.actualizar(id, payload),
     invalidateKeys: [RESERVAS_KEY],
   });

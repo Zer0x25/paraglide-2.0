@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
@@ -17,31 +17,35 @@ import { ReactNode, useEffect, useState } from 'react';
 // mientras revalida en segundo plano. El SW no cachea /api/* (convención ADR 009).
 // Excluimos claves sensibles/volátiles del persister.
 
-const EXCLUDED_QUERY_PREFIXES = ['auth', 'vuelos'];
+const EXCLUDED_QUERY_PREFIXES = ['auth'];
 
-function shouldPersistQuery(queryKey: readonly unknown[]): boolean {
+export function shouldPersistQuery(queryKey: readonly unknown[]): boolean {
   const first = queryKey[0];
   if (typeof first !== 'string') return true;
+  if (first === 'vuelos') return queryKey[1] === 'calendario';
   return !EXCLUDED_QUERY_PREFIXES.includes(first);
 }
 
 export function QueryProvider({ children }: { children: ReactNode }) {
-  const [client] = useState(() => new QueryClient({
-    defaultOptions: {
-      queries: {
-        staleTime: 60_000,
-        gcTime: 7 * 24 * 60 * 60 * 1000, // 7 días alineado con maxAge de persistencia (evita purgar queries inactivas de IndexedDB)
-        retry: 1,
-        refetchOnWindowFocus: false,
-        // Al reconectar (online/SSE) se revalida (ADR 007/009).
-        refetchOnReconnect: true,
-        networkMode: 'offlineFirst',
-      },
-      mutations: {
-        networkMode: 'offlineFirst',
-      },
-    },
-  }));
+  const [client] = useState(
+    () =>
+      new QueryClient({
+        defaultOptions: {
+          queries: {
+            staleTime: 60_000,
+            gcTime: 7 * 24 * 60 * 60 * 1000, // 7 días alineado con maxAge de persistencia (evita purgar queries inactivas de IndexedDB)
+            retry: 1,
+            refetchOnWindowFocus: false,
+            // Al reconectar (online/SSE) se revalida (ADR 007/009).
+            refetchOnReconnect: true,
+            networkMode: 'offlineFirst',
+          },
+          mutations: {
+            networkMode: 'offlineFirst',
+          },
+        },
+      }),
+  );
 
   // Cleanup one-shot: borra la clave vieja de localStorage de la versión
   // anterior (el buster 'v2-idb' ya invalida, pero evitamos dejar basura).
@@ -87,7 +91,7 @@ export function QueryProvider({ children }: { children: ReactNode }) {
       persistOptions={{
         persister,
         maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days max cache age
-        buster: 'v3-no-vuelos', // v3: invalida caché con vuelos fantasma (unique+soft-delete) y excluye vuelos del persister
+        buster: 'v4-calendario-offline',
         dehydrateOptions: {
           shouldDehydrateQuery: (query) =>
             shouldPersistQuery(query.queryKey) &&

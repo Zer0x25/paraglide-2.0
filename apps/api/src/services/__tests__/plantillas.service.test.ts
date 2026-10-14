@@ -45,6 +45,16 @@ describe('Plantillas & Messaging Service (Unit Tests)', () => {
     expect(result).toBe('Hola X, total 100');
   });
 
+  it('render no debe corromper valores con secuencias especiales de reemplazo ($&, $$, $1, precios)', () => {
+    const template = 'Total: {{precio}}, Código: {{codigo}}';
+    const result = service.render(template, {
+      precio: '$15.000',
+      codigo: '$&Special',
+    });
+
+    expect(result).toBe('Total: $15.000, Código: $&Special');
+  });
+
   it('render debe dejar intactas las variables desconocidas', () => {
     const template = 'Hola {{nombre}} {{link_pantalla}}';
     const result = service.render(template, { nombre: 'Camila' });

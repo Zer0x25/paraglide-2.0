@@ -3,8 +3,12 @@ import { prisma } from '../plugins/prisma';
 import { config } from '../config';
 import { toNum } from './money.util';
 
+const CALENDAR_REQUEST_TIMEOUT_MS = 10_000;
+const SCHOOL_NAME_CACHE_TTL_MS = 5 * 60 * 1000;
+
 export class GoogleCalendarService {
   private jwtClient: JWT | null = null;
+  private cachedSchoolName: { value: string; expiresAt: number } | null = null;
 
   /**
    * Indica si la sincronización con Google Calendar está configurada y habilitada
@@ -13,7 +17,7 @@ export class GoogleCalendarService {
     return Boolean(
       config.googleCalendarId &&
       config.googleCalendarClientEmail &&
-      config.googleCalendarPrivateKey
+      config.googleCalendarPrivateKey,
     );
   }
 
@@ -36,13 +40,25 @@ export class GoogleCalendarService {
    * Obtiene el nombre de la escuela desde la base de datos o variable de entorno
    */
   private async getSchoolName(): Promise<string> {
+    const now = Date.now();
+    if (this.cachedSchoolName && this.cachedSchoolName.expiresAt > now) {
+      return this.cachedSchoolName.value;
+    }
     try {
       const empresa = await prisma.empresa.findFirst({ select: { nombre: true } });
-      if (empresa?.nombre) return empresa.nombre;
+      if (empresa?.nombre) {
+        this.cachedSchoolName = {
+          value: empresa.nombre,
+          expiresAt: now + SCHOOL_NAME_CACHE_TTL_MS,
+        };
+        return empresa.nombre;
+      }
     } catch {
       // fallback silencioso
     }
-    return process.env.APP_SCHOOL_NAME || 'Parapente School';
+    const fallback = process.env.APP_SCHOOL_NAME || 'Parapente School';
+    this.cachedSchoolName = { value: fallback, expiresAt: now + SCHOOL_NAME_CACHE_TTL_MS };
+    return fallback;
   }
 
   /**
@@ -54,11 +70,16 @@ export class GoogleCalendarService {
 
     const pasajeroNombre = vuelo.pasajero?.nombre || 'Pasajero';
     const pilotoNombre = vuelo.piloto?.nombre || 'Sin Asignar';
-    const reservaNum = vuelo.pasajero?.reserva?.numeroReserva || `RES-${vuelo.pasajero?.reservaId || vuelo.reservaId || 'N/A'}`;
-    const deslindeStatus = vuelo.pasajero?.firmaDeslinde ? '✅ Firmado digitalmente' : '⚠️ Pendiente de firma';
+    const reservaNum =
+      vuelo.pasajero?.reserva?.numeroReserva ||
+      `RES-${vuelo.pasajero?.reservaId || vuelo.reservaId || 'N/A'}`;
+    const deslindeStatus = vuelo.pasajero?.firmaDeslinde
+      ? '✅ Firmado digitalmente'
+      : '⚠️ Pendiente de firma';
     const estadoVuelo = vuelo.estado || 'AGENDADO';
     const pesoStr = vuelo.pasajero?.peso ? `${vuelo.pasajero.peso} kg` : 'No registrado';
-    const telefono = vuelo.pasajero?.reserva?.telefono || vuelo.pasajero?.telefonoEmergencia || 'No registrado';
+    const telefono =
+      vuelo.pasajero?.reserva?.telefono || vuelo.pasajero?.telefonoEmergencia || 'No registrado';
 
     const descriptionLines = [
       `🪂 VUELO EN PARAPENTE - ${schoolName.toUpperCase()}`,
@@ -87,8 +108,8 @@ export class GoogleCalendarService {
       reminders: {
         useDefault: false,
         overrides: [
-          { method: 'popup', minutes: 120 },   // 2 horas antes
-          { method: 'popup', minutes: 1440 },  // 24 horas antes
+          { method: 'popup', minutes: 120 }, // 2 horas antes
+          { method: 'popup', minutes: 1440 }, // 24 horas antes
         ],
       },
     };
@@ -131,6 +152,7 @@ export class GoogleCalendarService {
         url: `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(config.googleCalendarId)}/events`,
         method: 'POST',
         data: eventData,
+        timeout: CALENDAR_REQUEST_TIMEOUT_MS,
       });
 
       const googleEventId = res.data?.id;
@@ -143,7 +165,10 @@ export class GoogleCalendarService {
 
       return googleEventId || null;
     } catch (error: any) {
-      console.warn(`[GoogleCalendarService] Advertencia al sincronizar creación de vuelo ${vueloId}:`, error?.message || error);
+      console.warn(
+        `[GoogleCalendarService] Advertencia al sincronizar creación de vuelo ${vueloId}:`,
+        error?.message || error,
+      );
       return null;
     }
   }
@@ -192,6 +217,7 @@ export class GoogleCalendarService {
           url: `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(config.googleCalendarId)}/events/${encodeURIComponent(vuelo.googleEventId)}`,
           method: 'PATCH',
           data: eventData,
+          timeout: CALENDAR_REQUEST_TIMEOUT_MS,
         });
       } catch (patchErr: any) {
         // Si el evento fue eliminado manualmente en Google Calendar (404 o 410), crearlo de nuevo
@@ -206,7 +232,10 @@ export class GoogleCalendarService {
         }
       }
     } catch (error: any) {
-      console.warn(`[GoogleCalendarService] Advertencia al sincronizar actualización de vuelo ${vueloId}:`, error?.message || error);
+      console.warn(
+        `[GoogleCalendarService] Advertencia al sincronizar actualización de vuelo ${vueloId}:`,
+        error?.message || error,
+      );
     }
   }
 
@@ -235,6 +264,7 @@ export class GoogleCalendarService {
         await client.request({
           url: `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(config.googleCalendarId)}/events/${encodeURIComponent(eventId)}`,
           method: 'DELETE',
+          timeout: CALENDAR_REQUEST_TIMEOUT_MS,
         });
       } catch (delErr: any) {
         // 404 o 410 significa que ya no existe en Google Calendar; es seguro ignorarlo
@@ -253,7 +283,10 @@ export class GoogleCalendarService {
         // Ignorar si el registro fue hard-deleted
       }
     } catch (error: any) {
-      console.warn(`[GoogleCalendarService] Advertencia al eliminar evento de Google Calendar para vuelo ${vueloId}:`, error?.message || error);
+      console.warn(
+        `[GoogleCalendarService] Advertencia al eliminar evento de Google Calendar para vuelo ${vueloId}:`,
+        error?.message || error,
+      );
     }
   }
 
@@ -279,7 +312,10 @@ export class GoogleCalendarService {
         }
       }
     } catch (error: any) {
-      console.warn(`[GoogleCalendarService] Advertencia al eliminar eventos de reserva ${reservaId}:`, error?.message || error);
+      console.warn(
+        `[GoogleCalendarService] Advertencia al eliminar eventos de reserva ${reservaId}:`,
+        error?.message || error,
+      );
     }
   }
 
@@ -337,10 +373,7 @@ export class GoogleCalendarService {
       // 2. Vuelos cancelados o eliminados que aún conservan un googleEventId
       const vuelosCanceladosConEvento = await prisma.vuelo.findMany({
         where: {
-          OR: [
-            { estado: 'CANCELADO' },
-            { deletedAt: { not: null } },
-          ],
+          OR: [{ estado: 'CANCELADO' }, { deletedAt: { not: null } }],
           googleEventId: { not: null },
         },
         select: { id: true, googleEventId: true },
@@ -359,7 +392,10 @@ export class GoogleCalendarService {
 
       return stats;
     } catch (err: any) {
-      console.warn('[GoogleCalendarService] Error en reconciliación de vuelos:', err?.message || err);
+      console.warn(
+        '[GoogleCalendarService] Error en reconciliación de vuelos:',
+        err?.message || err,
+      );
       return stats;
     }
   }

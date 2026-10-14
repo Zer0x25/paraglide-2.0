@@ -37,6 +37,7 @@ export interface PilotoDia {
   prioridad: number;
   disponibilidadTotal: boolean;
   excepciones: { fecha: string }[];
+  disponibilidadBloques?: { fecha: string; horaInicio: string; horaFin: string }[];
 }
 
 /** Horario de un bloque de vuelo. */
@@ -78,7 +79,7 @@ export const vueloEnBloque = (
   v: VueloVista,
   dateKey: string,
   horaInicio: string,
-  horaFin: string
+  horaFin: string,
 ): boolean => {
   if (!esMismoDia(v.fechaHora, dateKey)) return false;
   const hh = horaLocalHHMM(v.fechaHora);
@@ -99,6 +100,25 @@ export const pilotosDisponiblesDia = (pilotos: PilotoDia[], dateKey: string): Pi
 };
 
 /**
+ * Filtra los pilotos disponibles en el día según sus bloques horarios específicos
+ * (`disponibilidadBloques`) para la fecha y hora de inicio del bloque.
+ * Si el piloto no tiene bloques específicos registrados para ese día, está disponible en todos los bloques del día.
+ */
+export const pilotosDisponiblesEnBloque = (
+  pilotosDia: PilotoDia[],
+  dateKey: string,
+  horaInicio: string,
+): PilotoDia[] => {
+  return pilotosDia.filter((p) => {
+    const bloquesHoy = (p.disponibilidadBloques || []).filter((b) => b.fecha.startsWith(dateKey));
+    if (bloquesHoy.length === 0) return true;
+    return bloquesHoy.some(
+      (b) => b.horaInicio === horaInicio || (horaInicio >= b.horaInicio && horaInicio < b.horaFin),
+    );
+  });
+};
+
+/**
  * Vuelos del bloque agrupados por piloto, ordenados alfabéticamente por nombre.
  * Solo incluye pilotos que tienen vuelos dentro del bloque.
  */
@@ -106,7 +126,7 @@ export const agruparVuelosPorPiloto = (
   vuelos: VueloVista[],
   dateKey: string,
   horaInicio: string,
-  horaFin: string
+  horaFin: string,
 ): GrupoCarril[] => {
   const enBloque = vuelos.filter((v) => vueloEnBloque(v, dateKey, horaInicio, horaFin));
   return agruparVuelosPorLista(enBloque);
@@ -139,7 +159,7 @@ export const agruparVuelosPorLista = (vuelos: VueloVista[]): GrupoCarril[] => {
  */
 export const pilotosLibresEnBloque = (
   disponibles: PilotoDia[],
-  carriles: GrupoCarril[]
+  carriles: GrupoCarril[],
 ): number => {
   const conVuelos = new Set(carriles.map((c) => c.pilotoId));
   return disponibles.filter((p) => !conVuelos.has(p.id)).length;

@@ -2,6 +2,12 @@ import { useQuery } from '@tanstack/react-query';
 import api from '@/services/api';
 import type { PilotoDia } from '../agendas.util';
 
+interface DisponibilidadPilotoEntry {
+  excepciones: { fecha: string }[];
+  disponibilidadBloques: { fecha: string; horaInicio: string; horaFin: string }[];
+  disponibilidadTotal: boolean;
+}
+
 /**
  * FIX 1: `GET /pilotos` no trae `excepciones` (Fase 5: on-demand), así que la
  * disponibilidad real del día visible se resuelve aquí por piloto. Si la query
@@ -10,31 +16,51 @@ import type { PilotoDia } from '../agendas.util';
  */
 export function usePilotosDisponibilidadEfectiva(
   pilotos: PilotoDia[],
-  dateKey: string
+  _dateKey?: string,
 ): { pilotosEfectivos: PilotoDia[]; isLoading: boolean } {
+  void _dateKey;
+  const pilotoIdsKey = pilotos
+    .map((p) => p.id)
+    .sort((a, b) => a - b)
+    .join(',');
+
   const disponibilidadQuery = useQuery<
-    Map<number, { excepciones: { fecha: string }[]; disponibilidadTotal: boolean }>
+    Record<number, DisponibilidadPilotoEntry> | Map<number, DisponibilidadPilotoEntry>
   >({
-    queryKey: ['pilotos', 'disponibilidad', dateKey],
+    queryKey: ['pilotos', 'disponibilidad', pilotoIdsKey],
     queryFn: async () => {
       const resultados = await Promise.all(
-        pilotos.map((p) => api.pilotos.obtenerDisponibilidad(p.id))
+        pilotos.map((p) => api.pilotos.obtenerDisponibilidad(p.id)),
       );
-      const mapa = new Map<
-        number,
-        { excepciones: { fecha: string }[]; disponibilidadTotal: boolean }
-      >();
-      resultados.forEach((r: { excepciones?: unknown; disponibilidadTotal?: boolean } | null, i) => {
-        const p = pilotos[i];
-        if (r && p) {
-          // El endpoint puede devolver excepciones como null o []: normaliza a array.
-          mapa.set(p.id, {
-            excepciones: Array.isArray(r.excepciones) ? (r.excepciones as { fecha: string }[]) : [],
-            disponibilidadTotal: r.disponibilidadTotal ?? p.disponibilidadTotal,
-          });
-        }
-      });
-      return mapa;
+      const record: Record<number, DisponibilidadPilotoEntry> = {};
+      resultados.forEach(
+        (
+          r: {
+            excepciones?: unknown;
+            disponibilidadBloques?: unknown;
+            disponibilidadTotal?: boolean;
+          } | null,
+          i,
+        ) => {
+          const p = pilotos[i];
+          if (r && p) {
+            record[p.id] = {
+              excepciones: Array.isArray(r.excepciones)
+                ? (r.excepciones as { fecha: string }[])
+                : [],
+              disponibilidadBloques: Array.isArray(r.disponibilidadBloques)
+                ? (r.disponibilidadBloques as {
+                    fecha: string;
+                    horaInicio: string;
+                    horaFin: string;
+                  }[])
+                : [],
+              disponibilidadTotal: r.disponibilidadTotal ?? p.disponibilidadTotal,
+            };
+          }
+        },
+      );
+      return record;
     },
     enabled: pilotos.length > 0,
     staleTime: 60_000,
@@ -47,43 +73,27 @@ export function usePilotosDisponibilidadEfectiva(
   const pilotosEfectivos: PilotoDia[] = (() => {
     const raw = disponibilidadQuery.data as unknown;
     if (!raw) return pilotos;
-    const dataMap = raw as Map<
-      number,
-      { excepciones: { fecha: string }[]; disponibilidadTotal: boolean }
-    > &
-      Record<string, unknown>;
+    const dataMap = raw as Map<number, DisponibilidadPilotoEntry> & Record<string, unknown>;
     const isMap = raw instanceof Map;
     const size = isMap
       ? (raw as Map<unknown, unknown>).size
       : typeof raw === 'object'
-      ? Object.keys(raw as Record<string, unknown>).length
-      : 0;
+        ? Object.keys(raw as Record<string, unknown>).length
+        : 0;
     if (size === 0) return pilotos;
 
-    const getEntrada = (
-      id: number
-    ): { excepciones: { fecha: string }[]; disponibilidadTotal: boolean } | undefined => {
+    const getEntrada = (id: number): DisponibilidadPilotoEntry | undefined => {
       if (isMap) {
-        return (
-          raw as Map<number, { excepciones: { fecha: string }[]; disponibilidadTotal: boolean }>
-        ).get(id);
+        return (raw as Map<number, DisponibilidadPilotoEntry>).get(id);
       }
       if (typeof (dataMap as { get?: unknown }).get === 'function') {
         try {
-          return (
-            dataMap as unknown as Map<
-              number,
-              { excepciones: { fecha: string }[]; disponibilidadTotal: boolean }
-            >
-          ).get(id);
+          return (dataMap as unknown as Map<number, DisponibilidadPilotoEntry>).get(id);
         } catch {
           return undefined;
         }
       }
-      const rec = raw as Record<
-        string,
-        { excepciones: { fecha: string }[]; disponibilidadTotal: boolean }
-      >;
+      const rec = raw as Record<string, DisponibilidadPilotoEntry>;
       return rec[id] ?? rec[String(id)];
     };
 
@@ -93,6 +103,7 @@ export function usePilotosDisponibilidadEfectiva(
       return {
         ...p,
         excepciones: entrada.excepciones ?? [],
+        disponibilidadBloques: entrada.disponibilidadBloques ?? p.disponibilidadBloques ?? [],
         disponibilidadTotal: entrada.disponibilidadTotal ?? p.disponibilidadTotal,
       };
     });

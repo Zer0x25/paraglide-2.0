@@ -39,7 +39,8 @@ describe('GoogleCalendarService', () => {
     // Default valid config
     config.googleCalendarId = 'test-cal-id@group.calendar.google.com';
     config.googleCalendarClientEmail = 'bot@project.iam.gserviceaccount.com';
-    config.googleCalendarPrivateKey = '-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQC...\n-----END PRIVATE KEY-----';
+    config.googleCalendarPrivateKey =
+      '-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQC...\n-----END PRIVATE KEY-----';
   });
 
   describe('isEnabled', () => {
@@ -103,7 +104,7 @@ describe('GoogleCalendarService', () => {
             summary: '🪂 Vuelo: Ana Pasajera (Carlos Piloto)',
             start: { dateTime: '2026-09-20T10:00:00.000Z' },
           }),
-        })
+        }),
       );
       expect(prisma.vuelo.update).toHaveBeenCalledWith({
         where: { id: 1 },
@@ -150,7 +151,7 @@ describe('GoogleCalendarService', () => {
         expect.objectContaining({
           method: 'PATCH',
           url: expect.stringContaining('/events/existing-event-999'),
-        })
+        }),
       );
     });
 
@@ -174,7 +175,7 @@ describe('GoogleCalendarService', () => {
         expect.objectContaining({
           method: 'DELETE',
           url: expect.stringContaining('/events/event-to-cancel'),
-        })
+        }),
       );
     });
   });
@@ -195,7 +196,7 @@ describe('GoogleCalendarService', () => {
         expect.objectContaining({
           method: 'DELETE',
           url: expect.stringContaining('/events/event-to-delete'),
-        })
+        }),
       );
       expect(prisma.vuelo.update).toHaveBeenCalledWith({
         where: { id: 1 },
@@ -229,13 +230,13 @@ describe('GoogleCalendarService', () => {
         expect.objectContaining({
           method: 'DELETE',
           url: expect.stringContaining('/events/event-1'),
-        })
+        }),
       );
       expect(mockRequest).toHaveBeenCalledWith(
         expect.objectContaining({
           method: 'DELETE',
           url: expect.stringContaining('/events/event-2'),
-        })
+        }),
       );
     });
   });
@@ -278,5 +279,65 @@ describe('GoogleCalendarService', () => {
       expect(prisma.vuelo.findMany).not.toHaveBeenCalled();
     });
   });
-});
 
+  describe('Anti-regresión M-01 (Timeouts y Caché de Empresa)', () => {
+    it('incluye timeout de 10_000 ms en todas las llamadas a Google Calendar API (POST, PATCH, DELETE)', async () => {
+      const mockVuelo = {
+        id: 10,
+        fechaHora: new Date('2026-09-20T10:00:00Z'),
+        valorPactado: 50000,
+        estado: 'AGENDADO',
+        googleEventId: null,
+        piloto: { nombre: 'Piloto Test' },
+        pasajero: { nombre: 'Pasajero Test' },
+      };
+
+      vi.mocked(prisma.vuelo.findFirst).mockResolvedValue(mockVuelo as any);
+      mockRequest.mockResolvedValue({ data: { id: 'evt-10' } });
+      vi.mocked(prisma.vuelo.update).mockResolvedValue({} as any);
+
+      // 1. POST
+      await service.syncVueloCreated(10);
+      expect(mockRequest).toHaveBeenCalledWith(
+        expect.objectContaining({ method: 'POST', timeout: 10_000 }),
+      );
+
+      // 2. PATCH
+      mockVuelo.googleEventId = 'evt-10' as any;
+      await service.syncVueloUpdated(10);
+      expect(mockRequest).toHaveBeenCalledWith(
+        expect.objectContaining({ method: 'PATCH', timeout: 10_000 }),
+      );
+
+      // 3. DELETE
+      await service.syncVueloDeleted(10, 'evt-10');
+      expect(mockRequest).toHaveBeenCalledWith(
+        expect.objectContaining({ method: 'DELETE', timeout: 10_000 }),
+      );
+    });
+
+    it('cachea el nombre de la escuela evitando N+1 consultas a la tabla Empresa', async () => {
+      vi.mocked(prisma.empresa.findFirst).mockResolvedValue({
+        nombre: 'Escuela Parapente Iquique',
+      } as any);
+      vi.mocked(prisma.vuelo.findFirst).mockResolvedValue({
+        id: 1,
+        fechaHora: new Date('2026-09-20T10:00:00Z'),
+        valorPactado: 50000,
+        estado: 'AGENDADO',
+        googleEventId: null,
+        piloto: { nombre: 'Piloto' },
+        pasajero: { nombre: 'Pasajero' },
+      } as any);
+      mockRequest.mockResolvedValue({ data: { id: 'evt-1' } });
+      vi.mocked(prisma.vuelo.update).mockResolvedValue({} as any);
+
+      // Ejecutar dos veces seguidas
+      await service.syncVueloCreated(1);
+      await service.syncVueloCreated(1);
+
+      // prisma.empresa.findFirst debe llamarse exactamente 1 vez gracias a la caché en memoria
+      expect(prisma.empresa.findFirst).toHaveBeenCalledTimes(1);
+    });
+  });
+});

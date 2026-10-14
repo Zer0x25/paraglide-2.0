@@ -2,6 +2,7 @@ import React from 'react';
 import { Users } from 'lucide-react';
 import {
   agruparVuelosPorPiloto,
+  pilotosDisponiblesEnBloque,
   pilotosLibresEnBloque,
   type PilotoDia,
   type VueloVista,
@@ -29,7 +30,8 @@ export const AgendaBloqueHorario: React.FC<AgendaBloqueHorarioProps> = ({
 }) => {
   const carriles = agruparVuelosPorPiloto(vuelos, dateKey, horario.horaInicio, horario.horaFin);
   const totalVuelos = carriles.reduce((acc, c) => acc + c.vuelos.length, 0);
-  const libres = pilotosLibresEnBloque(disponibles, carriles);
+  const disponiblesBloque = pilotosDisponiblesEnBloque(disponibles, dateKey, horario.horaInicio);
+  const libres = pilotosLibresEnBloque(disponiblesBloque, carriles);
 
   return (
     <section className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-surface-raised shadow-sm overflow-hidden">
@@ -53,10 +55,12 @@ export const AgendaBloqueHorario: React.FC<AgendaBloqueHorarioProps> = ({
           >
             <Users size={16} className="shrink-0 text-slate-400 dark:text-slate-500" />
             <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-              Sin reservas — +{disponibles.length} pilotos disponibles
+              Sin reservas — +{disponiblesBloque.length} pilotos disponibles
             </span>
             {onAgendar && (
-              <span className="ml-1 text-xs font-bold text-blue-600 dark:text-blue-400">· Agendar</span>
+              <span className="ml-1 text-xs font-bold text-blue-600 dark:text-blue-400">
+                · Agendar
+              </span>
             )}
           </button>
         ) : (
@@ -70,7 +74,9 @@ export const AgendaBloqueHorario: React.FC<AgendaBloqueHorarioProps> = ({
                 onClick={() => onAgendar?.(fecha, horario)}
                 disabled={!onAgendar}
                 className="min-w-44 rounded-xl border border-dashed border-slate-200 dark:border-slate-700 bg-surface p-2 flex flex-col items-center justify-center gap-0.5 text-center hover:border-blue-300 hover:bg-blue-50/50 dark:hover:bg-blue-950/20 transition disabled:cursor-default"
-                title={onAgendar ? `Agendar vuelo ${horario.horaInicio}–${horario.horaFin}` : undefined}
+                title={
+                  onAgendar ? `Agendar vuelo ${horario.horaInicio}–${horario.horaFin}` : undefined
+                }
               >
                 <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
                   Libres (+{libres})
@@ -79,7 +85,9 @@ export const AgendaBloqueHorario: React.FC<AgendaBloqueHorarioProps> = ({
                   Pilotos disponibles
                 </span>
                 {onAgendar && (
-                  <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400">Agendar</span>
+                  <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400">
+                    Agendar
+                  </span>
                 )}
               </button>
             )}
