@@ -32,7 +32,17 @@ Este documento mantiene el estado de ejecución, trazabilidad de sesiones, evide
   8. **A-08: Cierre Ordenado de Schedulers, Limpieza de Métricas y Headers de Trazabilidad**: Limpieza de timers/intervals de schedulers (higiene, meteo, notificaciones, calendar, cierre contable) al recibir SIGTERM/SIGINT, limpieza del registry de `prom-client` en `onClose`, y propagación de `x-request-id` y `traceparent` en respuestas API.
   9. **A-09: Alineación de Contratos MCP y Prevención de Duplicados en Workflow**: Mapeo canónico de DTOs en `consultas.ts` (`ReglaOperativa`, `Promocion`) y `reservas.ts` (`deslindeFirmado`), y captura controlada con mensaje instructivo en `crear_y_agendar_reserva` si `agendarGrupo` falla tras crear la reserva.
 - **Evidencia de Calidad:**
-  - `npm run check:quick`: Código de salida `0` limpio (build `@parapente/shared`, chequeo de tipos estricto en 4 workspaces, 32 suites en API con 276 tests pasando, 50 suites en Web con 285 tests pasando, 1 suite en MCP con 16 tests pasando).
+  - **Suites de Antirregresión Dedicadas (A-01 a A-09)**:
+    - **A-01**: `apps/api/src/routes/__tests__/configuracionBloques.test.ts` (resolución canónica a las 23:30 Santiago sin marcar día actual como pasado).
+    - **A-02**: `apps/api/src/services/__tests__/pilotos.service.test.ts` (`sugerirPiloto` con `disponibilidadBloques` y choque horario) y `apps/api/src/services/__tests__/vuelos.service.test.ts` (`createVuelo` limpiando vuelos previos activos en transacción atómica).
+    - **A-03**: `apps/web/src/components/pagos/__tests__/usePagosModalController.test.ts` (encolado offline secuencial de pagos, devoluciones y estado con bump de versión optimista e información vía `toast.info`).
+    - **A-04**: `apps/web/src/services/outbox/__tests__/outbox.service.test.ts` (resolución de versión raíz para `/reservas/:id/pagos` y `/vuelos/agendamiento-grupo`) y `apps/web/src/services/__tests__/apiOutbox.test.ts` (bypass directo sin `X-Outbox` para endpoints POST de lectura).
+    - **A-05**: `apps/api/src/services/__tests__/modules.service.test.ts` (validación de IDs, persistencia a disco y emisión SSE `broadcastModulos`).
+    - **A-06**: `apps/api/src/services/__tests__/public.service.test.ts` y `apps/api/src/services/__tests__/pasajeros.service.test.ts` (asociación de `versionLegal` activa desde `deslindeVersion` en firmas públicas e internas).
+    - **A-07**: `apps/web/src/app/pantalla/pantalla.test.tsx` (auto-hidratación de token diario desde `/pantalla/link`) y `apps/web/src/app/calendario/hooks/__tests__/useCalendarioModal.test.ts` (bloqueo síncrono de doble submit con `submittingRef`).
+    - **A-08**: `apps/api/src/services/__tests__/schedulers.shutdown.test.ts` (parada limpia de 5 schedulers y propagación de `x-request-id` y `traceparent` en Fastify).
+    - **A-09**: `apps/mcp/src/__tests__/tools.test.ts` (instrucciones guiadas anti-duplicados y manejo de 409 en MCP).
+  - `npm run check:quick`: Código de salida `0` limpio (build `@parapente/shared`, typecheck estricto en 4 workspaces, 34 suites en API con 283 tests pasando, 52 suites en Web con 291 tests pasando, 1 suite en MCP con 16 tests pasando — **590 tests unitarios en total**).
   - Formato incremental Prettier aplicado vía `npm run format`.
   - Commits atómicos con convención Conventional Commits aplicados en rama `fix/high-severity-findings`.
 
@@ -42,7 +52,8 @@ Este documento mantiene el estado de ejecución, trazabilidad de sesiones, evide
 
 ### En Curso (WIP)
 - [x] Remediación y verificación de los 9 hallazgos de severidad ALTA (A-01 a A-09).
-- [x] Pruebas unitarias de regresión y verificación del gate `npm run check:quick`.
+- [x] Implementación de suite completa de pruebas unitarias de antirregresión para los 9 hallazgos.
+- [x] Gate obligatorio `npm run check:quick` verificado con salida 0 (590 tests pasando).
 
 ### Siguiente Acción Prioritaria (Next Action)
 - [ ] **Despliegue y Validación en Staging**: Levantar o actualizar el stack de staging (`npm run staging:up`) y correr la suite de estrés/integración de staging (`npm run test:staging:quick`).
@@ -76,3 +87,6 @@ Este documento mantiene el estado de ejecución, trazabilidad de sesiones, evide
    - *Lección*: Tras aprobar un PR que ya superó el CI, el commit de merge a `main` no necesita volver a ejecutar todas las suites. Detectar merges (`Merge pull request #`) y commits de release (`chore(main): release`) permite omitir ejecuciones redundantes y resolver el Quality Gate en 2 segundos.
 10. **Re-asociación de Runners Self-Hosted al Migrar Repositorios**:
     - *Lección*: Si se clona o bifurca el repo en GitHub, los daemons de runners self-hosted (`actions-runner.service`) siguen escuchando al repositorio anterior hasta que se re-registren explícitamente con `./config.sh` apuntando a la nueva URL.
+11. **Antirregresión y Zonas Horarias en Pruebas Unitarias**:
+    - *Lección*: Cuando se prueban cálculos horarios dependientes de zona horaria local (`America/Santiago`), fijar la fecha del sistema (`vi.setSystemTime`) con offsets UTC puede simular horas nocturnas (ej. 23:30 local = 02:30 UTC siguiente) donde la fecha civil UTC avanza al día siguiente. La lógica de negocio y las pruebas deben siempre normalizar con `dateKeyLocal()` / `horaLocalHHMM()` para evitar desajustes entre el reloj del servidor y la jornada operativa de Chile.
+
