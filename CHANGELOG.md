@@ -5,6 +5,13 @@ based on [Conventional Commits](https://www.conventionalcommits.org/) and this
 file is maintained automatically by
 [release-please](https://github.com/googleapis/release-please).
 
+## [0.10.5](https://github.com/Zer0x25/paraglide-2.0/compare/v0.10.4...v0.10.5) (2026-10-14)
+
+
+### Miscellaneous Chores
+
+* **docs:** actualizar STATE.md tras release v0.10.4 y despliegue exitoso ([0678e01](https://github.com/Zer0x25/paraglide-2.0/commit/0678e0199e6a312423da3a16eab51ab8281a4c5d))
+
 ## [0.10.4](https://github.com/Zer0x25/paraglide-2.0/compare/v0.10.3...v0.10.4) (2026-10-14)
 
 
