@@ -93,15 +93,15 @@ Este documento mantiene el estado de ejecución, trazabilidad de sesiones, evide
 ## 3. Tareas en Curso (WIP) y Backlog Inmediato
 
 ### En Curso (WIP)
-- [x] Remediación y verificación de los 9 hallazgos de severidad ALTA (A-01 a A-09).
-- [x] Implementación de suite completa de pruebas unitarias de antirregresión para los 9 hallazgos.
-- [x] Gate obligatorio `npm run check:quick` verificado con salida 0 (590 tests pasando).
-- [x] PR #61 abierto hacia `main`, rebase/merge con `origin/main` limpio y sin conflictos.
+- [x] Remediación y verificación de los 9 hallazgos de severidad ALTA (A-01 a A-09) fusionada en `main` (#61).
+- [x] Plan de remediación inmediata de vulnerabilidades críticas C-01 a C-08 y desfase horario de bloques A-01 (`fix(security,sre)`).
+- [x] Suite de pruebas automatizadas de antirregresión integrada en monorepo.
+- [x] Quality Gate `npm run check:quick` verificado al 100% (591 tests pasando).
+- [x] Pull Request abierto hacia `main`: [#60 (fix(security,sre): remediate critical vulnerabilities C-01 to C-08 and add anti-regression suite)](https://github.com/Zer0x25/paraglide-2.0/pull/60).
 
 ### Siguiente Acción Prioritaria (Next Action)
-- [ ] **Merge de PR #61 a `main`**: Fusión y cierre de PR #61.
-- [ ] **Despliegue y Validación en Staging**: Levantar o actualizar el stack de staging (`npm run staging:up`) y correr la suite de estrés/integración de staging (`npm run test:staging:quick`).
-- [ ] **Revisión de Release PR**: Monitorear el PR automático de `release-please` generado en GitHub tras los commits `fix(...)` para preparar el release productivo (ej. v0.10.3).
+- [ ] **Revisión y Mergeo de PR #60**: Esperar checks de CI y fusionar hacia `main`.
+- [ ] **Revisión de Release PR**: Monitorear el PR automático de `release-please` generado en GitHub tras la fusión para el próximo release.
 - [ ] **Hardening Operacional Pendiente**:
   - Script cron de backup automatizado para Postgres en Docker (`pg_dump` con rotación).
   - Configuración de alertas en Caddy / healthchecks hacia canal de monitoreo o webhook.
