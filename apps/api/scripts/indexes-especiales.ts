@@ -37,7 +37,8 @@ async function main() {
       await prisma.$executeRawUnsafe(sql);
       console.log('OK  ', sql.slice(0, 90));
     } catch (err: any) {
-      console.log('ERR ', sql.slice(0, 90), '->', err.message?.slice(0, 120));
+      console.error('ERR ', sql.slice(0, 90), '->', err.message?.slice(0, 120));
+      throw err;
     }
   }
 }

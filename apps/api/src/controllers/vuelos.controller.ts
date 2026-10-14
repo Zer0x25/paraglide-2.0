@@ -2,6 +2,7 @@ import { FastifyRequest, FastifyReply } from 'fastify';
 import { vuelosService } from '../services/vuelos.service';
 import { logAudit } from '../services/auditoria.service';
 import { CreateVueloPayloadSchema } from '@parapente/shared';
+import { prisma } from '../plugins/prisma';
 
 export class VuelosController {
   async getAll(
@@ -142,6 +143,19 @@ export class VuelosController {
     const { id } = req.params;
     const { estado, version } = req.body;
     try {
+      const user = (req as any).user as { role?: string; pilotoId?: number | null } | undefined;
+      if (user?.role === 'PILOTO') {
+        const vuelo = await prisma.vuelo.findFirst({
+          where: { id: Number(id), deletedAt: null },
+          select: { pilotoId: true },
+        });
+        if (!vuelo || vuelo.pilotoId !== user.pilotoId) {
+          return reply.code(403).send({
+            error: 'Forbidden',
+            message: 'Un piloto solo puede actualizar el estado de sus propios vuelos.',
+          });
+        }
+      }
       const vueloActualizado = await vuelosService.updateEstado(Number(id), estado, version);
       await logAudit(req, {
         accion: 'CAMBIAR_ESTADO',

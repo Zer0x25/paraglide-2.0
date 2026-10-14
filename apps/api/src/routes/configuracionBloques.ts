@@ -3,11 +3,7 @@ import { prisma } from '../plugins/prisma';
 import { Prisma } from '@prisma/client';
 import { CreateConfiguracionPayloadSchema, aDiaCalendario, dateKeyLocal } from '@parapente/shared';
 import { logAudit } from '../services/auditoria.service';
-import {
-  validarSolapamientos,
-  resolverRango,
-  errorHttp,
-} from '../services/configuracion.service';
+import { validarSolapamientos, resolverRango, errorHttp } from '../services/configuracion.service';
 
 interface HorarioItem {
   horaInicio: string;
@@ -47,7 +43,7 @@ const configuracionBloquesRoutes: FastifyPluginAsync = async (fastify) => {
       }
       const dias =
         Math.round(
-          (Date.parse(`${hasta}T00:00:00Z`) - Date.parse(`${desde}T00:00:00Z`)) / 86_400_000
+          (Date.parse(`${hasta}T00:00:00Z`) - Date.parse(`${desde}T00:00:00Z`)) / 86_400_000,
         ) + 1;
       if (dias > RESOLVER_MAX_DIAS) {
         return reply
@@ -97,15 +93,12 @@ const configuracionBloquesRoutes: FastifyPluginAsync = async (fastify) => {
     try {
       const configuraciones = await prisma.configuracionBloque.findMany({
         include: { horarios: true },
-        orderBy: [
-          { createdAt: 'asc' },
-          { id: 'asc' },
-        ],
+        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
       });
       return reply.send(configuraciones);
     } catch (err) {
-      console.warn('Advertencia DB en /configuracion-bloques:', err);
-      return reply.send([]);
+      console.error('Error DB en /configuracion-bloques:', err);
+      throw err;
     }
   });
 
@@ -175,106 +168,121 @@ const configuracionBloquesRoutes: FastifyPluginAsync = async (fastify) => {
       const numericId = Number(id);
 
       try {
-        const configActualizada = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-          const actual = await tx.configuracionBloque.findUnique({
-            where: { id: numericId, deletedAt: null },
-            include: { horarios: { where: { deletedAt: null } } },
-          });
-          if (!actual) throw errorHttp(404, 'Configuración no encontrada');
-          // Snapshot histórico (Fase 2-B): una archivada sigue resolviendo días
-          // pasados vía /resolver — editarla corrompería el calendario histórico.
-          if (actual.archivada) {
-            throw errorHttp(400, 'No se puede editar una configuración archivada. El historial del calendario debe permanecer intacto.');
-          }
-          if (version !== undefined && version !== actual.version) {
-            throw errorHttp(
-              409,
-              'Los datos de configuración cambiaron en otro dispositivo. Recarga e intenta de nuevo.'
-            );
-          }
+        const configActualizada = await prisma.$transaction(
+          async (tx: Prisma.TransactionClient) => {
+            const actual = await tx.configuracionBloque.findUnique({
+              where: { id: numericId, deletedAt: null },
+              include: { horarios: { where: { deletedAt: null } } },
+            });
+            if (!actual) throw errorHttp(404, 'Configuración no encontrada');
+            // Snapshot histórico (Fase 2-B): una archivada sigue resolviendo días
+            // pasados vía /resolver — editarla corrompería el calendario histórico.
+            if (actual.archivada) {
+              throw errorHttp(
+                400,
+                'No se puede editar una configuración archivada. El historial del calendario debe permanecer intacto.',
+              );
+            }
+            if (version !== undefined && version !== actual.version) {
+              throw errorHttp(
+                409,
+                'Los datos de configuración cambiaron en otro dispositivo. Recarga e intenta de nuevo.',
+              );
+            }
 
-          // Valores EFECTIVOS tras aplicar el patch (para validar el estado final).
-          const efectivo = {
-            nombre: nombre ?? actual.nombre,
-            fechaInicio: fechaInicio !== undefined ? fechaInicio : actual.fechaInicio,
-            fechaFin: fechaFin !== undefined ? fechaFin : actual.fechaFin,
-            fechaExacta: fechaExacta !== undefined ? fechaExacta : actual.fechaExacta,
-          };
-          await validarSolapamientos(tx, efectivo, numericId);
+            // Valores EFECTIVOS tras aplicar el patch (para validar el estado final).
+            const efectivo = {
+              nombre: nombre ?? actual.nombre,
+              fechaInicio: fechaInicio !== undefined ? fechaInicio : actual.fechaInicio,
+              fechaFin: fechaFin !== undefined ? fechaFin : actual.fechaFin,
+              fechaExacta: fechaExacta !== undefined ? fechaExacta : actual.fechaExacta,
+            };
+            await validarSolapamientos(tx, efectivo, numericId);
 
-          // ── SNAPSHOT AL EDITAR (regla maestra: el pasado es inmutable) ──
-          // Si la regla ya gobernó días pasados, la versión actual se ARCHIVA
-          // (conserva fechas/horarios originales para /resolver histórico) y
-          // se crea una NUEVA fila con los cambios que solo aplica al futuro.
-          const hoy = dateKeyLocal();
-          const esIndefinida =
-            actual.fechaExacta == null && actual.fechaInicio == null && actual.fechaFin == null;
-          const gobiernaPasado =
-            (actual.fechaExacta != null && aDiaCalendario(actual.fechaExacta) < hoy) ||
-            (actual.fechaInicio != null && aDiaCalendario(actual.fechaInicio) < hoy) ||
-            esIndefinida;
+            // ── SNAPSHOT AL EDITAR (regla maestra: el pasado es inmutable) ──
+            // Si la regla ya gobernó días pasados, la versión actual se ARCHIVA
+            // (conserva fechas/horarios originales para /resolver histórico) y
+            // se crea una NUEVA fila con los cambios que solo aplica al futuro.
+            const hoy = dateKeyLocal();
+            const esIndefinida =
+              actual.fechaExacta == null && actual.fechaInicio == null && actual.fechaFin == null;
+            const gobiernaPasado =
+              (actual.fechaExacta != null && aDiaCalendario(actual.fechaExacta) < hoy) ||
+              (actual.fechaInicio != null && aDiaCalendario(actual.fechaInicio) < hoy) ||
+              esIndefinida;
 
-          if (gobiernaPasado) {
+            if (gobiernaPasado) {
+              await tx.configuracionBloque.update({
+                where: { id: numericId },
+                data: { archivada: true, archivadaEn: new Date(), version: { increment: 1 } },
+              });
+              const nueva = await tx.configuracionBloque.create({
+                data: {
+                  nombre: efectivo.nombre,
+                  fechaInicio: efectivo.fechaInicio ? new Date(efectivo.fechaInicio as any) : null,
+                  fechaFin: efectivo.fechaFin ? new Date(efectivo.fechaFin as any) : null,
+                  fechaExacta: efectivo.fechaExacta ? new Date(efectivo.fechaExacta as any) : null,
+                  bloqueado: bloqueado ?? actual.bloqueado,
+                  horarios: {
+                    create: (
+                      horarios ??
+                      (actual.horarios as any[]).map((h) => ({
+                        horaInicio: h.horaInicio,
+                        horaFin: h.horaFin,
+                      }))
+                    ).map((h) => ({
+                      horaInicio: h.horaInicio,
+                      horaFin: h.horaFin,
+                    })),
+                  },
+                },
+                include: { horarios: true },
+              });
+              return nueva;
+            }
+
+            // Sin pasado gobernado: edición in-place normal
             await tx.configuracionBloque.update({
               where: { id: numericId },
-              data: { archivada: true, archivadaEn: new Date(), version: { increment: 1 } },
-            });
-            const nueva = await tx.configuracionBloque.create({
               data: {
-                nombre: efectivo.nombre,
-                fechaInicio: efectivo.fechaInicio ? new Date(efectivo.fechaInicio as any) : null,
-                fechaFin: efectivo.fechaFin ? new Date(efectivo.fechaFin as any) : null,
-                fechaExacta: efectivo.fechaExacta ? new Date(efectivo.fechaExacta as any) : null,
-                bloqueado: bloqueado ?? actual.bloqueado,
-                horarios: {
-                  create: (horarios ?? (actual.horarios as any[]).map((h) => ({ horaInicio: h.horaInicio, horaFin: h.horaFin }))).map((h) => ({
+                ...(nombre !== undefined && { nombre }),
+                ...(bloqueado !== undefined && { bloqueado }),
+                ...(fechaInicio !== undefined && {
+                  fechaInicio: fechaInicio ? new Date(fechaInicio) : null,
+                }),
+                ...(fechaFin !== undefined && { fechaFin: fechaFin ? new Date(fechaFin) : null }),
+                ...(fechaExacta !== undefined && {
+                  fechaExacta: fechaExacta ? new Date(fechaExacta) : null,
+                }),
+                version: { increment: 1 },
+              },
+            });
+
+            // Reemplazar horarios si vienen provistos (soft delete: HorarioBloque
+            // es soft-deletable; los reemplazados quedan como histórico, ADR 006)
+            if (horarios) {
+              await tx.horarioBloque.updateMany({
+                where: { configuracionBloqueId: numericId, deletedAt: null },
+                data: { deletedAt: new Date() },
+              });
+
+              if (horarios.length > 0) {
+                await tx.horarioBloque.createMany({
+                  data: horarios.map((h) => ({
                     horaInicio: h.horaInicio,
                     horaFin: h.horaFin,
+                    configuracionBloqueId: numericId,
                   })),
-                },
-              },
-              include: { horarios: true },
-            });
-            return nueva;
-          }
-
-          // Sin pasado gobernado: edición in-place normal
-          await tx.configuracionBloque.update({
-            where: { id: numericId },
-            data: {
-              ...(nombre !== undefined && { nombre }),
-              ...(bloqueado !== undefined && { bloqueado }),
-              ...(fechaInicio !== undefined && { fechaInicio: fechaInicio ? new Date(fechaInicio) : null }),
-              ...(fechaFin !== undefined && { fechaFin: fechaFin ? new Date(fechaFin) : null }),
-              ...(fechaExacta !== undefined && { fechaExacta: fechaExacta ? new Date(fechaExacta) : null }),
-              version: { increment: 1 },
-            },
-          });
-
-          // Reemplazar horarios si vienen provistos (soft delete: HorarioBloque
-          // es soft-deletable; los reemplazados quedan como histórico, ADR 006)
-          if (horarios) {
-            await tx.horarioBloque.updateMany({
-              where: { configuracionBloqueId: numericId, deletedAt: null },
-              data: { deletedAt: new Date() },
-            });
-
-            if (horarios.length > 0) {
-              await tx.horarioBloque.createMany({
-                data: horarios.map((h) => ({
-                  horaInicio: h.horaInicio,
-                  horaFin: h.horaFin,
-                  configuracionBloqueId: numericId,
-                })),
-              });
+                });
+              }
             }
-          }
 
-          return tx.configuracionBloque.findUnique({
-            where: { id: numericId, deletedAt: null },
-            include: { horarios: { where: { deletedAt: null } } },
-          });
-        });
+            return tx.configuracionBloque.findUnique({
+              where: { id: numericId, deletedAt: null },
+              include: { horarios: { where: { deletedAt: null } } },
+            });
+          },
+        );
 
         await logAudit(request, {
           accion: 'EDITAR',
@@ -287,7 +295,9 @@ const configuracionBloquesRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.send(configActualizada);
       } catch (error: any) {
         if (error?.code === 'P2002') {
-          return reply.status(400).send({ error: 'Ya existe una configuración para esta fecha exacta.' });
+          return reply
+            .status(400)
+            .send({ error: 'Ya existe una configuración para esta fecha exacta.' });
         }
         if (error?.statusCode === 400 || error?.statusCode === 404 || error?.statusCode === 409) {
           return reply.status(error.statusCode).send({ error: error.message });
@@ -308,44 +318,47 @@ const configuracionBloquesRoutes: FastifyPluginAsync = async (fastify) => {
     '/:id',
     { preHandler: fastify.authorize(['ADMIN']) },
     async (request, reply) => {
-    const { id } = request.params;
-    const numericId = Number(id);
+      const { id } = request.params;
+      const numericId = Number(id);
 
-    try {
-      const archivada = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-        const actual = await tx.configuracionBloque.findUnique({ where: { id: numericId, deletedAt: null } });
-        if (!actual) throw errorHttp(404, 'Configuración no encontrada');
+      try {
+        const archivada = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+          const actual = await tx.configuracionBloque.findUnique({
+            where: { id: numericId, deletedAt: null },
+          });
+          if (!actual) throw errorHttp(404, 'Configuración no encontrada');
 
-        const esIndefinida =
-          actual.fechaInicio == null && actual.fechaFin == null && actual.fechaExacta == null;
-        if (esIndefinida) {
-          throw errorHttp(400, 'La configuración indefinida es la base y no se puede eliminar');
-        }
-        if (actual.archivada) {
-          throw errorHttp(400, 'La configuración ya está archivada');
-        }
+          const esIndefinida =
+            actual.fechaInicio == null && actual.fechaFin == null && actual.fechaExacta == null;
+          if (esIndefinida) {
+            throw errorHttp(400, 'La configuración indefinida es la base y no se puede eliminar');
+          }
+          if (actual.archivada) {
+            throw errorHttp(400, 'La configuración ya está archivada');
+          }
 
-        return tx.configuracionBloque.update({
-          where: { id: numericId },
-          data: { archivada: true, archivadaEn: new Date(), version: { increment: 1 } },
-          include: { horarios: true },
+          return tx.configuracionBloque.update({
+            where: { id: numericId },
+            data: { archivada: true, archivadaEn: new Date(), version: { increment: 1 } },
+            include: { horarios: true },
+          });
         });
-      });
 
-      await logAudit(request, {
-        accion: 'ARCHIVAR',
-        entidad: 'CONFIGURACION',
-        entidadId: id,
-        descripcion: `Configuración de bloques #${id} archivada (snapshot conservado)`,
-      });
-      return reply.send({ message: 'Configuración archivada', configuracion: archivada });
-    } catch (error: any) {
-      if (error?.statusCode === 400 || error?.statusCode === 404) {
-        return reply.status(error.statusCode).send({ error: error.message });
+        await logAudit(request, {
+          accion: 'ARCHIVAR',
+          entidad: 'CONFIGURACION',
+          entidadId: id,
+          descripcion: `Configuración de bloques #${id} archivada (snapshot conservado)`,
+        });
+        return reply.send({ message: 'Configuración archivada', configuracion: archivada });
+      } catch (error: any) {
+        if (error?.statusCode === 400 || error?.statusCode === 404) {
+          return reply.status(error.statusCode).send({ error: error.message });
+        }
+        throw error;
       }
-      throw error;
-    }
-  });
+    },
+  );
 };
 
 export default configuracionBloquesRoutes;

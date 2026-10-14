@@ -111,8 +111,20 @@ function crearMockApi(): ParaglideApiClient {
     }),
     getPilotos: vi.fn().mockResolvedValue({
       data: [
-        { id: 1, nombre: 'Rodrigo Morales', activo: true, categoria: 'MASTER', disponibilidadTotal: true },
-        { id: 2, nombre: 'Camila Sepúlveda', activo: true, categoria: 'SENIOR', disponibilidadTotal: true },
+        {
+          id: 1,
+          nombre: 'Rodrigo Morales',
+          activo: true,
+          categoria: 'MASTER',
+          disponibilidadTotal: true,
+        },
+        {
+          id: 2,
+          nombre: 'Camila Sepúlveda',
+          activo: true,
+          categoria: 'SENIOR',
+          disponibilidadTotal: true,
+        },
       ],
       pagination: { page: 1, pageSize: 50, total: 2, totalPages: 1, hasMore: false },
     }),
@@ -135,7 +147,10 @@ function crearMockApi(): ParaglideApiClient {
       estadoPago: 'PENDIENTE',
       valorTotal: 135000,
       version: 1,
-      pasajeros: [{ id: 201, nombre: 'Ana Gómez' }, { id: 202, nombre: 'Pedro Gómez' }],
+      pasajeros: [
+        { id: 201, nombre: 'Ana Gómez' },
+        { id: 202, nombre: 'Pedro Gómez' },
+      ],
     }),
     getReserva: vi.fn().mockResolvedValue({
       id: 42,
@@ -180,19 +195,48 @@ function crearMockApi(): ParaglideApiClient {
 
     // --- Consultas públicas (arreglos simples, igual que GET /public/*) ---
     getFaqs: vi.fn().mockResolvedValue([
-      { id: 1, pregunta: '¿Qué ropa debo usar?', respuesta: 'Ropa cómoda y zapatillas deportivas.', categoria: 'VUELO' },
-      { id: 2, pregunta: '¿Cuál es el peso máximo?', respuesta: 'El límite máximo por pasajero es 120 kg.', categoria: 'SEGURIDAD' },
+      {
+        id: 1,
+        pregunta: '¿Qué ropa debo usar?',
+        respuesta: 'Ropa cómoda y zapatillas deportivas.',
+        categoria: 'VUELO',
+      },
+      {
+        id: 2,
+        pregunta: '¿Cuál es el peso máximo?',
+        respuesta: 'El límite máximo por pasajero es 120 kg.',
+        categoria: 'SEGURIDAD',
+      },
     ]),
-    getReglasOperativas: vi.fn().mockResolvedValue([
-      { id: 1, titulo: 'Límite de Peso', descripcion: 'Máximo 120 kg.', categoria: 'SEGURIDAD' },
-    ]),
+    getReglasOperativas: vi
+      .fn()
+      .mockResolvedValue([
+        {
+          id: 1,
+          clave: 'LIMITE_PESO',
+          valor: '120',
+          descripcion: 'Máximo 120 kg.',
+          categoria: 'SEGURIDAD',
+          esDefault: true,
+        },
+      ]),
     getEmpresa: vi.fn().mockResolvedValue({
       nombre: 'Parapente Iquique',
       telefono: '+56912345678',
       email: 'contacto@parapente.cl',
     }),
     getPromociones: vi.fn().mockResolvedValue({
-      data: [{ id: 1, nombre: 'Primavera', codigo: 'PRIMAVERA26', activa: true }],
+      data: [
+        {
+          id: 1,
+          nombre: 'Primavera',
+          tipoDescuento: 'PORCENTAJE',
+          valor: 15,
+          activa: true,
+          fechaInicio: null,
+          fechaFin: null,
+        },
+      ],
       pagination: { page: 1, pageSize: 50, total: 1, totalPages: 1, hasMore: false },
     }),
 
@@ -250,7 +294,9 @@ describe('Paraglide MCP Server Tools', () => {
   });
 
   it('consultar_meteorologia retorna los datos meteorológicos sanitizados', async () => {
-    const salida = salidaDe(await client.callTool({ name: 'consultar_meteorologia', arguments: {} }));
+    const salida = salidaDe(
+      await client.callTool({ name: 'consultar_meteorologia', arguments: {} }),
+    );
 
     // El mapping se hace desde el contrato real (estadoPista/velocidadViento/
     // rachaViento/observaciones/fechaHora), no desde campos inventados.
@@ -279,7 +325,10 @@ describe('Paraglide MCP Server Tools', () => {
 
   it('consultar_disponibilidad_calendario calcula los cupos libres descontando los vuelos agendados', async () => {
     const salida = salidaDe(
-      await client.callTool({ name: 'consultar_disponibilidad_calendario', arguments: { fecha: '2026-09-10' } })
+      await client.callTool({
+        name: 'consultar_disponibilidad_calendario',
+        arguments: { fecha: '2026-09-10' },
+      }),
     );
 
     expect(salida).toMatchObject({
@@ -292,9 +341,30 @@ describe('Paraglide MCP Server Tools', () => {
     });
     // Capacidad por bloque = 2 pilotos activos; el vuelo de las 10:00 ocupa 1 cupo.
     expect(salida.bloques).toEqual([
-      { hora: '09:00', horaFin: '10:00', capacidadTotal: 2, vuelosAgendados: 0, cuposDisponibles: 2, disponible: true },
-      { hora: '10:00', horaFin: '11:00', capacidadTotal: 2, vuelosAgendados: 1, cuposDisponibles: 1, disponible: true },
-      { hora: '11:00', horaFin: '12:00', capacidadTotal: 2, vuelosAgendados: 0, cuposDisponibles: 2, disponible: true },
+      {
+        hora: '09:00',
+        horaFin: '10:00',
+        capacidadTotal: 2,
+        vuelosAgendados: 0,
+        cuposDisponibles: 2,
+        disponible: true,
+      },
+      {
+        hora: '10:00',
+        horaFin: '11:00',
+        capacidadTotal: 2,
+        vuelosAgendados: 1,
+        cuposDisponibles: 1,
+        disponible: true,
+      },
+      {
+        hora: '11:00',
+        horaFin: '12:00',
+        capacidadTotal: 2,
+        vuelosAgendados: 0,
+        cuposDisponibles: 2,
+        disponible: true,
+      },
     ]);
     expect(vi.mocked(api.getVuelos).mock.calls[0][0]).toEqual({
       desde: '2026-09-10',
@@ -308,7 +378,7 @@ describe('Paraglide MCP Server Tools', () => {
       await client.callTool({
         name: 'calcular_tarifa_reserva',
         arguments: { tarifaId: 1, promocionId: 2, cantidadPasajeros: 2 },
-      })
+      }),
     );
 
     expect(salida).toMatchObject({
@@ -344,7 +414,7 @@ describe('Paraglide MCP Server Tools', () => {
             { nombre: 'Pedro Gómez', peso: 75 },
           ],
         },
-      })
+      }),
     );
 
     expect(salida).toMatchObject({
@@ -373,7 +443,7 @@ describe('Paraglide MCP Server Tools', () => {
       await client.callTool({
         name: 'listar_reservas',
         arguments: { estado: 'SIN_AGENDAR', page: 1, pageSize: 10 },
-      })
+      }),
     );
 
     expect(salida).toMatchObject({ total: 1, totalPages: 1, page: 1, pageSize: 10 });
@@ -395,7 +465,7 @@ describe('Paraglide MCP Server Tools', () => {
 
   it('desagendar_reserva devuelve la reserva a SIN_AGENDAR y reporta los vuelos liberados', async () => {
     const salida = salidaDe(
-      await client.callTool({ name: 'desagendar_reserva', arguments: { reservaId: 42 } })
+      await client.callTool({ name: 'desagendar_reserva', arguments: { reservaId: 42 } }),
     );
 
     expect(salida).toMatchObject({
@@ -415,7 +485,7 @@ describe('Paraglide MCP Server Tools', () => {
       await client.callTool({
         name: 'agendar_vuelos_reserva',
         arguments: { reservaId: 42, fechaHora: '2026-09-10 11:00' },
-      })
+      }),
     );
 
     expect(salida).toMatchObject({ totalVuelosAgendados: 2, estadoReserva: 'AGENDADA' });
@@ -461,7 +531,7 @@ describe('Paraglide MCP Server Tools', () => {
             { nombre: 'Pedro Gómez', peso: 75 },
           ],
         },
-      })
+      }),
     );
 
     expect(salida).toMatchObject({
@@ -519,9 +589,31 @@ describe('Paraglide MCP Server Tools', () => {
     expect(api.agendarGrupo).not.toHaveBeenCalled();
   });
 
+  it('crear_y_agendar_reserva informa error controlado con reservaId si agendarGrupo falla tras crear la reserva', async () => {
+    vi.mocked(api.agendarGrupo).mockRejectedValueOnce(
+      new Error('Sin cupos disponibles para la hora solicitada'),
+    );
+
+    const resultado = await client.callTool({
+      name: 'crear_y_agendar_reserva',
+      arguments: {
+        nombreTitular: 'Ana Gómez',
+        fecha: '2026-09-10',
+        hora: '11:00',
+        pasajeros: [{ nombre: 'Ana Gómez' }],
+      },
+    });
+
+    expect(resultado.isError).toBe(true);
+    const parsed = JSON.parse(textoDe(resultado));
+    expect(parsed.error).toContain('fue creada en estado SIN_AGENDAR');
+    expect(parsed.reservaId).toBe(42);
+    expect(parsed.accionRequerida).toContain('NO vuelva a llamar a "crear_y_agendar_reserva"');
+  });
+
   it('obtener_enlaces_deslinde usa identificadores no secuenciales (shortId/tokenPublico)', async () => {
     const salida = salidaDe(
-      await client.callTool({ name: 'obtener_enlaces_deslinde', arguments: { reservaId: 42 } })
+      await client.callTool({ name: 'obtener_enlaces_deslinde', arguments: { reservaId: 42 } }),
     );
 
     expect(salida).toMatchObject({
@@ -550,7 +642,7 @@ describe('Paraglide MCP Server Tools', () => {
 
   it('consultar_preguntas_frecuentes filtra por categoría y término de búsqueda', async () => {
     const todas = salidaDe(
-      await client.callTool({ name: 'consultar_preguntas_frecuentes', arguments: {} })
+      await client.callTool({ name: 'consultar_preguntas_frecuentes', arguments: {} }),
     );
     expect(todas.total).toBe(2);
     expect(todas.faqs.map((f: any) => f.id)).toEqual([1, 2]);
@@ -559,7 +651,7 @@ describe('Paraglide MCP Server Tools', () => {
       await client.callTool({
         name: 'consultar_preguntas_frecuentes',
         arguments: { categoria: 'SEGURIDAD' },
-      })
+      }),
     );
     expect(porCategoria.total).toBe(1);
     expect(porCategoria.faqs[0]).toMatchObject({
@@ -573,7 +665,7 @@ describe('Paraglide MCP Server Tools', () => {
       await client.callTool({
         name: 'consultar_preguntas_frecuentes',
         arguments: { buscar: 'ropa' },
-      })
+      }),
     );
     expect(porBusqueda.total).toBe(1);
     expect(porBusqueda.faqs[0].id).toBe(1);
@@ -582,26 +674,27 @@ describe('Paraglide MCP Server Tools', () => {
       await client.callTool({
         name: 'consultar_preguntas_frecuentes',
         arguments: { categoria: 'PAGO' },
-      })
+      }),
     );
     expect(sinResultados).toEqual({ total: 0, faqs: [] });
   });
 
   it('las consultas de recepción exponen reglas operativas, contacto y promociones activas', async () => {
     const reglas = salidaDe(
-      await client.callTool({ name: 'consultar_reglas_operativas', arguments: {} })
+      await client.callTool({ name: 'consultar_reglas_operativas', arguments: {} }),
     );
     expect(reglas.totalReglas).toBe(1);
     expect(reglas.reglas[0]).toMatchObject({
       id: 1,
-      titulo: 'Límite de Peso',
+      clave: 'LIMITE_PESO',
+      valor: '120',
       descripcion: 'Máximo 120 kg.',
       categoria: 'SEGURIDAD',
-      obligatorio: true,
+      esDefault: true,
     });
 
     const contacto = salidaDe(
-      await client.callTool({ name: 'consultar_contacto_escuela', arguments: {} })
+      await client.callTool({ name: 'consultar_contacto_escuela', arguments: {} }),
     );
     expect(contacto).toMatchObject({
       nombre: 'Parapente Iquique',
@@ -610,13 +703,14 @@ describe('Paraglide MCP Server Tools', () => {
     });
 
     const promos = salidaDe(
-      await client.callTool({ name: 'consultar_promociones_activas', arguments: {} })
+      await client.callTool({ name: 'consultar_promociones_activas', arguments: {} }),
     );
     expect(promos.total).toBe(1);
     expect(promos.promociones[0]).toMatchObject({
       id: 1,
       nombre: 'Primavera',
-      codigo: 'PRIMAVERA26',
+      tipoDescuento: 'PORCENTAJE',
+      valor: 15,
     });
   });
 
@@ -634,7 +728,7 @@ describe('Paraglide MCP Server Tools', () => {
 
   it('agendar_vuelos_reserva reporta el conflicto de concurrencia (409) como error controlado', async () => {
     vi.mocked(api.agendarGrupo).mockRejectedValueOnce(
-      Object.assign(new Error('La versión de la reserva cambió'), { status: 409 })
+      Object.assign(new Error('La versión de la reserva cambió'), { status: 409 }),
     );
 
     const resultado = await client.callTool({

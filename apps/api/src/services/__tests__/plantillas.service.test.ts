@@ -6,6 +6,7 @@ vi.mock('../../plugins/prisma', () => {
     prisma: {
       plantillaMensaje: {
         findFirst: vi.fn(),
+        findUnique: vi.fn(),
         findMany: vi.fn(),
         count: vi.fn(),
         create: vi.fn(),
@@ -63,6 +64,7 @@ describe('Plantillas & Messaging Service (Unit Tests)', () => {
 
   it('getAll debería retornar las plantillas registradas', async () => {
     (prisma.plantillaMensaje.findFirst as any).mockResolvedValue({ id: 1 });
+    (prisma.plantillaMensaje.findUnique as any).mockResolvedValue({ id: 1 });
     (prisma.plantillaMensaje.findMany as any).mockResolvedValue([
       { id: 1, tipo: 'CONFIRMACION_RESERVA', titulo: 'Confirmación' },
     ]);

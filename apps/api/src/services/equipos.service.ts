@@ -27,18 +27,15 @@ export class EquiposService {
                 orderBy: { fecha: 'desc' },
               },
             },
-            orderBy: [
-              { estado: 'asc' },
-              { codigo: 'asc' },
-            ],
+            orderBy: [{ estado: 'asc' }, { codigo: 'asc' }],
             skip,
             take,
           }),
         () => prisma.equipo.count({ where }),
       );
     } catch (err) {
-      console.warn('Advertencia DB en EquiposService.getAll, retornando arreglo vacío:', err);
-      return { data: [], pagination: { page: 1, pageSize: 100, total: 0, totalPages: 0, hasMore: false } };
+      console.error('Error DB en EquiposService.getAll:', err);
+      throw err;
     }
   }
 
@@ -73,7 +70,9 @@ export class EquiposService {
         vuelosRealizados: data.vuelosRealizados,
         limiteHorasInspeccion: data.limiteHorasInspeccion,
         fechaUltimaRevision: data.fechaUltimaRevision ? new Date(data.fechaUltimaRevision) : null,
-        fechaProximaRevision: data.fechaProximaRevision ? new Date(data.fechaProximaRevision) : null,
+        fechaProximaRevision: data.fechaProximaRevision
+          ? new Date(data.fechaProximaRevision)
+          : null,
         notas: data.notas,
         pilotoAsignadoId: data.pilotoAsignadoId || null,
       },
@@ -106,7 +105,9 @@ export class EquiposService {
           vuelosRealizados: rest.vuelosRealizados,
           limiteHorasInspeccion: rest.limiteHorasInspeccion,
           fechaUltimaRevision: rest.fechaUltimaRevision ? new Date(rest.fechaUltimaRevision) : null,
-          fechaProximaRevision: rest.fechaProximaRevision ? new Date(rest.fechaProximaRevision) : null,
+          fechaProximaRevision: rest.fechaProximaRevision
+            ? new Date(rest.fechaProximaRevision)
+            : null,
           notas: rest.notas,
           pilotoAsignadoId: rest.pilotoAsignadoId || null,
           version: { increment: 1 },
@@ -125,11 +126,18 @@ export class EquiposService {
     });
   }
 
-  async addMantenimiento(equipoId: number, data: CreateMantenimientoPayload & { version?: number }) {
+  async addMantenimiento(
+    equipoId: number,
+    data: CreateMantenimientoPayload & { version?: number },
+  ) {
     return prisma.$transaction(async (tx) => {
       const equipo = await tx.equipo.findUnique({ where: { id: equipoId, deletedAt: null } });
       if (!equipo) throw new Error('Equipo no encontrado');
-      checkVersion(equipo.version, data.version, 'El equipo cambió en otro dispositivo. Recarga e intenta de nuevo.');
+      checkVersion(
+        equipo.version,
+        data.version,
+        'El equipo cambió en otro dispositivo. Recarga e intenta de nuevo.',
+      );
 
       const mantenimiento = await tx.mantenimientoEquipo.create({
         data: {

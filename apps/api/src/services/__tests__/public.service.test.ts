@@ -5,6 +5,9 @@ vi.mock('../../plugins/prisma', () => {
   const mockDeslindeFirma = {
     upsert: vi.fn().mockResolvedValue({}),
   };
+  const mockDeslindeVersion = {
+    findFirst: vi.fn().mockResolvedValue({ version: 2 }),
+  };
   const mockPasajero = {
     findFirst: vi.fn(),
     findUnique: vi.fn(),
@@ -16,6 +19,7 @@ vi.mock('../../plugins/prisma', () => {
       $transaction: vi.fn(async (callback: any) => {
         return callback({
           deslindeFirma: mockDeslindeFirma,
+          deslindeVersion: mockDeslindeVersion,
           pasajero: mockPasajero,
         });
       }),
@@ -25,9 +29,7 @@ vi.mock('../../plugins/prisma', () => {
       },
       pasajero: mockPasajero,
       deslindeFirma: mockDeslindeFirma,
-      deslindeVersion: {
-        findFirst: vi.fn(),
-      },
+      deslindeVersion: mockDeslindeVersion,
       empresa: {
         findFirst: vi.fn(),
       },
@@ -162,6 +164,18 @@ describe('PublicService (Unit Tests)', () => {
 
       expect(res.message).toContain('exitosamente');
       expect(res.pasajero.firmaDeslinde).toBe(true);
+      expect(prisma.deslindeFirma.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { pasajeroId: 10 },
+          create: expect.objectContaining({
+            pasajeroId: 10,
+            versionLegal: 2,
+          }),
+          update: expect.objectContaining({
+            versionLegal: 2,
+          }),
+        }),
+      );
     });
   });
 });

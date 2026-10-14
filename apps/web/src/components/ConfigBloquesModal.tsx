@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import { PlusCircle, X } from 'lucide-react';
 import { type ConfiguracionBloque } from './config-bloques/types';
@@ -53,7 +53,9 @@ export function ConfigBloquesModal({ isOpen, onClose }: { isOpen: boolean; onClo
         >
           <X size={24} />
         </button>
-        <h2 className="text-xl font-bold mb-4 text-slate-800 dark:text-white">Configuración de Horarios</h2>
+        <h2 className="text-xl font-bold mb-4 text-slate-800 dark:text-white">
+          Configuración de Horarios
+        </h2>
 
         <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-5">
           <button

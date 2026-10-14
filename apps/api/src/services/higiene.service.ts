@@ -66,24 +66,30 @@ export async function descartarBoletinesAntiguos(): Promise<number> {
 function msHastaProximaTresAM(): number {
   const ahora = new Date();
   const proxima = new Date(
-    Date.UTC(ahora.getUTCFullYear(), ahora.getUTCMonth(), ahora.getUTCDate(), 3, 0, 0)
+    Date.UTC(ahora.getUTCFullYear(), ahora.getUTCMonth(), ahora.getUTCDate(), 3, 0, 0),
   );
   if (proxima <= ahora) proxima.setUTCDate(proxima.getUTCDate() + 1);
   return proxima.getTime() - ahora.getTime();
 }
 
+let higieneTimer: ReturnType<typeof setTimeout> | null = null;
+
 function programarSiguiente(): void {
   const delay = msHastaProximaTresAM();
-  setTimeout(() => {
+  higieneTimer = setTimeout(() => {
     void archivarExpiradas();
     void descartarBoletinesAntiguos().finally(programarSiguiente);
-  }, delay).unref(); // unref: no impide el shutdown del proceso
+  }, delay);
+  higieneTimer.unref();
 }
 
 /** Arranca la higiene: barrido inicial + scheduler diario. Fire-and-forget. */
-export function iniciarHigieneBloques(): void {
+export function iniciarHigieneBloques(): () => void {
   void archivarExpiradas();
   void descartarBoletinesAntiguos();
   programarSiguiente();
   console.log('[higiene-bloques] Scheduler diario iniciado (03:00 UTC)');
+  return () => {
+    if (higieneTimer) clearTimeout(higieneTimer);
+  };
 }

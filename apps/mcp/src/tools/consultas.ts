@@ -11,7 +11,10 @@ export function registerConsultasTools(server: McpServer, apiClient: ParaglideAp
     description:
       'Consulta las preguntas frecuentes (FAQs) oficiales de la escuela de parapente. Permite responder dudas sobre la experiencia de vuelo, duración, seguridad, etc.',
     inputSchema: {
-      categoria: z.string().optional().describe('Categoría opcional (ej: GENERAL, VUELO, PAGO, SEGURIDAD)'),
+      categoria: z
+        .string()
+        .optional()
+        .describe('Categoría opcional (ej: GENERAL, VUELO, PAGO, SEGURIDAD)'),
       buscar: z.string().optional().describe('Término de búsqueda opcional para filtrar por texto'),
     },
     handler: async ({ categoria, buscar }: { categoria?: string; buscar?: string }) => {
@@ -27,7 +30,7 @@ export function registerConsultasTools(server: McpServer, apiClient: ParaglideAp
           const q = buscar.toLowerCase();
           items = items.filter(
             (f: any) =>
-              f.pregunta?.toLowerCase().includes(q) || f.respuesta?.toLowerCase().includes(q)
+              f.pregunta?.toLowerCase().includes(q) || f.respuesta?.toLowerCase().includes(q),
           );
         }
 
@@ -46,7 +49,7 @@ export function registerConsultasTools(server: McpServer, apiClient: ParaglideAp
                   })),
                 },
                 null,
-                2
+                2,
               ),
             },
           ],
@@ -85,14 +88,15 @@ export function registerConsultasTools(server: McpServer, apiClient: ParaglideAp
                   totalReglas: items.length,
                   reglas: items.map((r: any) => ({
                     id: r.id,
-                    titulo: r.titulo || r.nombre,
-                    descripcion: r.descripcion || r.contenido,
+                    clave: r.clave,
+                    valor: r.valor,
+                    descripcion: r.descripcion,
                     categoria: r.categoria,
-                    obligatorio: r.obligatorio ?? true,
+                    esDefault: r.esDefault ?? false,
                   })),
                 },
                 null,
-                2
+                2,
               ),
             },
           ],
@@ -131,7 +135,7 @@ export function registerConsultasTools(server: McpServer, apiClient: ParaglideAp
                     mensaje: 'Datos de empresa no configurados aún en el sistema.',
                   },
                   null,
-                  2
+                  2,
                 ),
               },
             ],
@@ -155,7 +159,7 @@ export function registerConsultasTools(server: McpServer, apiClient: ParaglideAp
                   },
                 },
                 null,
-                2
+                2,
               ),
             },
           ],
@@ -196,15 +200,15 @@ export function registerConsultasTools(server: McpServer, apiClient: ParaglideAp
                   promociones: activas.map((p: any) => ({
                     id: p.id,
                     nombre: p.nombre,
-                    codigo: p.codigo,
-                    descuentoPorcentaje: p.descuentoPorcentaje,
-                    descuentoFijo: p.descuentoFijo,
+                    tipoDescuento: p.tipoDescuento,
+                    valor: p.valor,
                     descripcion: p.descripcion,
-                    validaHasta: p.validaHasta,
+                    fechaInicio: p.fechaInicio,
+                    fechaFin: p.fechaFin,
                   })),
                 },
                 null,
-                2
+                2,
               ),
             },
           ],

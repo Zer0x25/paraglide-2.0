@@ -15,9 +15,20 @@ export function registerWorkflowTools(server: McpServer, apiClient: ParaglideApi
       email: z.string().email('Email válido').optional(),
       telefono: z.string().optional(),
       rutDniTitular: z.string().optional(),
-      fecha: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Fecha en formato YYYY-MM-DD (ej: 2026-09-10)'),
-      hora: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Hora de inicio de bloque en formato HH:mm (ej: 11:00)'),
-      tarifaId: z.number().int().optional().describe('ID de la tarifa a cotizar (1 por defecto en el calculador)'),
+      fecha: z
+        .string()
+        .regex(/^\d{4}-\d{2}-\d{2}$/, 'Fecha en formato YYYY-MM-DD (ej: 2026-09-10)'),
+      hora: z
+        .string()
+        .regex(
+          /^([01]\d|2[0-3]):[0-5]\d$/,
+          'Hora de inicio de bloque en formato HH:mm (ej: 11:00)',
+        ),
+      tarifaId: z
+        .number()
+        .int()
+        .optional()
+        .describe('ID de la tarifa a cotizar (1 por defecto en el calculador)'),
       promocionId: z.number().int().optional().describe('ID opcional de la promoción a aplicar'),
       abono: z.number().min(0).optional().default(0),
       pasajeros: z
@@ -28,7 +39,7 @@ export function registerWorkflowTools(server: McpServer, apiClient: ParaglideApi
             telefono: z.string().optional(),
             email: z.string().email().optional(),
             rutDni: z.string().optional(),
-          })
+          }),
         )
         .min(1, 'Debe incluir al menos 1 pasajero'),
     },
@@ -94,14 +105,37 @@ export function registerWorkflowTools(server: McpServer, apiClient: ParaglideApi
 
         // 3. Agendar vuelos inmediatamente
         const isoFechaHora = fechaHoraLocalToIso(fecha, hora);
-        const agendamiento = await apiClient.agendarGrupo({
-          reservaId: reservaCreada.id,
-          fechaHora: isoFechaHora,
-          // Nunca inventar precio: si la cotización vale 0 (p. ej. promo 100%),
-          // el valor pactado es 0, no un monto fallback.
-          valorPactadoPorPasajero: valorTotal > 0 ? valorTotal / pasajeros.length : 0,
-          version: reservaCreada.version,
-        });
+        let agendamiento: { success: boolean; vuelos: any[] };
+        try {
+          agendamiento = await apiClient.agendarGrupo({
+            reservaId: reservaCreada.id,
+            fechaHora: isoFechaHora,
+            // Nunca inventar precio: si la cotización vale 0 (p. ej. promo 100%),
+            // el valor pactado es 0, no un monto fallback.
+            valorPactadoPorPasajero: valorTotal > 0 ? valorTotal / pasajeros.length : 0,
+            version: reservaCreada.version,
+          });
+        } catch (agendaErr: any) {
+          return {
+            isError: true,
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(
+                  {
+                    error: `La reserva #${reservaCreada.id} fue creada en estado SIN_AGENDAR, pero falló el agendamiento de vuelos: ${agendaErr?.message || agendaErr}`,
+                    reservaId: reservaCreada.id,
+                    version: reservaCreada.version,
+                    accionRequerida:
+                      'NO vuelva a llamar a "crear_y_agendar_reserva" para evitar duplicar la reserva. Utilice "agendar_vuelos_reserva" con este reservaId en otro horario disponible.',
+                  },
+                  null,
+                  2,
+                ),
+              },
+            ],
+          };
+        }
 
         // Enlaces públicos solo con identificadores no secuenciales (nunca el id numérico).
         const publicId = reservaCreada.shortId || reservaCreada.tokenPublico;
@@ -123,7 +157,12 @@ export function registerWorkflowTools(server: McpServer, apiClient: ParaglideApi
                   abono,
                   saldoPendiente: Math.max(0, valorTotal - abono),
                   estadoReserva: 'AGENDADA',
-                  estadoPago: abono >= valorTotal && valorTotal > 0 ? 'PAGADO' : abono > 0 ? 'ABONADO' : 'PENDIENTE',
+                  estadoPago:
+                    abono >= valorTotal && valorTotal > 0
+                      ? 'PAGADO'
+                      : abono > 0
+                        ? 'ABONADO'
+                        : 'PENDIENTE',
                   vuelosAgendados: (agendamiento.vuelos || []).map((v: any) => ({
                     vueloId: v.id,
                     fechaHora: v.fechaHora,
@@ -136,7 +175,7 @@ export function registerWorkflowTools(server: McpServer, apiClient: ParaglideApi
                   },
                 },
                 null,
-                2
+                2,
               ),
             },
           ],

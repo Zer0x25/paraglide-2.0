@@ -24,8 +24,12 @@ describe('Pantalla Token Routes (Admin)', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     app = Fastify();
-    app.decorate('authorize', () => async (request: any) => {
-      request.user = { id: 1, email: 'admin@test.com', nombre: 'Admin', role: 'ADMIN' };
+    app.decorate('authorize', (_roles: string[]) => async (request: any, reply: any) => {
+      const role = (request.headers['x-test-role'] as string) ?? 'ADMIN';
+      if (!_roles.includes(role)) {
+        return reply.status(403).send({ error: 'Forbidden' });
+      }
+      request.user = { id: 1, email: 'admin@test.com', nombre: 'Admin', role };
     });
     await app.register(pantallaRoutes);
     await app.ready();
@@ -80,5 +84,35 @@ describe('Pantalla Token Routes (Admin)', () => {
     expect(JSON.parse(response.body).token).toMatch(/^[0-9a-f]{64}$/);
     expect(prisma.pantallaToken.updateMany).toHaveBeenCalledTimes(1);
     expect(prisma.pantallaToken.create).toHaveBeenCalledTimes(1);
+  });
+
+  it('GET /link - permite acceso a rol RECEPCION (200) pero rechaza a PILOTO (403) (C-03)', async () => {
+    (prisma.pantallaToken.findFirst as any).mockResolvedValue({
+      token: 'token-existente',
+      expiraEn: new Date('2026-08-16T23:59:59.999Z'),
+    });
+
+    const resRecepcion = await app.inject({
+      method: 'GET',
+      url: '/link?tipo=DIARIO',
+      headers: { 'x-test-role': 'RECEPCION' },
+    });
+    expect(resRecepcion.statusCode).toBe(200);
+
+    const resPiloto = await app.inject({
+      method: 'GET',
+      url: '/link?tipo=DIARIO',
+      headers: { 'x-test-role': 'PILOTO' },
+    });
+    expect(resPiloto.statusCode).toBe(403);
+  });
+
+  it('POST /link/regenerate - requiere rol ADMIN y rechaza a RECEPCION (403) (C-03)', async () => {
+    const resRecepcion = await app.inject({
+      method: 'POST',
+      url: '/link/regenerate?tipo=DIARIO',
+      headers: { 'x-test-role': 'RECEPCION' },
+    });
+    expect(resRecepcion.statusCode).toBe(403);
   });
 });

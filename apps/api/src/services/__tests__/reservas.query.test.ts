@@ -30,7 +30,7 @@ describe('reservas.query', () => {
         expect.objectContaining({
           where: { AND: [{ deletedAt: null }] },
           orderBy: { createdAt: 'desc' },
-        })
+        }),
       );
     });
 
@@ -43,7 +43,7 @@ describe('reservas.query', () => {
       expect(prisma.reserva.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { AND: [{ deletedAt: null }, { id: { lt: 10 } }] },
-        })
+        }),
       );
     });
 
@@ -56,7 +56,7 @@ describe('reservas.query', () => {
       expect(prisma.reserva.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { AND: [{ deletedAt: null }] },
-        })
+        }),
       );
     });
 
@@ -81,7 +81,7 @@ describe('reservas.query', () => {
       expect(prisma.reserva.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { AND: [{ deletedAt: null }, expectedOr] },
-        })
+        }),
       );
     });
 
@@ -94,7 +94,7 @@ describe('reservas.query', () => {
       expect(prisma.reserva.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { AND: [{ deletedAt: null }, { estadoPago: 'PAGADO' }] },
-        })
+        }),
       );
     });
 
@@ -137,7 +137,7 @@ describe('reservas.query', () => {
             ],
           },
           orderBy: { fechaAgenda: { sort: 'asc', nulls: 'last' } },
-        })
+        }),
       );
     });
 
@@ -156,15 +156,12 @@ describe('reservas.query', () => {
             AND: [
               { deletedAt: null },
               {
-                OR: [
-                  { fechaAgenda: expectedDateCond },
-                  { estado: 'COMPLETADA' },
-                ],
+                OR: [{ fechaAgenda: expectedDateCond }, { estado: 'COMPLETADA' }],
               },
             ],
           },
           orderBy: { fechaAgenda: { sort: 'desc', nulls: 'last' } },
-        })
+        }),
       );
     });
 
@@ -185,7 +182,7 @@ describe('reservas.query', () => {
             ],
           },
           orderBy: { createdAt: 'desc' }, // default fallback when both or neither provided
-        })
+        }),
       );
     });
 
@@ -198,7 +195,7 @@ describe('reservas.query', () => {
       expect(prisma.reserva.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           orderBy: { fechaAgenda: { sort: 'asc', nulls: 'last' } },
-        })
+        }),
       );
     });
 
@@ -211,26 +208,22 @@ describe('reservas.query', () => {
       expect(prisma.reserva.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           orderBy: { nombreTitular: 'desc' },
-        })
+        }),
       );
     });
 
-    it('should catch errors and return empty array fallback', async () => {
+    it('should rethrow errors on DB failure instead of returning empty array fallback', async () => {
       (prisma.reserva.findMany as any).mockRejectedValue(new Error('DB Error'));
-      const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-      const result = await getAllReservas();
+      await expect(getAllReservas()).rejects.toThrow('DB Error');
 
-      expect(consoleWarnSpy).toHaveBeenCalledWith(
-        'Advertencia DB en ReservasService.getAll, retornando arreglo vacío:',
-        expect.any(Error)
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        'Error DB en ReservasService.getAll:',
+        expect.any(Error),
       );
-      expect(result).toEqual({
-        data: [],
-        pagination: { page: 1, pageSize: 100, total: 0, totalPages: 0, hasMore: false },
-      });
 
-      consoleWarnSpy.mockRestore();
+      consoleErrorSpy.mockRestore();
     });
   });
 

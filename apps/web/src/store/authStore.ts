@@ -37,6 +37,10 @@ export const useAuthStore = create<AuthState>((set) => ({
   logout: () => {
     Cookies.remove('token', { path: '/' });
     localStorage.removeItem('user');
+    localStorage.removeItem('last_user_id');
+    resolveStorage()
+      .removeItem('parapente-query-cache')
+      .catch(() => {});
     set({ token: null, user: null });
   },
 
@@ -64,6 +68,11 @@ export const useAuthStore = create<AuthState>((set) => ({
 
     if (token && user) {
       set({ token, user });
+    } else {
+      // Evita el bucle infinito de redirección entre middleware.ts (que lee la cookie)
+      // y AuthGuard.tsx (que lee el store) cuando localStorage('user') no existe.
+      if (token) Cookies.remove('token', { path: '/' });
+      set({ token: null, user: null });
     }
   },
 }));

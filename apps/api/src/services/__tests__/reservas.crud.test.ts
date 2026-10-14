@@ -60,8 +60,8 @@ describe('reservas.crud utils', () => {
       expect(
         esMismaPersona(
           { nombre: 'Sebastián Pérez', rutDni: '12.345.678-K' },
-          { nombre: 'sebastian perez', rutDni: '12345678k' }
-        )
+          { nombre: 'sebastian perez', rutDni: '12345678k' },
+        ),
       ).toBe(true);
     });
 
@@ -69,8 +69,8 @@ describe('reservas.crud utils', () => {
       expect(
         esMismaPersona(
           { nombre: 'Juan Perez', rutDni: '11111111-1' },
-          { nombre: 'Juan Perez', rutDni: '22222222-2' }
-        )
+          { nombre: 'Juan Perez', rutDni: '22222222-2' },
+        ),
       ).toBe(false);
     });
 
@@ -78,47 +78,28 @@ describe('reservas.crud utils', () => {
       expect(
         esMismaPersona(
           { nombre: 'Juan Perez', rutDni: '11111111-1' },
-          { nombre: 'Pedro Gonzalez', rutDni: '11111111-1' }
-        )
+          { nombre: 'Pedro Gonzalez', rutDni: '11111111-1' },
+        ),
       ).toBe(false);
     });
 
     it('returns true if one or both lack RUTs and names match', () => {
       expect(
-        esMismaPersona(
-          { nombre: 'María José' },
-          { nombre: 'maria jose', rutDni: '11111111-1' }
-        )
+        esMismaPersona({ nombre: 'María José' }, { nombre: 'maria jose', rutDni: '11111111-1' }),
       ).toBe(true);
 
       expect(
-        esMismaPersona(
-          { nombre: 'María José', rutDni: '11111111-1' },
-          { nombre: 'maria jose' }
-        )
+        esMismaPersona({ nombre: 'María José', rutDni: '11111111-1' }, { nombre: 'maria jose' }),
       ).toBe(true);
 
-      expect(
-        esMismaPersona(
-          { nombre: 'María José' },
-          { nombre: 'maria jose' }
-        )
-      ).toBe(true);
+      expect(esMismaPersona({ nombre: 'María José' }, { nombre: 'maria jose' })).toBe(true);
     });
 
     it('returns false if one or both lack RUTs and names differ', () => {
       expect(
-        esMismaPersona(
-          { nombre: 'María José' },
-          { nombre: 'Juan Perez', rutDni: '11111111-1' }
-        )
+        esMismaPersona({ nombre: 'María José' }, { nombre: 'Juan Perez', rutDni: '11111111-1' }),
       ).toBe(false);
-      expect(
-        esMismaPersona(
-          { nombre: 'María José' },
-          { nombre: 'Juan Perez' }
-        )
-      ).toBe(false);
+      expect(esMismaPersona({ nombre: 'María José' }, { nombre: 'Juan Perez' })).toBe(false);
     });
   });
 });

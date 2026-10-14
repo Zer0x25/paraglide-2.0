@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { dateKeyLocal } from '../utils/dates';
 
 /** Franja horaria de un bloque de configuración. */
 export const HorarioBloquePayloadSchema = z.object({
@@ -87,7 +88,7 @@ export const ResolucionDiaSchema = z.object({
     z.object({
       horaInicio: z.string(),
       horaFin: z.string(),
-    })
+    }),
   ),
 });
 export type ResolucionDiaDTO = z.infer<typeof ResolucionDiaSchema>;
@@ -169,10 +170,10 @@ const ORDEN_PRIORIDAD: Record<AlcanceConfig, number> = {
  */
 export function resolverConfiguracion<T extends ConfigResoluble>(
   configs: T[],
-  fechaISO: string | Date
+  fechaISO: string | Date,
 ): T | null {
   const dia = aDiaCalendario(fechaISO);
-  const hoy = new Date().toISOString().slice(0, 10);
+  const hoy = dateKeyLocal();
   const esPasada = dia < hoy;
 
   const candidatas = configs.filter((c) => {
@@ -240,7 +241,7 @@ export function resolverConfiguracion<T extends ConfigResoluble>(
  * @returns Map<id, etiqueta> donde etiqueta es { numero, archivada }.
  */
 export function numerarConfigs<T extends ConfigResoluble>(
-  configs: T[]
+  configs: T[],
 ): Map<number, { numero: number; archivada: boolean }> {
   const tiempoCreacion = (c: ConfigResoluble): number =>
     c.createdAt ? new Date(c.createdAt).getTime() : 0;
@@ -256,19 +257,23 @@ export function numerarConfigs<T extends ConfigResoluble>(
     .sort(
       (a, b) =>
         aDiaCalendario(a.fechaInicio!).localeCompare(aDiaCalendario(b.fechaInicio!)) ||
-        tiempoCreacion(a) - tiempoCreacion(b)
+        tiempoCreacion(a) - tiempoCreacion(b),
     );
   const exactas = activas
     .filter((c) => alcanceDe(c) === 'EXACTA')
     .sort(
       (a, b) =>
         aDiaCalendario(a.fechaExacta!).localeCompare(aDiaCalendario(b.fechaExacta!)) ||
-        tiempoCreacion(a) - tiempoCreacion(b)
+        tiempoCreacion(a) - tiempoCreacion(b),
     );
 
   const numeros = new Map<number, { numero: number; archivada: boolean }>();
   let siguiente = 1;
-  for (const c of [...indefinidos.sort((a, b) => tiempoCreacion(a) - tiempoCreacion(b)), ...rangos, ...exactas]) {
+  for (const c of [
+    ...indefinidos.sort((a, b) => tiempoCreacion(a) - tiempoCreacion(b)),
+    ...rangos,
+    ...exactas,
+  ]) {
     if (c.id != null) numeros.set(c.id, { numero: siguiente++, archivada: false });
   }
   let siguienteIn = 1;
@@ -279,7 +284,9 @@ export function numerarConfigs<T extends ConfigResoluble>(
 }
 
 /** Etiqueta legible de una entrada de numeración: '#2' o '#IN3'. */
-export function etiquetaNumero(entrada: { numero: number; archivada: boolean } | undefined): string | null {
+export function etiquetaNumero(
+  entrada: { numero: number; archivada: boolean } | undefined,
+): string | null {
   if (!entrada) return null;
   return entrada.archivada ? `#IN${entrada.numero}` : `#${entrada.numero}`;
 }

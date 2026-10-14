@@ -1,7 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { prisma } from '../../plugins/prisma';
 import { cerrarReservaContable } from '../reservas/reservas.ciclo-vida';
-import { iniciarCierreContableScheduler, tickCierreContable } from '../cierreContableScheduler.service';
+import {
+  iniciarCierreContableScheduler,
+  tickCierreContable,
+} from '../cierreContableScheduler.service';
 
 vi.mock('../../plugins/prisma', () => ({
   prisma: {
@@ -38,7 +41,9 @@ describe('cierreContableScheduler.service', () => {
       // tickCierreContable should have been called (verified via prisma call since we didn't mock tickCierreContable directly)
       expect(prisma.reserva.findMany).toHaveBeenCalledTimes(1);
 
-      expect(consoleLogSpy).toHaveBeenCalledWith('[cierre-contable] Scheduler diario de inmutabilidad iniciado (04:00 UTC)');
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        '[cierre-contable] Scheduler diario de inmutabilidad iniciado (04:00 UTC)',
+      );
 
       // Unset fake timers
       vi.useRealTimers();
@@ -121,7 +126,7 @@ describe('cierreContableScheduler.service', () => {
       expect(consoleWarnSpy).toHaveBeenCalledTimes(1);
       expect(consoleWarnSpy).toHaveBeenCalledWith(
         `[cierre-contable] No se pudo cerrar reserva #2 (RES-002):`,
-        expect.any(Error)
+        expect.any(Error),
       );
 
       consoleWarnSpy.mockRestore();
@@ -135,7 +140,10 @@ describe('cierreContableScheduler.service', () => {
 
       expect(result).toBe(0);
       expect(consoleErrorSpy).toHaveBeenCalledTimes(1);
-      expect(consoleErrorSpy).toHaveBeenCalledWith('[cierre-contable] Error durante tickCierreContable:', expect.any(Error));
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        '[cierre-contable] Error durante tickCierreContable:',
+        expect.any(Error),
+      );
 
       consoleErrorSpy.mockRestore();
     });

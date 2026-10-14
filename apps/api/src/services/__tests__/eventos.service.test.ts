@@ -18,7 +18,7 @@ describe('Eventos Service', () => {
   afterEach(() => {
     consoleWarnSpy.mockRestore();
     // Clean up all listeners to avoid cross-test pollution
-    unsubscribers.forEach(unsub => unsub());
+    unsubscribers.forEach((unsub) => unsub());
   });
 
   describe('subscribe and broadcast', () => {
@@ -79,7 +79,7 @@ describe('Eventos Service', () => {
       expect(listener).toHaveBeenCalledWith({
         type: 'datos-cambios',
         entidad: 'reserva',
-        accion: 'update'
+        accion: 'update',
       });
     });
 
@@ -93,7 +93,7 @@ describe('Eventos Service', () => {
       expect(listener).toHaveBeenCalledTimes(1);
       expect(listener).toHaveBeenCalledWith({
         type: 'modulos-cambios',
-        enabled: ['modulo1', 'modulo2']
+        enabled: ['modulo1', 'modulo2'],
       });
     });
   });

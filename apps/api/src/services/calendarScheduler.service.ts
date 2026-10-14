@@ -19,7 +19,9 @@ const INTERVALO_60_MIN_MS = 60 * 60 * 1000; // 3_600_000 ms
  * Retorna las estadísticas del ciclo o null si Google Calendar no está habilitado / falló.
  * Tolerante a fallos: nunca lanza excepciones.
  */
-export async function tickCalendarReconciliation(): Promise<Awaited<ReturnType<typeof googleCalendarService.reconcileVuelos>> | null> {
+export async function tickCalendarReconciliation(): Promise<Awaited<
+  ReturnType<typeof googleCalendarService.reconcileVuelos>
+> | null> {
   if (!googleCalendarService.isEnabled()) {
     return null;
   }
@@ -29,7 +31,7 @@ export async function tickCalendarReconciliation(): Promise<Awaited<ReturnType<t
     if (stats.creados > 0 || stats.actualizados > 0 || stats.eliminados > 0) {
       console.log(
         `[calendar-scheduler] Reconciliación completada: ` +
-        `${stats.creados} creados, ${stats.actualizados} actualizados, ${stats.eliminados} eliminados (${stats.total} activos evaluados)`
+          `${stats.creados} creados, ${stats.actualizados} actualizados, ${stats.eliminados} eliminados (${stats.total} activos evaluados)`,
       );
     }
     return stats;
@@ -43,19 +45,23 @@ export async function tickCalendarReconciliation(): Promise<Awaited<ReturnType<t
  * Inicia el scheduler de reconciliación periódica de Google Calendar.
  * Solo arranca si Google Calendar cuenta con credenciales válidas. Fire-and-forget.
  */
-export function iniciarCalendarScheduler(): void {
+export function iniciarCalendarScheduler(): () => void {
   if (!googleCalendarService.isEnabled()) {
     console.log('[calendar-scheduler] Google Calendar no configurado, scheduler omitido.');
-    return;
+    return () => {};
   }
 
   // Barrido inicial asíncrono
   void tickCalendarReconciliation();
 
   // Ciclo recurrente cada 60 minutos
-  setInterval(() => {
+  const timer = setInterval(() => {
     void tickCalendarReconciliation();
-  }, INTERVALO_60_MIN_MS).unref();
+  }, INTERVALO_60_MIN_MS);
+  timer.unref();
 
-  console.log('[calendar-scheduler] Scheduler de reconciliación de Google Calendar iniciado (cada 60 min)');
+  console.log(
+    '[calendar-scheduler] Scheduler de reconciliación de Google Calendar iniciado (cada 60 min)',
+  );
+  return () => clearInterval(timer);
 }

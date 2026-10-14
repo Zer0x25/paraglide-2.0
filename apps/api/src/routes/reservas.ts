@@ -30,8 +30,8 @@ const reservasRoutes: FastifyPluginAsync = async (fastify) => {
     }
   });
 
-  fastify.get('/', reservasController.getAll);
-  fastify.get('/:id', reservasController.getById);
+  fastify.get('/', adminOrRecepcion, reservasController.getAll);
+  fastify.get('/:id', adminOrRecepcion, reservasController.getById);
   fastify.post('/', adminOrRecepcion, reservasController.create);
   fastify.patch('/:id', adminOrRecepcion, reservasController.update);
   fastify.post('/:id/pagos', adminOrRecepcion, reservasController.addPago);
@@ -42,7 +42,11 @@ const reservasRoutes: FastifyPluginAsync = async (fastify) => {
     adminOrRecepcion,
     reservasController.deleteDevolucion,
   );
-  fastify.put('/:id/estado-pasajeros', reservasController.actualizarEstadoPasajeros);
+  fastify.put(
+    '/:id/estado-pasajeros',
+    adminOrRecepcion,
+    reservasController.actualizarEstadoPasajeros,
+  );
   fastify.post('/:id/cancelar', adminOrRecepcion, reservasController.cancelar);
   fastify.post('/:id/desagendar', adminOrRecepcion, reservasController.desagendar);
   fastify.post('/:id/cerrar', onlyAdmin, reservasController.cerrarContable);

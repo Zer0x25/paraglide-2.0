@@ -399,6 +399,15 @@ export async function updateReserva(
 
       const idsToDelete = currentIds.filter((pid: number) => !payloadIds.includes(pid));
       if (idsToDelete.length > 0) {
+        // Liberar slots de calendario de los pasajeros removidos (evita vuelos fantasma)
+        await tx.vuelo.updateMany({
+          where: {
+            pasajeroId: { in: idsToDelete },
+            deletedAt: null,
+            estado: { not: 'COMPLETADO' },
+          },
+          data: { estado: 'CANCELADO', deletedAt: new Date(), version: { increment: 1 } },
+        });
         // Soft delete: un deleteMany físico dispararía el Cascade de DeslindeFirma
         // y Vuelo, destruyendo firmas (dato legal) e historial de vuelos.
         await tx.pasajero.updateMany({

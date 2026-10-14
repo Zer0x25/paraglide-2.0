@@ -34,6 +34,11 @@ export default fp(async (fastify, opts) => {
   // Hook para medir latencias de peticiones HTTP
   fastify.addHook('onRequest', (request, reply, done) => {
     (request as any).startTime = process.hrtime();
+    reply.header('x-request-id', request.id);
+    const traceparent = request.headers['traceparent'];
+    if (typeof traceparent === 'string') {
+      reply.header('traceparent', traceparent);
+    }
     done();
   });
 
@@ -67,5 +72,9 @@ export default fp(async (fastify, opts) => {
   fastify.get('/metrics', metricsOpts, async (request, reply) => {
     reply.header('Content-Type', register.contentType);
     return register.metrics();
+  });
+
+  fastify.addHook('onClose', async () => {
+    register.clear();
   });
 });

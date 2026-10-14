@@ -16,8 +16,14 @@ export function registerReservasTools(server: McpServer, apiClient: ParaglideApi
       email: z.string().email('Email inválido').optional(),
       telefono: z.string().optional(),
       rutDniTitular: z.string().optional(),
-      fechaAgenda: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Formato YYYY-MM-DD').optional(),
-      horaAgenda: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Formato HH:mm (ej: 10:00)').optional(),
+      fechaAgenda: z
+        .string()
+        .regex(/^\d{4}-\d{2}-\d{2}$/, 'Formato YYYY-MM-DD')
+        .optional(),
+      horaAgenda: z
+        .string()
+        .regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Formato HH:mm (ej: 10:00)')
+        .optional(),
       esGiftCard: z.boolean().optional(),
       valorTotal: z.number().min(0).optional(),
       abono: z.number().min(0).optional(),
@@ -29,7 +35,7 @@ export function registerReservasTools(server: McpServer, apiClient: ParaglideApi
             telefono: z.string().optional(),
             email: z.string().email().optional(),
             rutDni: z.string().optional(),
-          })
+          }),
         )
         .min(1, 'Debe incluir al menos 1 pasajero'),
       notas: z.string().optional(),
@@ -96,7 +102,7 @@ export function registerReservasTools(server: McpServer, apiClient: ParaglideApi
                     'Para confirmar los turnos de vuelo de los pasajeros, ejecute la tool "agendar_vuelos_reserva" indicando la fecha y hora elegidas.',
                 },
                 null,
-                2
+                2,
               ),
             },
           ],
@@ -159,7 +165,7 @@ export function registerReservasTools(server: McpServer, apiClient: ParaglideApi
                     id: p.id,
                     nombre: p.nombre,
                     peso: p.peso,
-                    deslindeFirmado: p.deslindeFirmado,
+                    deslindeFirmado: Boolean(p.firmaDeslinde ?? p.deslindeFirmado),
                     vuelos: (p.vuelos || []).map((v: any) => ({
                       vueloId: v.id,
                       fechaHora: v.fechaHora,
@@ -179,7 +185,7 @@ export function registerReservasTools(server: McpServer, apiClient: ParaglideApi
                   },
                 },
                 null,
-                2
+                2,
               ),
             },
           ],
@@ -247,7 +253,7 @@ export function registerReservasTools(server: McpServer, apiClient: ParaglideApi
                   })),
                 },
                 null,
-                2
+                2,
               ),
             },
           ],
@@ -300,14 +306,14 @@ export function registerReservasTools(server: McpServer, apiClient: ParaglideApi
                   pasajeros: (reserva.pasajeros || []).map((p: any) => ({
                     pasajeroId: p.id,
                     nombre: p.nombre,
-                    deslindeFirmado: p.deslindeFirmado,
+                    deslindeFirmado: Boolean(p.firmaDeslinde ?? p.deslindeFirmado),
                     enlaceDirectoFirma: `${origin}/deslinde/${publicId}`,
                   })),
                   instrucciones:
                     'Comparta el enlace de deslinde con los pasajeros para que firmen digitalmente su declaración de salud y consentimiento antes de presentarse al vuelo.',
                 },
                 null,
-                2
+                2,
               ),
             },
           ],
@@ -391,7 +397,7 @@ export function registerReservasTools(server: McpServer, apiClient: ParaglideApi
                   resultado,
                 },
                 null,
-                2
+                2,
               ),
             },
           ],
@@ -421,15 +427,11 @@ export function registerReservasTools(server: McpServer, apiClient: ParaglideApi
         .number()
         .int()
         .optional()
-        .describe('Versión de concurrencia optimista (si no se especifica, se obtendrá automáticamente)'),
+        .describe(
+          'Versión de concurrencia optimista (si no se especifica, se obtendrá automáticamente)',
+        ),
     },
-    handler: async ({
-      reservaId,
-      version,
-    }: {
-      reservaId: number;
-      version?: number;
-    }) => {
+    handler: async ({ reservaId, version }: { reservaId: number; version?: number }) => {
       try {
         let versionAUsar = version;
         if (versionAUsar === undefined) {
@@ -462,7 +464,7 @@ export function registerReservasTools(server: McpServer, apiClient: ParaglideApi
                     'La reserva ahora puede ser editada o reagendada en una nueva fecha/bloque usando la tool "agendar_vuelos_reserva".',
                 },
                 null,
-                2
+                2,
               ),
             },
           ],

@@ -4,7 +4,13 @@ import { listar, parseSort, ListQuery } from '../pagination.util';
 const SORT_FIELDS = ['createdAt', 'fechaAgenda', 'nombreTitular'] as const;
 
 export async function getAllReservas(
-  opts: ListQuery & { q?: string; estado?: string; desde?: string; hasta?: string; sort?: string } = {}
+  opts: ListQuery & {
+    q?: string;
+    estado?: string;
+    desde?: string;
+    hasta?: string;
+    sort?: string;
+  } = {},
 ) {
   try {
     const andConditions: any[] = [{ deletedAt: null }];
@@ -70,10 +76,7 @@ export async function getAllReservas(
         // Tab PASADAS: Incluye reservas con fechaAgenda <= hasta,
         // O completadas
         andConditions.push({
-          OR: [
-            { fechaAgenda: fechaCond },
-            { estado: 'COMPLETADA' },
-          ],
+          OR: [{ fechaAgenda: fechaCond }, { estado: 'COMPLETADA' }],
         });
       } else {
         andConditions.push({ fechaAgenda: fechaCond });
@@ -136,8 +139,8 @@ export async function getAllReservas(
       () => prisma.reserva.count({ where }),
     );
   } catch (err) {
-    console.warn('Advertencia DB en ReservasService.getAll, retornando arreglo vacío:', err);
-    return { data: [], pagination: { page: 1, pageSize: 100, total: 0, totalPages: 0, hasMore: false } };
+    console.error('Error DB en ReservasService.getAll:', err);
+    throw err;
   }
 }
 

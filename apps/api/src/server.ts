@@ -35,15 +35,13 @@ async function start() {
     console.log(`API de Fastify escuchando en el puerto ${config.port}`);
 
     // Higiene de reglas de bloques: barrido inicial + archivado diario 03:00 UTC
-    iniciarHigieneBloques();
-    // Sampler de condiciones de pista vía Open-Meteo: barrido inicial + ciclo cada 15 min
-    iniciarMeteoScheduler();
-    // Notificaciones automatizadas 24h/2h (esqueleto Fase 5): barrido inicial + ciclo cada 60 min
-    iniciarNotificacionesScheduler();
-    // Reconciliación de Google Calendar: barrido inicial + ciclo cada 60 min
-    iniciarCalendarScheduler();
-    // Cierre contable de reservas históricas (>7 días): barrido inicial + ciclo diario 04:00 UTC
-    iniciarCierreContableScheduler();
+    const stopSchedulers = [
+      iniciarHigieneBloques(),
+      iniciarMeteoScheduler(),
+      iniciarNotificacionesScheduler(),
+      iniciarCalendarScheduler(),
+      iniciarCierreContableScheduler(),
+    ];
 
     let shuttingDown = false;
     const gracefulShutdown = async (signal: string) => {
@@ -57,6 +55,13 @@ async function start() {
       forceExitTimer.unref?.();
 
       try {
+        stopSchedulers.forEach((stop) => {
+          try {
+            stop();
+          } catch (e) {
+            console.error('[Server] Error deteniendo scheduler:', e);
+          }
+        });
         closeAllSseConnections();
         await app.close();
         if (sdk) {

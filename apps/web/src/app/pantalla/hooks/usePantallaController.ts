@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import { useEffect, useRef, useState } from 'react';
 import Cookies from 'js-cookie';
@@ -76,7 +76,7 @@ export function usePantallaController() {
           minute: '2-digit',
           second: '2-digit',
           hour12: false,
-        })
+        }),
       );
       setCurrentDateStr(
         now.toLocaleDateString('es-CL', {
@@ -84,7 +84,7 @@ export function usePantallaController() {
           year: 'numeric',
           month: 'long',
           day: 'numeric',
-        })
+        }),
       );
     };
 
@@ -112,6 +112,10 @@ export function usePantallaController() {
       localStorage.setItem(PANTALLA_TOKEN_KEY, urlToken);
     }
     if (!tokenActual) {
+      // Si hay cookie de sesión activa, esperar a que dailyLinkQuery resuelva el token del día
+      if (Cookies.get('token')) {
+        return;
+      }
       setAccessStatus('invalid');
       return;
     }
@@ -173,6 +177,21 @@ export function usePantallaController() {
     !esErrorDeAcceso(dailyLinkQuery.error) &&
     !esErrorDeAcceso(tvLinkQuery.error);
 
+  // Auto-hidratar el token del tablero cuando un usuario autenticado abre /pantalla desde el sidebar
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    if (!token && dailyLink?.token) {
+      setToken(dailyLink.token);
+    } else if (
+      !token &&
+      adminToken &&
+      (dailyLinkQuery.isError || esErrorDeAcceso(dailyLinkQuery.error))
+    ) {
+      setAccessStatus('invalid');
+    }
+  }, [token, dailyLink?.token, adminToken, dailyLinkQuery.isError, dailyLinkQuery.error]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
   const regenerateLinkMutation = useMutation({
     mutationFn: (tipo: 'DIARIO' | 'TV') =>
       apiRaw.post('/pantalla/link/regenerate', null, { params: { tipo } }),
@@ -222,28 +241,40 @@ export function usePantallaController() {
   const formatExpiry = (iso: string) => {
     const d = new Date(iso);
     return d.toLocaleString('es-CL', {
-      hour: '2-digit', minute: '2-digit', hour12: false,
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
       ...(d.getDate() !== new Date().getDate() && { day: '2-digit', month: '2-digit' }),
     });
   };
 
-  // Generar QR para deslinde general
+  // Generar QR con el enlace público vigente del tablero en vivo
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const origin = window.location.origin;
-      QRCode.toDataURL(`${origin}/reservas`, {
+      const targetUrl =
+        dailyLink?.url || (token ? `${origin}/pantalla?token=${token}` : `${origin}/pantalla`);
+      QRCode.toDataURL(targetUrl, {
         width: 180,
         margin: 1,
         color: { dark: '#0f172a', light: '#ffffff' },
-      }).then(setQrDataUrl).catch(console.error);
+      })
+        .then(setQrDataUrl)
+        .catch(console.error);
     }
-  }, []);
+  }, [dailyLink?.url, token]);
 
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().then(() => setIsFullscreen(true)).catch(console.error);
+      document.documentElement
+        .requestFullscreen()
+        .then(() => setIsFullscreen(true))
+        .catch(console.error);
     } else {
-      document.exitFullscreen().then(() => setIsFullscreen(false)).catch(console.error);
+      document
+        .exitFullscreen()
+        .then(() => setIsFullscreen(false))
+        .catch(console.error);
     }
   };
 

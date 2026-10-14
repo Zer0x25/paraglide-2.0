@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import { X } from 'lucide-react';
 import { Horario } from './types';
@@ -115,7 +115,9 @@ export function ConfigBloqueFormModal({
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-500 mb-1">Hasta (Opcional)</label>
+                  <label className="block text-xs font-medium text-slate-500 mb-1">
+                    Hasta (Opcional)
+                  </label>
                   <input
                     type="date"
                     className="w-full border rounded px-3 py-1 text-sm text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-800 dark:border-slate-700"
@@ -128,7 +130,9 @@ export function ConfigBloqueFormModal({
 
             {tipoConfig === 'EXACTA' && (
               <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1">Fecha Exacta</label>
+                <label className="block text-xs font-medium text-slate-500 mb-1">
+                  Fecha Exacta
+                </label>
                 <input
                   type="date"
                   required
@@ -164,7 +168,9 @@ export function ConfigBloqueFormModal({
                   </h3>
                   <button
                     type="button"
-                    onClick={() => setHorariosForm([...horariosForm, { horaInicio: '', horaFin: '' }])}
+                    onClick={() =>
+                      setHorariosForm([...horariosForm, { horaInicio: '', horaFin: '' }])
+                    }
                     className="text-xs text-blue-600 hover:text-blue-800 font-medium"
                   >
                     + Añadir Bloque
