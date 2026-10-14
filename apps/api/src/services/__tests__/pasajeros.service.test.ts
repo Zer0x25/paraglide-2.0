@@ -14,15 +14,23 @@ vi.mock('../../plugins/prisma', () => {
       deslindeFirma: {
         upsert: vi.fn(),
       },
-      $transaction: vi.fn((cb) => cb({
-        pasajero: {
-          findFirst: vi.fn(),
-          update: vi.fn(),
-        },
-        deslindeFirma: {
-          upsert: vi.fn(),
-        },
-      })),
+      $transaction: vi.fn((cb) =>
+        cb({
+          pasajero: {
+            findFirst: vi.fn(),
+            update: vi.fn(),
+          },
+          deslindeFirma: {
+            upsert: vi.fn(),
+          },
+          deslindeVersion: {
+            findFirst: vi.fn().mockResolvedValue({ version: 3 }),
+          },
+        }),
+      ),
+      deslindeVersion: {
+        findFirst: vi.fn().mockResolvedValue({ version: 3 }),
+      },
     },
   };
 });
@@ -75,12 +83,12 @@ describe('PasajerosService', () => {
       expect(prisma.pasajero.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expectedWhere,
-        })
+        }),
       );
       expect(prisma.pasajero.count).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expectedWhere,
-        })
+        }),
       );
     });
   });
@@ -105,6 +113,56 @@ describe('PasajerosService', () => {
       const result = await service.getById(99);
 
       expect(result).toBeNull();
+    });
+  });
+
+  describe('firmarDeslinde — antirregresión A-06', () => {
+    it('adjunta la versión legal activa del deslinde al registrar la firma', async () => {
+      let txFirmaUpsert: any;
+      (prisma.$transaction as any).mockImplementation(async (cb: any) => {
+        txFirmaUpsert = vi.fn().mockResolvedValue({});
+        return cb({
+          pasajero: {
+            findFirst: vi.fn().mockResolvedValue({
+              id: 15,
+              reserva: { estado: 'AGENDADA', cerradaAt: null },
+            }),
+            update: vi.fn().mockResolvedValue({
+              id: 15,
+              firmaDeslinde: true,
+            }),
+          },
+          deslindeVersion: {
+            findFirst: vi.fn().mockResolvedValue({ version: 5 }),
+          },
+          deslindeFirma: {
+            upsert: txFirmaUpsert,
+          },
+        });
+      });
+
+      const res = await service.guardarFirma(
+        15,
+        {
+          firmaBase64: 'data:image/png;base64,FIRMA_TEST',
+          rutDni: '12345678-9',
+        },
+        { ip: '127.0.0.1', userAgent: 'Jest-Agent' },
+      );
+
+      expect(res.id).toBe(15);
+      expect(txFirmaUpsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { pasajeroId: 15 },
+          create: expect.objectContaining({
+            pasajeroId: 15,
+            versionLegal: 5,
+          }),
+          update: expect.objectContaining({
+            versionLegal: 5,
+          }),
+        }),
+      );
     });
   });
 });

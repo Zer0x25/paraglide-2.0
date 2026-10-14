@@ -285,4 +285,57 @@ describe('outbox.service', () => {
     const conflictos = await listConflictos();
     expect(conflictos).toHaveLength(0);
   });
+
+  it('reintentarConflicto (A-04) resuelve la URL del padre para sub-recursos /reservas/:id/pagos', async () => {
+    const e = await enqueue({
+      entidad: 'reserva',
+      metodo: 'POST',
+      url: '/reservas/42/pagos',
+      payload: { monto: 50000, version: 1 },
+    });
+    await markConflict(e, 'Conflicto de versión', 409);
+
+    const api = {
+      get: vi.fn().mockResolvedValue({ data: { id: 42, version: 5 } }),
+      request: vi.fn().mockResolvedValue({ data: { success: true } }),
+    } as unknown as import('axios').AxiosInstance;
+
+    const res = await reintentarConflicto(e.id, api);
+    expect(res.success).toBe(true);
+    // Debe consultar /reservas/42 (la entidad raíz), no /reservas/42/pagos
+    expect(api.get).toHaveBeenCalledWith('/reservas/42');
+    expect(api.request).toHaveBeenCalledWith(
+      expect.objectContaining({
+        method: 'POST',
+        url: '/reservas/42/pagos',
+        data: expect.objectContaining({ version: 5 }),
+      }),
+    );
+  });
+
+  it('reintentarConflicto (A-04) resuelve la versión de la reserva para /vuelos/agendamiento-grupo', async () => {
+    const e = await enqueue({
+      entidad: 'vuelo',
+      metodo: 'POST',
+      url: '/vuelos/agendamiento-grupo',
+      payload: { reservaId: 99, version: 2, asignaciones: {} },
+    });
+    await markConflict(e, 'Conflicto de versión', 409);
+
+    const api = {
+      get: vi.fn().mockResolvedValue({ data: { id: 99, version: 4 } }),
+      request: vi.fn().mockResolvedValue({ data: { success: true } }),
+    } as unknown as import('axios').AxiosInstance;
+
+    const res = await reintentarConflicto(e.id, api);
+    expect(res.success).toBe(true);
+    expect(api.get).toHaveBeenCalledWith('/reservas/99');
+    expect(api.request).toHaveBeenCalledWith(
+      expect.objectContaining({
+        method: 'POST',
+        url: '/vuelos/agendamiento-grupo',
+        data: expect.objectContaining({ reservaId: 99, version: 4 }),
+      }),
+    );
+  });
 });

@@ -649,4 +649,77 @@ describe('Vuelos Service - deleteVuelo (Reversión de agenda y limpieza de fecha
       }),
     );
   });
+
+  describe('createVuelo — antirregresión A-02', () => {
+    it('limpia vuelos activos previos del pasajero dentro de la transacción atómica', async () => {
+      (prisma.pasajero.findUnique as any).mockResolvedValue({
+        id: 10,
+        reservaId: 1,
+        peso: 70,
+        deletedAt: null,
+      });
+      (prisma.piloto.findUnique as any).mockResolvedValue({
+        id: 2,
+        activo: true,
+        tarifaPorVuelo: 25000,
+        pesoMinimoPasajero: 30,
+        pesoMaximoPasajero: 110,
+        deletedAt: null,
+      });
+      (prisma.vuelo.findFirst as any).mockResolvedValue(null);
+
+      const mockTx = {
+        reserva: {
+          findFirst: vi.fn().mockResolvedValue({
+            id: 1,
+            cerradaAt: null,
+            pasajeros: [
+              {
+                id: 10,
+                vuelos: [{ id: 501, fechaHora: new Date('2026-10-14T14:00:00-03:00') }],
+              },
+            ],
+          }),
+          update: vi.fn().mockResolvedValue({ id: 1 }),
+        },
+        vuelo: {
+          findFirst: vi.fn().mockResolvedValue({ id: 999 }),
+          update: vi.fn().mockResolvedValue({ id: 999, deletedAt: new Date() }),
+          create: vi.fn().mockResolvedValue({
+            id: 501,
+            pasajeroId: 10,
+            pilotoId: 2,
+            reservaId: 1,
+            fechaHora: new Date('2026-10-14T14:00:00-03:00'),
+          }),
+        },
+        pasajero: {
+          update: vi.fn().mockResolvedValue({ id: 10 }),
+        },
+      };
+
+      (prisma.$transaction as any).mockImplementation((cb: any) => cb(mockTx));
+
+      const res = await service.create({
+        pasajeroId: 10,
+        pilotoId: 2,
+        fechaHora: '2026-10-14T14:00:00-03:00',
+        valorPactado: 80000,
+      });
+
+      expect(mockTx.vuelo.findFirst).toHaveBeenCalledWith({
+        where: {
+          pasajeroId: 10,
+          deletedAt: null,
+          estado: { not: 'COMPLETADO' },
+        },
+      });
+      expect(mockTx.vuelo.update).toHaveBeenCalledWith({
+        where: { id: 999 },
+        data: { deletedAt: expect.any(Date), version: { increment: 1 } },
+      });
+      expect(mockTx.vuelo.create).toHaveBeenCalled();
+      expect(res.id).toBe(501);
+    });
+  });
 });
