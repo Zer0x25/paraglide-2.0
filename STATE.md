@@ -16,22 +16,31 @@ Este documento mantiene el estado de ejecución, trazabilidad de sesiones, evide
 
 ---
 
-## 2. Última Sesión de Trabajo: Corrección de Fallo de Build Docker en API (Prisma Engines ECONNRESET)
+## 2. Última Sesión de Trabajo: Corrección de Fallo de Build Docker en API (Prisma Engines ECONNRESET) y Release v0.10.4
 
 - **Fecha:** 2026-10-14
-- **Objetivo:** Resolver el fallo de construcción de la imagen Docker de API en GitHub Actions (`npm ci` -> `@prisma/engines` postinstall ECONNRESET en Release Please / Deploy).
+- **Objetivo:** Resolver el fallo de construcción de la imagen Docker de API en GitHub Actions (`npm ci` -> `@prisma/engines` postinstall ECONNRESET en Release Please / Deploy) y completar el ciclo de release y despliegue.
 - **Autor / Ejecutor:** Agente Asistente de IA (Antigravity).
 - **Entregables Realizados:**
   1. **Aislamiento de scripts en Dockerfile API (`apps/api/Dockerfile`)**:
      - Agregado `--ignore-scripts` a `npm ci` en etapas `prod-deps` y `build` para eliminar descargas ciegas y concurrentes desde `binaries.prisma.sh` durante la instalación de paquetes.
      - Inyección de `ENV PRISMA_SKIP_POSTINSTALL_GENERATE=true` en ambas etapas.
      - Implementación de bucle de reintentos (`for i in 1 2 3; do npx prisma generate ... && break || sleep 3; done`) para conferir resiliencia a la descarga oficial de binarios contra el schema real.
-  2. **Verificación Integral**:
+  2. **Verificación Integral & Gates**:
      - Build de la imagen Docker de API verificado localmente con Docker BuildKit (`--no-cache-filter=prod-deps,build`).
      - Verificación de arranque del contenedor con Node 22.
      - Gate de calidad `npm run check:quick` pasando al 100% (406 tests API, 305 tests Web, 16 tests MCP, build shared y typecheck de monorepo).
   3. **Registro y Aprendizaje**:
      - Documentado post-mortem en `.agents/memories/postmortem-prisma-engines-docker-build.md`.
+  4. **Release y Despliegue en GitHub Actions**:
+     - PR #63 (`fix(api): ...`) aprobado y fusionado en `main`.
+     - PR #64 (`chore(main): release 0.10.4`) generado por Release Please y fusionado en `main`.
+     - Flujo `Release Please` ejecutado exitosamente con tag `v0.10.4`.
+     - Flujo `Deploy to Homelab` (`deploy-on-release`) completado al 100% en verde:
+       - Build & Push API Image (GHCR): ✓ (4m26s sin fallos de Prisma)
+       - Build & Push Web Image (GHCR): ✓ (3m19s)
+       - Deploy to VM (Self-Hosted): ✓ (1m28s)
+       - Prune Old GHCR Images: ✓ (15s)
 
 ---
 
