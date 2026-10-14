@@ -43,6 +43,7 @@ export function PagosModal({ reserva, isOpen, onClose, onSuccess }: PagosModalPr
           </div>
           <button 
             onClick={onClose}
+            aria-label="Cerrar modal"
             className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
           >
             <X size={20} />

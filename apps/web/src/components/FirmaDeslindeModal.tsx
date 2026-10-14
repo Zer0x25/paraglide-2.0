@@ -49,7 +49,7 @@ export function FirmaDeslindeModal({ pasajero, isOpen, onClose, onSuccess }: Fir
               <p className="text-sm text-slate-500 dark:text-slate-400">Pasajero: <strong className="text-slate-700 dark:text-slate-200">{pasajero.nombre}</strong></p>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-white rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition">
+          <button onClick={onClose} aria-label="Cerrar modal" className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-white rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition">
             <X size={20} />
           </button>
         </div>
