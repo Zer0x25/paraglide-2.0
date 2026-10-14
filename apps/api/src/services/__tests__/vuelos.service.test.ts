@@ -300,6 +300,13 @@ describe('Vuelos Service - validateWeightAndConflict', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     service = new VuelosService();
+    (prisma.piloto.findUnique as any).mockResolvedValue({
+      id: 1,
+      nombre: 'Piloto Test',
+      activo: true,
+      pesoMinimoPasajero: 30,
+      pesoMaximoPasajero: 110,
+    });
   });
 
   it('filtra deletedAt: null y estado: { not: "CANCELADO" } en findFirst de conflicto', async () => {
@@ -333,6 +340,32 @@ describe('Vuelos Service - validateWeightAndConflict', () => {
     await expect(
       service.validateWeightAndConflict(1, 50, '2026-08-25T11:00:00.000Z'),
     ).rejects.toThrow('Límite de peso excedido');
+  });
+
+  it('lanza error si el piloto no existe o no se encuentra activo', async () => {
+    (prisma.pasajero.findUnique as any).mockResolvedValue({ id: 50, peso: 70 });
+    (prisma.piloto.findUnique as any).mockResolvedValue(null);
+
+    await expect(
+      service.validateWeightAndConflict(1, 50, '2026-08-25T11:00:00.000Z'),
+    ).rejects.toThrow('El piloto seleccionado no existe o no se encuentra activo.');
+  });
+
+  it('lanza error si el peso del pasajero está fuera del rango del piloto', async () => {
+    (prisma.pasajero.findUnique as any).mockResolvedValue({ id: 50, peso: 112 });
+    (prisma.piloto.findUnique as any).mockResolvedValue({
+      id: 1,
+      nombre: 'Piloto Test',
+      activo: true,
+      pesoMinimoPasajero: 40,
+      pesoMaximoPasajero: 90,
+    });
+
+    await expect(
+      service.validateWeightAndConflict(1, 50, '2026-08-25T11:00:00.000Z'),
+    ).rejects.toThrow(
+      'Límite de peso fuera de rango para el piloto Piloto Test (40kg - 90kg vs 112kg)',
+    );
   });
 });
 

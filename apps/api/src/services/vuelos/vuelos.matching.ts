@@ -1,5 +1,5 @@
 import { prisma } from '../../plugins/prisma';
-import { dateKeyLocal } from '@parapente/shared';
+import { dateKeyLocal, horaLocalHHMM } from '@parapente/shared';
 
 export interface PilotoOrden {
   id: number;
@@ -31,9 +31,31 @@ export async function validateWeightAndConflict(
   const pasajeroData = await prisma.pasajero.findUnique({
     where: { id: pasajeroId, deletedAt: null },
   });
+  if (!pasajeroData) {
+    throw new Error('Pasajero no encontrado');
+  }
 
-  if (pasajeroData?.peso && pasajeroData.peso > 115) {
-    throw new Error(`Límite de peso excedido. El peso del pasajero (${pasajeroData.peso}kg) excede el límite (115kg).`);
+  const pesoPax = pasajeroData.pesoVerificado ?? pasajeroData.peso ?? null;
+  if (pesoPax && pesoPax > 115) {
+    throw new Error(
+      `Límite de peso excedido. El peso del pasajero (${pesoPax}kg) excede el límite (115kg).`,
+    );
+  }
+
+  const piloto = await prisma.piloto.findUnique({
+    where: { id: pilotoId, deletedAt: null },
+  });
+  if (!piloto || !piloto.activo) {
+    throw new Error('El piloto seleccionado no existe o no se encuentra activo.');
+  }
+  if (pesoPax != null) {
+    const minPeso = piloto.pesoMinimoPasajero ?? 30;
+    const maxPeso = piloto.pesoMaximoPasajero ?? 110;
+    if (pesoPax < minPeso || pesoPax > maxPeso) {
+      throw new Error(
+        `Límite de peso fuera de rango para el piloto ${piloto.nombre} (${minPeso}kg - ${maxPeso}kg vs ${pesoPax}kg).`,
+      );
+    }
   }
 
   const conflicto = await prisma.vuelo.findFirst({
@@ -51,14 +73,26 @@ export async function validateWeightAndConflict(
   }
 }
 
-export async function autoAssignVuelos(fechaHora: string, pasajeros: { id: number; peso: number }[]) {
+export async function autoAssignVuelos(
+  fechaHora: string,
+  pasajeros: { id: number; peso: number }[],
+) {
   const targetDate = new Date(fechaHora);
   const dateStr = dateKeyLocal(targetDate);
+  const horaTarget = horaLocalHHMM(targetDate);
 
   const pilotosData = await prisma.piloto.findMany({
     where: { activo: true },
     include: {
       excepciones: {
+        where: {
+          fecha: {
+            gte: new Date(`${dateStr}T00:00:00.000Z`),
+            lte: new Date(`${dateStr}T23:59:59.999Z`),
+          },
+        },
+      },
+      disponibilidadBloques: {
         where: {
           fecha: {
             gte: new Date(`${dateStr}T00:00:00.000Z`),
@@ -82,20 +116,26 @@ export async function autoAssignVuelos(fechaHora: string, pasajeros: { id: numbe
   const availablePilots = pilotosData.filter((p: any) => {
     const hasException = p.excepciones.length > 0;
     const isAvailableDay = p.disponibilidadTotal ? !hasException : hasException;
+    const bloquesDia = p.disponibilidadBloques || [];
+    const isAvailableBlock =
+      bloquesDia.length === 0 ||
+      bloquesDia.some((b: any) => b.horaInicio <= horaTarget && horaTarget < b.horaFin);
     const isBusyTime = p.vuelos.length > 0;
-    const licenciaOk = p.tieneLicencia && (!p.fechaVencimientoLicencia || new Date(p.fechaVencimientoLicencia) >= hoyUtcDate);
-    return isAvailableDay && !isBusyTime && licenciaOk;
+    const licenciaOk =
+      p.tieneLicencia &&
+      (!p.fechaVencimientoLicencia || new Date(p.fechaVencimientoLicencia) >= hoyUtcDate);
+    return isAvailableDay && isAvailableBlock && !isBusyTime && licenciaOk;
   });
 
   const asignaciones: Record<number, number> = {};
-  
+
   // ORDENACIÓN: 1) prioridad, 2) categoría, 3) empate -> azar
   const pool = ordenarPilotosParaAsignacion(availablePilots);
 
   for (const pasajero of pasajeros) {
     const pesoPasajero = pasajero.peso || 75;
-    
-    const pilotIndex = pool.findIndex(p => {
+
+    const pilotIndex = pool.findIndex((p) => {
       const minPeso = p.pesoMinimoPasajero ?? 30;
       const maxPeso = p.pesoMaximoPasajero ?? 110;
       return pesoPasajero >= minPeso && pesoPasajero <= maxPeso;

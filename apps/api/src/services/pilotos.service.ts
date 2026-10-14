@@ -1,11 +1,14 @@
 import { prisma } from '../plugins/prisma';
-import { PilotoDTO, dateKeyLocal, fechaHoraLocalToIso } from '@parapente/shared';
+import { PilotoDTO, dateKeyLocal, fechaHoraLocalToIso, horaLocalHHMM } from '@parapente/shared';
 import { listar, parseSort, ListQuery } from './pagination.util';
 import { checkVersion } from './concurrencia.service';
 
 const SORT_FIELDS = ['prioridad', 'nombre', 'createdAt'] as const;
 
-function licenciaVigente(p: { tieneLicencia: boolean; fechaVencimientoLicencia?: Date | string | null }): boolean {
+function licenciaVigente(p: {
+  tieneLicencia: boolean;
+  fechaVencimientoLicencia?: Date | string | null;
+}): boolean {
   if (!p.tieneLicencia) return false;
   if (!p.fechaVencimientoLicencia) return true;
   const vence = new Date(p.fechaVencimientoLicencia as any);
@@ -38,7 +41,10 @@ export class PilotosService {
       );
     } catch (err) {
       console.warn('Advertencia DB en PilotosService.getAll, retornando arreglo vacío:', err);
-      return { data: [], pagination: { page: 1, pageSize: 100, total: 0, totalPages: 0, hasMore: false } };
+      return {
+        data: [],
+        pagination: { page: 1, pageSize: 100, total: 0, totalPages: 0, hasMore: false },
+      };
     }
   }
 
@@ -67,12 +73,15 @@ export class PilotosService {
         peso: data.peso,
         tieneLicencia: data.tieneLicencia,
         numeroLicencia: data.numeroLicencia,
-        fechaVencimientoLicencia: data.fechaVencimientoLicencia ? new Date(data.fechaVencimientoLicencia as any) : null,
+        fechaVencimientoLicencia: data.fechaVencimientoLicencia
+          ? new Date(data.fechaVencimientoLicencia as any)
+          : null,
         prioridad: data.prioridad !== undefined ? data.prioridad : 1,
-        categoria: data.categoria || "MASTER",
+        categoria: data.categoria || 'MASTER',
         pesoMinimoPasajero: data.pesoMinimoPasajero !== undefined ? data.pesoMinimoPasajero : 30,
         pesoMaximoPasajero: data.pesoMaximoPasajero !== undefined ? data.pesoMaximoPasajero : 110,
-        disponibilidadTotal: data.disponibilidadTotal !== undefined ? data.disponibilidadTotal : true,
+        disponibilidadTotal:
+          data.disponibilidadTotal !== undefined ? data.disponibilidadTotal : true,
         tarifaPorVuelo: data.tarifaPorVuelo !== undefined ? data.tarifaPorVuelo : 0,
         activo: data.activo,
       },
@@ -92,9 +101,14 @@ export class PilotosService {
     });
   }
 
-  async sugerirPiloto(payload: { fechaHora: string | Date; pesoPasajero?: number | null; pasajeroId?: number | null }) {
+  async sugerirPiloto(payload: {
+    fechaHora: string | Date;
+    pesoPasajero?: number | null;
+    pasajeroId?: number | null;
+  }) {
     const targetDate = new Date(payload.fechaHora);
     const dateStr = dateKeyLocal(targetDate);
+    const horaTarget = horaLocalHHMM(targetDate);
     const startOfDay = new Date(`${dateStr}T00:00:00.000Z`);
     const endOfDay = new Date(`${dateStr}T23:59:59.999Z`);
     // Clave del día siguiente (aritmética calendario pura, sin depender del TZ del proceso)
@@ -105,7 +119,9 @@ export class PilotosService {
 
     // Si se envió pasajeroId y no el peso directamente, consultar el peso verificado del pasajero
     if (!pesoRequerido && payload.pasajeroId) {
-      const pasajero = await prisma.pasajero.findUnique({ where: { id: payload.pasajeroId, deletedAt: null } });
+      const pasajero = await prisma.pasajero.findUnique({
+        where: { id: payload.pasajeroId, deletedAt: null },
+      });
       if (pasajero) {
         pesoRequerido = pasajero.pesoVerificado || pasajero.peso || null;
       }
@@ -119,9 +135,14 @@ export class PilotosService {
           where: {
             fecha: {
               gte: startOfDay,
-              lte: endOfDay
-            }
-          }
+              lte: endOfDay,
+            },
+          },
+        },
+        disponibilidadBloques: {
+          where: {
+            fecha: { gte: startOfDay, lte: endOfDay },
+          },
         },
         vuelos: {
           where: {
@@ -129,26 +150,40 @@ export class PilotosService {
             // 20:00–23:59 locales caerían en el día equivocado con la ventana UTC.
             fechaHora: {
               gte: new Date(fechaHoraLocalToIso(dateStr, '00:00')),
-              lt: new Date(fechaHoraLocalToIso(nextDayKey, '00:00'))
+              lt: new Date(fechaHoraLocalToIso(nextDayKey, '00:00')),
             },
             deletedAt: null,
-            estado: { not: 'CANCELADO' }
-          }
-        }
-      }
+            estado: { not: 'CANCELADO' },
+          },
+        },
+      },
     });
 
-    const candidatos = pilotos.map(piloto => {
+    const candidatos = pilotos.map((piloto) => {
       const tieneExcepcion = piloto.excepciones.length > 0;
-      const estaDisponible = piloto.disponibilidadTotal ? !tieneExcepcion : tieneExcepcion;
-      
+      const disponibleDia = piloto.disponibilidadTotal ? !tieneExcepcion : tieneExcepcion;
+      const bloquesDia = piloto.disponibilidadBloques || [];
+      const disponibleBloque =
+        bloquesDia.length === 0 ||
+        bloquesDia.some((b) => b.horaInicio <= horaTarget && horaTarget < b.horaFin);
+      const ocupadoEnHora = piloto.vuelos.some(
+        (v) => new Date(v.fechaHora).getTime() === targetDate.getTime(),
+      );
+      const estaDisponible = disponibleDia && disponibleBloque && !ocupadoEnHora;
+
       const minPeso = piloto.pesoMinimoPasajero ?? 30;
       const maxPeso = piloto.pesoMaximoPasajero ?? 110;
-      const cumplePeso = pesoRequerido ? (pesoRequerido >= minPeso && pesoRequerido <= maxPeso) : true;
+      const cumplePeso = pesoRequerido
+        ? pesoRequerido >= minPeso && pesoRequerido <= maxPeso
+        : true;
       const totalVuelosHoy = piloto.vuelos.length;
 
       let motivo = 'Disponible para asignación';
-      if (!estaDisponible) {
+      if (ocupadoEnHora) {
+        motivo = `Ocupado en el bloque ${horaTarget}`;
+      } else if (!disponibleBloque) {
+        motivo = `Fuera de bloque horario habilitado (${horaTarget})`;
+      } else if (!disponibleDia) {
         motivo = 'No disponible (Excepción de fecha registrado)';
       } else if (!cumplePeso && pesoRequerido) {
         motivo = `Rango de peso no apto (${minPeso}kg - ${maxPeso}kg vs ${pesoRequerido}kg pasajero)`;
@@ -169,7 +204,7 @@ export class PilotosService {
         cumplePeso,
         totalVuelosHoy,
         motivo,
-        esElegible: estaDisponible && cumplePeso && licenciaVigente(piloto)
+        esElegible: estaDisponible && cumplePeso && licenciaVigente(piloto),
       };
     });
 
@@ -190,13 +225,13 @@ export class PilotosService {
       return Math.random() - 0.5;
     });
 
-    const pilotoRecomendado = candidatos.find(c => c.esElegible) || null;
+    const pilotoRecomendado = candidatos.find((c) => c.esElegible) || null;
 
     return {
       pilotoRecomendado,
       candidatos,
       pesoEvaluado: pesoRequerido || null,
-      fechaEvaluada: targetDate.toISOString()
+      fechaEvaluada: targetDate.toISOString(),
     };
   }
 
@@ -206,16 +241,16 @@ export class PilotosService {
       where: {
         pilotoId_fecha: {
           pilotoId: id,
-          fecha: date
-        }
-      }
+          fecha: date,
+        },
+      },
     });
 
     if (existing) {
       await prisma.excepcionFecha.delete({ where: { id: existing.id } });
     } else {
       await prisma.excepcionFecha.create({
-        data: { pilotoId: id, fecha: date }
+        data: { pilotoId: id, fecha: date },
       });
     }
     await this.bumpVersion(id);
@@ -242,25 +277,44 @@ export class PilotosService {
   async getBloquesDisponibilidad(id: number) {
     return prisma.pilotoDisponibilidadBloque.findMany({
       where: { pilotoId: id },
-      orderBy: [{ fecha: 'asc' }, { horaInicio: 'asc' }]
+      orderBy: [{ fecha: 'asc' }, { horaInicio: 'asc' }],
     });
   }
 
-  async setBloquesDisponibilidad(id: number, fecha: string, bloques: { horaInicio: string; horaFin: string }[]) {
+  async setBloquesDisponibilidad(
+    id: number,
+    fecha: string,
+    bloques: { horaInicio: string; horaFin: string }[],
+  ) {
     const date = new Date(`${fecha}T00:00:00Z`);
     await prisma.$transaction([
       prisma.pilotoDisponibilidadBloque.deleteMany({ where: { pilotoId: id, fecha: date } }),
       ...(bloques.length > 0
-        ? [prisma.pilotoDisponibilidadBloque.createMany({
-            data: bloques.map((b) => ({ pilotoId: id, fecha: date, horaInicio: b.horaInicio, horaFin: b.horaFin })),
-          })]
+        ? [
+            prisma.pilotoDisponibilidadBloque.createMany({
+              data: bloques.map((b) => ({
+                pilotoId: id,
+                fecha: date,
+                horaInicio: b.horaInicio,
+                horaFin: b.horaFin,
+              })),
+            }),
+          ]
         : []),
     ]);
     await this.bumpVersion(id);
     return this.getBloquesDisponibilidad(id);
   }
 
-  async saveDisponibilidad(id: number, version: number, fechas: { fecha: string; disponible: boolean; bloques: { horaInicio: string; horaFin: string }[] }[]) {
+  async saveDisponibilidad(
+    id: number,
+    version: number,
+    fechas: {
+      fecha: string;
+      disponible: boolean;
+      bloques: { horaInicio: string; horaFin: string }[];
+    }[],
+  ) {
     const result = await prisma.$transaction(async (tx) => {
       const piloto = await tx.piloto.findUnique({ where: { id, deletedAt: null } });
       if (!piloto) throw new Error('Piloto no encontrado');
@@ -282,7 +336,12 @@ export class PilotosService {
         await tx.pilotoDisponibilidadBloque.deleteMany({ where: { pilotoId: id, fecha: date } });
         if (f.bloques && f.bloques.length > 0) {
           await tx.pilotoDisponibilidadBloque.createMany({
-            data: f.bloques.map((b) => ({ pilotoId: id, fecha: date, horaInicio: b.horaInicio, horaFin: b.horaFin })),
+            data: f.bloques.map((b) => ({
+              pilotoId: id,
+              fecha: date,
+              horaInicio: b.horaInicio,
+              horaFin: b.horaFin,
+            })),
           });
         }
       }
@@ -306,7 +365,7 @@ export class PilotosService {
   async delete(id: number) {
     return prisma.piloto.update({
       where: { id },
-      data: { deletedAt: new Date() }
+      data: { deletedAt: new Date() },
     });
   }
 }

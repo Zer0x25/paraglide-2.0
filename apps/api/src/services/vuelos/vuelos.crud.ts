@@ -92,65 +92,70 @@ export async function createVuelo(data: CreateVueloPayload) {
     throw new Error('No se encontró la reserva asociada al pasajero');
   }
 
-  const reservaExistente = await prisma.reserva.findFirst({
-    where: { id: reservaId, deletedAt: null },
-    select: { cerradaAt: true },
-  });
-  if (reservaExistente?.cerradaAt) {
-    throw new Error('La reserva se encuentra cerrada contablemente y no admite nuevos vuelos');
-  }
-
   const piloto = await prisma.piloto.findUnique({ where: { id: data.pilotoId, deletedAt: null } });
   const pagoPiloto = piloto?.tarifaPorVuelo || 0;
 
-  const vuelo = await prisma.vuelo.create({
-    data: {
-      fechaHora: new Date(data.fechaHora),
-      valorPactado: data.valorPactado,
-      pagoPiloto,
-      reservaId,
-      pilotoId: data.pilotoId,
-      pasajeroId: data.pasajeroId,
-      equipoId: data.equipoId ?? null,
-    },
-    include: {
-      piloto: true,
-      pasajero: true,
-    },
+  const { vuelo, reservaActualizada } = await prisma.$transaction(async (tx) => {
+    if (typeof (tx as any).$queryRaw === 'function') {
+      await (tx as any).$queryRaw`SELECT id FROM "Reserva" WHERE id = ${reservaId} FOR UPDATE`;
+    }
+    const reservaExistente = await tx.reserva.findFirst({
+      where: { id: reservaId, deletedAt: null },
+      select: { cerradaAt: true, estado: true, fechaAgenda: true },
+    });
+    if (!reservaExistente) throw new Error('Reserva no encontrada');
+    if (reservaExistente.cerradaAt) {
+      throw new Error('La reserva se encuentra cerrada contablemente y no admite nuevos vuelos');
+    }
+
+    // Si el pasajero ya tenía un vuelo agendado previo, hacer soft-delete para no duplicar
+    const vueloPrevio = await tx.vuelo.findFirst({
+      where: { pasajeroId: data.pasajeroId, deletedAt: null, estado: { not: 'COMPLETADO' } },
+    });
+    if (vueloPrevio) {
+      await tx.vuelo.update({
+        where: { id: vueloPrevio.id },
+        data: { deletedAt: new Date(), version: { increment: 1 } },
+      });
+    }
+
+    const nuevoVuelo = await tx.vuelo.create({
+      data: {
+        fechaHora: new Date(data.fechaHora),
+        valorPactado: data.valorPactado,
+        pagoPiloto,
+        reservaId,
+        pilotoId: data.pilotoId,
+        pasajeroId: data.pasajeroId,
+        equipoId: data.equipoId ?? null,
+      },
+      include: {
+        piloto: true,
+        pasajero: true,
+      },
+    });
+
+    const targetDate = new Date(data.fechaHora);
+    const horaBloque = horaLocalHHMM(targetDate);
+    const updateData: any = { version: { increment: 1 } };
+    let shouldUpdate = false;
+    if (reservaExistente.estado === 'SIN_AGENDAR') {
+      updateData.estado = 'AGENDADA';
+      shouldUpdate = true;
+    }
+    if (!reservaExistente.fechaAgenda) {
+      updateData.fechaAgenda = targetDate;
+      updateData.horaAgenda = horaBloque;
+      shouldUpdate = true;
+    }
+    if (shouldUpdate) {
+      await tx.reserva.update({ where: { id: reservaId }, data: updateData });
+    }
+    return { vuelo: nuevoVuelo, reservaActualizada: shouldUpdate };
   });
 
-  // Derivación de estado a AGENDADA y actualización de agenda si corresponde
-  try {
-    const reserva = await prisma.reserva.findFirst({
-      where: { id: reservaId, deletedAt: null },
-      select: { estado: true, fechaAgenda: true },
-    });
-    if (reserva) {
-      const targetDate = new Date(data.fechaHora);
-      const horaBloque = horaLocalHHMM(targetDate);
-      const updateData: any = {
-        version: { increment: 1 },
-      };
-      let shouldUpdate = false;
-      if (reserva.estado === 'SIN_AGENDAR') {
-        updateData.estado = 'AGENDADA';
-        shouldUpdate = true;
-      }
-      if (!reserva.fechaAgenda) {
-        updateData.fechaAgenda = targetDate;
-        updateData.horaAgenda = horaBloque;
-        shouldUpdate = true;
-      }
-      if (shouldUpdate) {
-        await prisma.reserva.update({
-          where: { id: reservaId },
-          data: updateData,
-        });
-        broadcastDatos('reserva', 'actualizar');
-      }
-    }
-  } catch (err) {
-    console.warn('Advertencia al derivar estado AGENDADA en vuelos.create:', err);
+  if (reservaActualizada) {
+    broadcastDatos('reserva', 'actualizar');
   }
 
   // Sincronización en tiempo real con Google Calendar (asíncrona y no bloqueante)
