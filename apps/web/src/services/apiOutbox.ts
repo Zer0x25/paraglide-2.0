@@ -48,7 +48,11 @@ type MetodoLectura =
   | 'reglasOperativas'
   | 'obtenerPublico'
   | 'obtenerConfig'
-  | 'pendientes';
+  | 'pendientes'
+  | 'asignacionAutomatica'
+  | 'calcularValor'
+  | 'sugerir'
+  | 'renderizar';
 
 export type AppApiContractOutbox = {
   [K in keyof AppApiContract]: {
@@ -68,11 +72,14 @@ export const typedApiOutbox: AppApiContractOutbox = {
     eliminar: (id, config) =>
       apiRaw.delete(`/vuelos/${id}`, { headers: withOutboxHeaders(config?.headers) }),
     actualizarEstado: (id, payload, config) =>
-      apiRaw.patch(`/vuelos/${id}/estado`, payload, { headers: withOutboxHeaders(config?.headers) }),
+      apiRaw.patch(`/vuelos/${id}/estado`, payload, {
+        headers: withOutboxHeaders(config?.headers),
+      }),
     agendarGrupo: (payload, config) =>
-      apiRaw.post('/vuelos/agendamiento-grupo', payload, { headers: withOutboxHeaders(config?.headers) }),
-    asignacionAutomatica: (payload, config) =>
-      apiRaw.post('/vuelos/asignacion-automatica', payload, { headers: withOutboxHeaders(config?.headers) }),
+      apiRaw.post('/vuelos/agendamiento-grupo', payload, {
+        headers: withOutboxHeaders(config?.headers),
+      }),
+    asignacionAutomatica: typedApi.vuelos.asignacionAutomatica,
   },
   reservas: {
     listar: typedApi.reservas.listar,
@@ -84,31 +91,44 @@ export const typedApiOutbox: AppApiContractOutbox = {
     eliminar: (id, config) =>
       apiRaw.delete(`/reservas/${id}`, { headers: withOutboxHeaders(config?.headers) }),
     agregarPago: (id, payload, config) =>
-      apiRaw.post(`/reservas/${id}/pagos`, payload, { headers: withOutboxHeaders(config?.headers) }),
+      apiRaw.post(`/reservas/${id}/pagos`, payload, {
+        headers: withOutboxHeaders(config?.headers),
+      }),
     eliminarPago: (id, pagoId, version, config) =>
       apiRaw.delete(`/reservas/${id}/pagos/${pagoId}`, {
         params: { version },
         headers: withOutboxHeaders(config?.headers),
       }),
     crearDevolucion: (id, payload, config) =>
-      apiRaw.post(`/reservas/${id}/devoluciones`, payload, { headers: withOutboxHeaders(config?.headers) }),
+      apiRaw.post(`/reservas/${id}/devoluciones`, payload, {
+        headers: withOutboxHeaders(config?.headers),
+      }),
     eliminarDevolucion: (id, devolucionId, version, config) =>
       apiRaw.delete(`/reservas/${id}/devoluciones/${devolucionId}`, {
         params: { version },
         headers: withOutboxHeaders(config?.headers),
       }),
     actualizarEstadoPasajeros: (id, payload, config) =>
-      apiRaw.put(`/reservas/${id}/estado-pasajeros`, payload, { headers: withOutboxHeaders(config?.headers) }),
+      apiRaw.put(`/reservas/${id}/estado-pasajeros`, payload, {
+        headers: withOutboxHeaders(config?.headers),
+      }),
     cancelar: (id, payload, config) =>
-      apiRaw.post(`/reservas/${id}/cancelar`, payload, { headers: withOutboxHeaders(config?.headers) }),
+      apiRaw.post(`/reservas/${id}/cancelar`, payload, {
+        headers: withOutboxHeaders(config?.headers),
+      }),
     desagendar: (id, payload, config) =>
-      apiRaw.post(`/reservas/${id}/desagendar`, payload, { headers: withOutboxHeaders(config?.headers) }),
-    calcularValor: (payload, config) =>
-      apiRaw.post('/reservas/calcular-valor', payload, { headers: withOutboxHeaders(config?.headers) }),
+      apiRaw.post(`/reservas/${id}/desagendar`, payload, {
+        headers: withOutboxHeaders(config?.headers),
+      }),
+    calcularValor: typedApi.reservas.calcularValor,
     cerrar: (id, payload, config) =>
-      apiRaw.post(`/reservas/${id}/cerrar`, payload, { headers: withOutboxHeaders(config?.headers) }),
+      apiRaw.post(`/reservas/${id}/cerrar`, payload, {
+        headers: withOutboxHeaders(config?.headers),
+      }),
     reabrir: (id, payload, config) =>
-      apiRaw.post(`/reservas/${id}/reabrir`, payload, { headers: withOutboxHeaders(config?.headers) }),
+      apiRaw.post(`/reservas/${id}/reabrir`, payload, {
+        headers: withOutboxHeaders(config?.headers),
+      }),
   },
   pilotos: {
     listar: typedApi.pilotos.listar,
@@ -120,11 +140,19 @@ export const typedApiOutbox: AppApiContractOutbox = {
       apiRaw.delete(`/pilotos/${id}`, { headers: withOutboxHeaders(config?.headers) }),
     obtenerDisponibilidad: typedApi.pilotos.obtenerDisponibilidad,
     guardarDisponibilidad: (id, payload, config) =>
-      apiRaw.put(`/pilotos/${id}/disponibilidad`, payload, { headers: withOutboxHeaders(config?.headers) }),
-    resetDisponibilidad: (id, q?: { desde?: string; hasta?: string }, config?: OutboxRequestConfig) =>
-      apiRaw.delete(`/pilotos/${id}/disponibilidad/reset`, { params: q, headers: withOutboxHeaders(config?.headers) }),
-    sugerir: (payload, config) =>
-      apiRaw.post('/pilotos/sugerir', payload, { headers: withOutboxHeaders(config?.headers) }),
+      apiRaw.put(`/pilotos/${id}/disponibilidad`, payload, {
+        headers: withOutboxHeaders(config?.headers),
+      }),
+    resetDisponibilidad: (
+      id,
+      q?: { desde?: string; hasta?: string },
+      config?: OutboxRequestConfig,
+    ) =>
+      apiRaw.delete(`/pilotos/${id}/disponibilidad/reset`, {
+        params: q,
+        headers: withOutboxHeaders(config?.headers),
+      }),
+    sugerir: typedApi.pilotos.sugerir,
   },
   equipos: {
     listar: typedApi.equipos.listar,
@@ -136,7 +164,9 @@ export const typedApiOutbox: AppApiContractOutbox = {
     eliminar: (id, config) =>
       apiRaw.delete(`/equipos/${id}`, { headers: withOutboxHeaders(config?.headers) }),
     agregarMantenimiento: (id, payload, config) =>
-      apiRaw.post(`/equipos/${id}/mantenimientos`, payload, { headers: withOutboxHeaders(config?.headers) }),
+      apiRaw.post(`/equipos/${id}/mantenimientos`, payload, {
+        headers: withOutboxHeaders(config?.headers),
+      }),
     eliminarMantenimiento: (id, mantenimientoId, config) =>
       apiRaw.delete(`/equipos/${id}/mantenimientos/${mantenimientoId}`, {
         headers: withOutboxHeaders(config?.headers),
@@ -156,7 +186,9 @@ export const typedApiOutbox: AppApiContractOutbox = {
     obtenerActual: typedApi.meteorologia.obtenerActual,
     obtenerHistorial: typedApi.meteorologia.obtenerHistorial,
     registrar: (payload, config) =>
-      apiRaw.post('/meteorologia/registro', payload, { headers: withOutboxHeaders(config?.headers) }),
+      apiRaw.post('/meteorologia/registro', payload, {
+        headers: withOutboxHeaders(config?.headers),
+      }),
     pronosticoOpenMeteo: typedApi.meteorologia.pronosticoOpenMeteo,
     refrescarOpenMeteo: (config?) =>
       apiRaw.post('/meteorologia/refrescar-openmeteo', undefined, {
@@ -166,11 +198,17 @@ export const typedApiOutbox: AppApiContractOutbox = {
   configuracion: {
     listar: typedApi.configuracion.listar,
     crear: (payload, config) =>
-      apiRaw.post('/configuracion-bloques', payload, { headers: withOutboxHeaders(config?.headers) }),
+      apiRaw.post('/configuracion-bloques', payload, {
+        headers: withOutboxHeaders(config?.headers),
+      }),
     actualizar: (id, payload, config) =>
-      apiRaw.patch(`/configuracion-bloques/${id}`, payload, { headers: withOutboxHeaders(config?.headers) }),
+      apiRaw.patch(`/configuracion-bloques/${id}`, payload, {
+        headers: withOutboxHeaders(config?.headers),
+      }),
     eliminar: (id, config) =>
-      apiRaw.delete(`/configuracion-bloques/${id}`, { headers: withOutboxHeaders(config?.headers) }),
+      apiRaw.delete(`/configuracion-bloques/${id}`, {
+        headers: withOutboxHeaders(config?.headers),
+      }),
     resolver: typedApi.configuracion.resolver,
     limpiarExpiradas: (config?) =>
       apiRaw.post('/configuracion-bloques/limpiar-expiradas', undefined, {
@@ -188,8 +226,7 @@ export const typedApiOutbox: AppApiContractOutbox = {
       apiRaw.put(`/plantillas/${id}`, payload, { headers: withOutboxHeaders(config?.headers) }),
     eliminar: (id, config) =>
       apiRaw.delete(`/plantillas/${id}`, { headers: withOutboxHeaders(config?.headers) }),
-    renderizar: (payload, config) =>
-      apiRaw.post('/plantillas/render', payload, { headers: withOutboxHeaders(config?.headers) }),
+    renderizar: typedApi.plantillas.renderizar,
   },
   auditoria: {
     listar: typedApi.auditoria.listar,
@@ -230,7 +267,9 @@ export const typedApiOutbox: AppApiContractOutbox = {
     eliminar: (id, config) =>
       apiRaw.delete(`/deslindes/${id}`, { headers: withOutboxHeaders(config?.headers) }),
     activar: (id, payload, config) =>
-      apiRaw.post(`/deslindes/${id}/activar`, payload, { headers: withOutboxHeaders(config?.headers) }),
+      apiRaw.post(`/deslindes/${id}/activar`, payload, {
+        headers: withOutboxHeaders(config?.headers),
+      }),
   },
   reglasOperativas: {
     listar: typedApi.reglasOperativas.listar,
@@ -252,16 +291,25 @@ export const typedApiOutbox: AppApiContractOutbox = {
     obtenerPublico: typedApi.empresa.obtenerPublico,
     obtener: typedApi.empresa.obtener,
     actualizar: (payload, version, config) =>
-      apiRaw.put('/empresa', { ...payload, version }, { headers: withOutboxHeaders(config?.headers) }),
+      apiRaw.put(
+        '/empresa',
+        { ...payload, version },
+        { headers: withOutboxHeaders(config?.headers) },
+      ),
   },
   notificaciones: {
     obtenerConfig: (typedApi.notificaciones?.obtenerConfig ??
-      (() => apiRaw.get('/notificaciones/config'))) as AppApiContract['notificaciones']['obtenerConfig'],
+      (() =>
+        apiRaw.get('/notificaciones/config'))) as AppApiContract['notificaciones']['obtenerConfig'],
     actualizarConfig: (payload, config) =>
-      apiRaw.put('/notificaciones/config', payload, { headers: withOutboxHeaders(config?.headers) }),
+      apiRaw.put('/notificaciones/config', payload, {
+        headers: withOutboxHeaders(config?.headers),
+      }),
     pendientes: (typedApi.notificaciones?.pendientes ??
       ((query?: { horas?: string }) =>
-        apiRaw.get('/notificaciones/pendientes', { params: query }))) as AppApiContract['notificaciones']['pendientes'],
+        apiRaw.get('/notificaciones/pendientes', {
+          params: query,
+        }))) as AppApiContract['notificaciones']['pendientes'],
   },
   dashboard: {
     stats: typedApi.dashboard?.stats ?? (() => apiRaw.get('/dashboard/stats')),
@@ -269,9 +317,15 @@ export const typedApiOutbox: AppApiContractOutbox = {
   users: {
     listar: typedApi.users?.listar ?? (() => apiRaw.get('/users')),
     obtener: typedApi.users?.obtener ?? ((id: number) => apiRaw.get(`/users/${id}`)),
-    crear: (payload, config) => apiRaw.post('/users', payload, { headers: withOutboxHeaders(config?.headers) }),
-    actualizar: (id, payload, config) => apiRaw.put(`/users/${id}`, payload, { headers: withOutboxHeaders(config?.headers) }),
-    eliminar: (id, config) => apiRaw.delete(`/users/${id}`, { headers: withOutboxHeaders(config?.headers) }),
-    cambiarPassword: (id, payload, config) => apiRaw.post(`/users/${id}/cambiar-password`, payload, { headers: withOutboxHeaders(config?.headers) }),
+    crear: (payload, config) =>
+      apiRaw.post('/users', payload, { headers: withOutboxHeaders(config?.headers) }),
+    actualizar: (id, payload, config) =>
+      apiRaw.put(`/users/${id}`, payload, { headers: withOutboxHeaders(config?.headers) }),
+    eliminar: (id, config) =>
+      apiRaw.delete(`/users/${id}`, { headers: withOutboxHeaders(config?.headers) }),
+    cambiarPassword: (id, payload, config) =>
+      apiRaw.post(`/users/${id}/cambiar-password`, payload, {
+        headers: withOutboxHeaders(config?.headers),
+      }),
   },
 };

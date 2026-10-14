@@ -293,6 +293,29 @@ export async function replayOutbox(
 }
 
 /**
+ * Deduce la URL GET de la entidad propietaria de la versión para refrescar
+ * el token de concurrencia optimista (`version`) antes de reintentar un 409.
+ */
+function resolveVersionLookupUrl(url: string, payload: unknown): string | null {
+  const clean = url.split('?')[0];
+  const matchReserva = /^\/reservas\/(\d+)/.exec(clean);
+  if (matchReserva) return `/reservas/${matchReserva[1]}`;
+
+  if (clean === '/vuelos/agendamiento-grupo' && payload && typeof payload === 'object') {
+    const resId = (payload as Record<string, unknown>).reservaId;
+    if (typeof resId === 'number') return `/reservas/${resId}`;
+  }
+
+  const matchPiloto = /^\/pilotos\/(\d+)/.exec(clean);
+  if (matchPiloto) return `/pilotos/${matchPiloto[1]}/disponibilidad`;
+
+  const matchEquipo = /^\/equipos\/(\d+)/.exec(clean);
+  if (matchEquipo) return `/equipos/${matchEquipo[1]}`;
+
+  return clean;
+}
+
+/**
  * Reintenta un conflicto almacenado en el store local.
  * Si es un 409 de concurrencia (PUT/PATCH), consulta la versión actual del
  * servidor para enviar la mutación con la versión fresca.
@@ -306,11 +329,12 @@ export async function reintentarConflicto(
   if (!conflicto) return { success: false, error: 'Conflicto no encontrado' };
 
   let dataToSend: unknown = conflicto.payload;
+  let urlToSend: string = conflicto.url;
 
-  // Si fue un 409 en una entidad modificable (PUT/PATCH), consultar la versión actual en el servidor
-  if (conflicto.metodo === 'PUT' || conflicto.metodo === 'PATCH') {
+  const lookupUrl = resolveVersionLookupUrl(conflicto.url, conflicto.payload);
+  if (lookupUrl) {
     try {
-      const getRes = await api.get(conflicto.url);
+      const getRes = await api.get(lookupUrl);
       const rawServer = (getRes as unknown as { data?: unknown })?.data ?? getRes;
       const serverObj = rawServer as Record<string, unknown> | null;
       const serverNested = serverObj?.['data'] as Record<string, unknown> | undefined;
@@ -324,6 +348,13 @@ export async function reintentarConflicto(
       ) {
         dataToSend = { ...(dataToSend as Record<string, unknown>), version: freshVersion };
       }
+      if (
+        typeof freshVersion === 'number' &&
+        conflicto.metodo === 'DELETE' &&
+        urlToSend.includes('version=')
+      ) {
+        urlToSend = urlToSend.replace(/version=\d+/, `version=${freshVersion}`);
+      }
     } catch {
       // Si el GET falla, intentar reenvío con el payload original
     }
@@ -332,7 +363,7 @@ export async function reintentarConflicto(
   try {
     await api.request({
       method: conflicto.metodo,
-      url: conflicto.url,
+      url: urlToSend,
       data: dataToSend,
       headers: { 'X-Client-Id': uuid() }, // nuevo id para forzar ejecución
     });
