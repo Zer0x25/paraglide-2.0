@@ -5,6 +5,24 @@ based on [Conventional Commits](https://www.conventionalcommits.org/) and this
 file is maintained automatically by
 [release-please](https://github.com/googleapis/release-please).
 
+## [0.10.1](https://github.com/Zer0x25/paraglide-2.0/compare/v0.10.0...v0.10.1) (2026-10-14)
+
+
+### Performance Improvements
+
+* **api:** fix N+1 queries in simulator equipos lookup ([c2b302c](https://github.com/Zer0x25/paraglide-2.0/commit/c2b302c74291016906366c7715c581656a12e46c))
+
+
+### Miscellaneous Chores
+
+* **docs:** actualizar STATE.md con cobertura E2E y leccion operativa ADR 013 ([a14b227](https://github.com/Zer0x25/paraglide-2.0/commit/a14b2270733b24959694ce5dc28329335d98c0aa))
+
+
+### Code Refactoring
+
+* **web:** migrate AdminModulesPage to react-query ([e15c568](https://github.com/Zer0x25/paraglide-2.0/commit/e15c5682ab94892b993b7accc4045e5a6dfd4cef))
+* **web:** use derived state for passenger selection in deslinde ([0a13721](https://github.com/Zer0x25/paraglide-2.0/commit/0a13721bd00fb68b82a7b2f002a40966003bbad5))
+
 ## [0.10.0](https://github.com/Zer0x25/paraglide-2.0/compare/v0.9.5...v0.10.0) (2026-10-13)
 
 
