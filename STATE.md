@@ -63,9 +63,13 @@ Este documento mantiene el estado de ejecución, trazabilidad de sesiones, evide
 - [x] Auditoría exhaustiva de pre-producción y remediación de vulnerabilidades críticas (`fix(security,sre)`).
 - [x] Fusión limpia con `main` resolviendo conflictos en controladores, servidor y documentación.
 - [x] Validación completa de CI local y verificación de tipos monorepo (`check:quick`).
+- [x] **Ampliación y Verificación de Cobertura E2E contra Staging**:
+  - Ejecución exitosa de suite maestra Staging (7/7 suites, 49/49 pasos).
+  - Creación de suite E2E Live CRUD (`e2e-live-crud.spec.ts`): login, piloto, reserva y calendario contra Staging real.
+  - Creación de suite E2E Módulos Premium & Pantalla TV (`modulos-premium.spec.ts`): TV FIDS, equipos, meteo, auditoría, config.
+  - Creación de suite E2E Responsive Móvil 375px (`responsive-mobile.spec.ts`): cumplimiento de DoD, sin desbordamiento horizontal (`scrollWidth <= clientWidth`).
 
 ### Siguiente Acción Prioritaria (Next Action)
-- [ ] **Despliegue y Validación en Staging**: Levantar o actualizar el stack de staging (`npm run staging:up`) y correr la suite de estrés/integración de staging (`npm run test:staging:quick`).
 - [ ] **Revisión de Release PR**: Monitorear el PR automático de `release-please` generado en GitHub tras los commits `fix(...)` para preparar el release productivo (ej. v0.9.6).
 - [ ] **Hardening Operacional Pendiente**:
   - Script cron de backup automatizado para Postgres en Docker (`pg_dump` con rotación).
@@ -96,3 +100,5 @@ Este documento mantiene el estado de ejecución, trazabilidad de sesiones, evide
    - *Lección*: Tras aprobar un PR que ya superó el CI, el commit de merge a `main` no necesita volver a ejecutar todas las suites. Detectar merges (`Merge pull request #`) y commits de release (`chore(main): release`) permite omitir ejecuciones redundantes y resolver el Quality Gate en 2 segundos.
 10. **Re-asociación de Runners Self-Hosted al Migrar Repositorios**:
     - *Lección*: Si se clona o bifurca el repo en GitHub, los daemons de runners self-hosted (`actions-runner.service`) siguen escuchando al repositorio anterior hasta que se re-registren explícitamente con `./config.sh` apuntando a la nueva URL.
+11. **ADR 013 y Concurrencia de Sesiones en Tests E2E de Playwright**:
+    - *Lección*: Cuando se ejecutan pruebas E2E contra un backend vivo (Staging o Dev) autenticadas con el mismo usuario administrativo, el paralelismo con múltiples workers invalida sesiones concurrentes (`SESSION_REVOKED` de ADR 013). Para tests con login administrativo real, estructurar los flujos en suites seriales atómicas (`test.describe.serial`) y limitar la concurrencia (`workers: 1`) para evitar revocaciones inesperadas de sesión.
