@@ -5,6 +5,24 @@ based on [Conventional Commits](https://www.conventionalcommits.org/) and this
 file is maintained automatically by
 [release-please](https://github.com/googleapis/release-please).
 
+## [0.10.2](https://github.com/Zer0x25/paraglide-2.0/compare/v0.10.1...v0.10.2) (2026-10-14)
+
+
+### Bug Fixes
+
+* **api:** aislar entorno en config.test.ts proveyendo DATABASE_URL para CI ([79c5fe6](https://github.com/Zer0x25/paraglide-2.0/commit/79c5fe6cd9f25b087f8f7b97cc20730e4e79afb0))
+* **api:** requerir longitud minima de 32 caracteres para JWT_SECRET en produccion ([b63d756](https://github.com/Zer0x25/paraglide-2.0/commit/b63d7562b8c3446da823acbd81486e4f588d311b))
+
+
+### Performance Improvements
+
+* **api:** paralelizar consulta de pilotosTopRaw en metricas financieras ([94c9996](https://github.com/Zer0x25/paraglide-2.0/commit/94c99962c8062317a4b9370f4a3535df841040ba))
+
+
+### Documentation
+
+* actualizar STATE.md con resolucion integral de PRs y balance 0 de backlog ([439aa26](https://github.com/Zer0x25/paraglide-2.0/commit/439aa26df4677662259030ece9b5d30e0958527b))
+
 ## [0.10.1](https://github.com/Zer0x25/paraglide-2.0/compare/v0.10.0...v0.10.1) (2026-10-14)
 
 
