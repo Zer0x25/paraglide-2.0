@@ -68,7 +68,10 @@ describe('Users API — Edición de usuario (PUT /api/users/:id)', () => {
         .mockResolvedValueOnce(existingUser) // check existing
         .mockResolvedValueOnce({ ...existingUser, nombre: 'Admin Renombrado' }); // fetch updated
 
-      (prisma.user.update as any).mockResolvedValue({ ...existingUser, nombre: 'Admin Renombrado' });
+      (prisma.user.update as any).mockResolvedValue({
+        ...existingUser,
+        nombre: 'Admin Renombrado',
+      });
 
       const res = await app.inject({
         method: 'PUT',
@@ -155,7 +158,9 @@ describe('Users API — Edición de usuario (PUT /api/users/:id)', () => {
       });
 
       expect(res.statusCode).toBe(400);
-      expect(res.json().error).toBe('Para cambiar tu contraseña utiliza la opción de cambio de contraseña');
+      expect(res.json().error).toBe(
+        'Para cambiar tu contraseña utiliza la opción de cambio de contraseña',
+      );
       expect(prisma.user.update).not.toHaveBeenCalled();
 
       await app.close();
@@ -217,6 +222,70 @@ describe('Users API — Edición de usuario (PUT /api/users/:id)', () => {
         where: { id: 2 },
         data: { nombre: 'Otro Renombrado', role: 'PILOTO' },
       });
+
+      await app.close();
+    });
+  });
+
+  describe('DELETE /api/users/:id - Soft delete con liberación de @unique (C-07)', () => {
+    it('elimina usuario anonimizando email, liberando pilotoId/googleId e incrementando sessionVersion', async () => {
+      const app = buildApp();
+      await registerRoutes(app);
+
+      const targetUser = {
+        id: 3,
+        email: 'piloto3@test.com',
+        nombre: 'Piloto Tres',
+        role: 'PILOTO',
+        pilotoId: 10,
+        googleId: 'google-sub-123',
+      };
+
+      (prisma.user.findFirst as any).mockResolvedValueOnce(targetUser);
+      (prisma.user.update as any).mockResolvedValue({ ...targetUser, deletedAt: new Date() });
+
+      const res = await app.inject({
+        method: 'DELETE',
+        url: '/api/users/3',
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(prisma.user.update).toHaveBeenCalledWith({
+        where: { id: 3 },
+        data: expect.objectContaining({
+          deletedAt: expect.any(Date),
+          pilotoId: null,
+          googleId: null,
+          email: expect.stringMatching(/^deleted_3_\d+_piloto3@test\.com$/),
+          sessionVersion: { increment: 1 },
+        }),
+      });
+
+      await app.close();
+    });
+
+    it('bloquea eliminar al último administrador', async () => {
+      const app = buildApp();
+      await registerRoutes(app);
+
+      const adminUser = {
+        id: 2,
+        email: 'otro_admin@test.com',
+        nombre: 'Otro Admin',
+        role: 'ADMIN',
+      };
+
+      (prisma.user.findFirst as any).mockResolvedValueOnce(adminUser);
+      (prisma.user.count as any).mockResolvedValueOnce(1); // solo 1 admin
+
+      const res = await app.inject({
+        method: 'DELETE',
+        url: '/api/users/2',
+      });
+
+      expect(res.statusCode).toBe(400);
+      expect(res.json().error).toBe('No se puede eliminar al último administrador');
+      expect(prisma.user.update).not.toHaveBeenCalled();
 
       await app.close();
     });

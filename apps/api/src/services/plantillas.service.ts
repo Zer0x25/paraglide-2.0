@@ -65,8 +65,9 @@ export class PlantillasService {
   async initSeeds() {
     if (this.seedsInitialized) return;
     for (const p of SEED_PLANTILLAS) {
-      const existing = await prisma.plantillaMensaje.findFirst({
-        where: { tipo: p.tipo, deletedAt: null },
+      // Buscar sin filtrar deletedAt para no violar @unique(tipo) si una semilla fue soft-deleted
+      const existing = await prisma.plantillaMensaje.findUnique({
+        where: { tipo: p.tipo },
       });
       if (!existing) {
         await prisma.plantillaMensaje.create({ data: p as any });

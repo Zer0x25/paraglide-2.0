@@ -134,22 +134,18 @@ describe('PilotosService', () => {
       );
     });
 
-    it('debería retornar fallback en caso de error de base de datos', async () => {
-      const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    it('debería relanzar el error en caso de error de base de datos', async () => {
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
       (prisma.piloto.count as any).mockRejectedValue(new Error('DB Error'));
 
-      const result = await service.getAll();
+      await expect(service.getAll()).rejects.toThrow('DB Error');
 
-      expect(consoleWarnSpy).toHaveBeenCalledWith(
-        'Advertencia DB en PilotosService.getAll, retornando arreglo vacío:',
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        'Error DB en PilotosService.getAll:',
         expect.any(Error),
       );
-      expect(result).toEqual({
-        data: [],
-        pagination: { page: 1, pageSize: 100, total: 0, totalPages: 0, hasMore: false },
-      });
 
-      consoleWarnSpy.mockRestore();
+      consoleErrorSpy.mockRestore();
     });
   });
 

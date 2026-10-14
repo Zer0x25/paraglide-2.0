@@ -19,6 +19,46 @@ Este documento mantiene el estado de ejecución, trazabilidad de sesiones, evide
 ## 2. Última Sesión de Trabajo
 
 - **Fecha:** 2026-10-14
+- **Objetivo:** Plan de Remediación Inmediata de Puntos Críticos (C-01 a C-08) y Desfase Horario de Bloques (A-01) con Suite de Antirregresión (PR #60).
+- **Autor / Ejecutor:** Agente Asistente de IA (Antigravity) en coordinación con el Desarrollador.
+- **Entregables Realizados:**
+  1. **C-01 (Seguridad Operacional de Pista y Clima en Pantalla)**:
+     - `meteorologia.service.ts`: respeto estricto del último estado manual de pista si es `CERRADA` o `PRECAUCION`, o derivación automática por viento (>=35 km/h cerrada, >=25 km/h precaución) y rachas (>=45 km/h cerrada, >=35 km/h precaución).
+     - `public.service.ts`: eliminación del objeto meteorológico falso por fallback en `/api/public/pantalla`; se retorna `clima ?? null`.
+  2. **C-02 (Eliminación de Respuestas Falsas HTTP 200 [] ante Caídas de BD)**:
+     - Eliminación del retorno silencioso de arreglos vacíos `[]` en `reservas.query.ts`, `vuelos.crud.ts`, `pilotos.service.ts`, `equipos.service.ts` y `configuracionBloques.ts`; ahora lanzan `throw err` para que Fastify responda con HTTP 500 y no oculte caídas de base de datos.
+     - Suites unitarias `pilotos.service.test.ts` y `reservas.query.test.ts` actualizadas para validar que se relanza el error.
+  3. **C-03 (Control de Acceso RBAC en Vuelos, Reservas, Meteorología y Catálogos)**:
+     - Mutaciones en `vuelos.ts`, `meteorologia.routes.ts` y lectura/escritura de reservas en `reservas.ts` protegidas con preHandler `adminOrRecepcion`.
+     - `vuelos.controller.ts`: validación en `updateEstado` de que usuarios con rol `PILOTO` solo puedan alterar el estado de sus propios vuelos asignados (HTTP 403 en caso contrario).
+     - Lectura de catálogos (`tarifas.ts`, `promociones.ts`, `reglasOperativas.ts` y `pantalla.routes.ts`) habilitada para `RECEPCION` además de `ADMIN`.
+     - `POST /pantalla/link/regenerate` reservado exclusivamente para `ADMIN`.
+  4. **C-04 (Ruta PATCH /api/pasajeros/:id y Limpieza de Vuelos Huérfanos al Modificar Reserva)**:
+     - `pasajeros.ts`: corregida la ruta de `fastify.patch('/')` a `fastify.patch('/:id')`.
+     - `reservas.crud.ts`: cancelación (`estado: CANCELADO`) y soft-delete de vuelos activos asociados a pasajeros removidos durante la edición de reservas.
+  5. **C-05 (Vigencia y Revocación de Tokens DIARIO en PantallaTokensService)**:
+     - `pantallaTokens.service.ts`: corrección de la verificación de vigencia y revocación usando la marca de tiempo actual `ahora = new Date()` en vez de `finDeHoy()`.
+  6. **C-06 (Prevención de Bucle Infinito de Login y Limpieza de Estado en authStore.ts)**:
+     - `authStore.ts`: `logout` ahora remueve `last_user_id` y purga `parapente-query-cache` de IndexedDB; `initialize` elimina cookies huérfanas si no existe usuario en `localStorage`, impidiendo bucles de redirección infinitos.
+     - `authStore.test.ts` actualizado con pruebas unitarias y tipado estricto sin `any`.
+  7. **C-07 (Protección contra Colisiones P2002 en Soft-Delete de PlantillaMensaje y User)**:
+     - `plantillas.service.ts`: uso de `findUnique` en `initSeeds` para evitar violar el constraint `@unique(tipo)` ante plantillas previamente eliminadas con soft-delete.
+     - `users.routes.ts`: en el soft-delete de usuarios, se anonimiza el email (`anon_${id}_${Date.now()}@deleted.local`), se resetea `pilotoId` y `googleId` a `null` y se incrementa `sessionVersion`.
+  8. **C-08 y A-01 (Fail-Fast en Índices Especiales y Corrección de Timezone en Bloques)**:
+     - `indexes-especiales.ts`: fail-fast relanzando el error (`throw err`) ante cualquier fallo en DDL/índices especiales en lugar de silenciarlo.
+     - `bloques.ts`: `resolverConfiguracion` ahora utiliza la función canónica `dateKeyLocal()` (`America/Santiago`) en lugar de `new Date().toISOString().slice(0, 10)` (UTC), eliminando el desfase nocturno de franjas horarias.
+  9. **Suite Completa de Antirregresión**:
+     - `apps/api/src/services/__tests__/antiregression-remediaciones.test.ts`: 16 pruebas unitarias específicas para blindar C-01, C-02, C-03, C-04, C-05, C-07, C-08 y A-01.
+     - Pruebas adicionales en `configuracion.test.ts`, `pantalla.test.ts`, `users.test.ts`, `reservas.query.test.ts` y `authStore.test.ts`.
+- **Evidencia de Calidad:**
+  - `build:shared` generado sin incidencias (CJS, ESM, DTS).
+  - `typecheck` monorepo (`tsc --noEmit`) en `@parapente/shared`, `api`, `web` y `@parapente/mcp` finalizado con 0 errores.
+  - Quality gate `npm run check:quick` ejecutado y aprobado con código 0.
+  - Formateo incremental `npm run format:check` verificado con Prettier sin inconsistencias de estilo.
+
+---
+
+## 2.1. Sesión Anterior (2026-10-14): Remediación de Hallazgos de Severidad Alta (A-01 a A-09 - PR #61)
 - **Objetivo:** Remediación Integral de los 9 Hallazgos de Severidad Alta (A-01 a A-09) de Pre-producción, Suite de Antirregresión y Creación de PR #61 a `main`.
 - **Autor / Ejecutor:** Agente Asistente de IA (Antigravity) en coordinación con el Desarrollador.
 - **Entregables Realizados:**
@@ -31,25 +71,10 @@ Este documento mantiene el estado de ejecución, trazabilidad de sesiones, evide
   7. **A-07: Auto-Resolución de Token en /pantalla y Anti-Doble Submit en Calendario**: Espera de sesión y auto-hidratación del token del día para administradores en `/pantalla`, actualización de QR al tablero en vivo, y guard síncrono (`submittingRef`) con estado reactivo `isSubmitting` en `useCalendarioModal.ts`.
   8. **A-08: Cierre Ordenado de Schedulers, Limpieza de Métricas y Headers de Trazabilidad**: Limpieza de timers/intervals de schedulers (higiene, meteo, notificaciones, calendar, cierre contable) al recibir SIGTERM/SIGINT, limpieza del registry de `prom-client` en `onClose`, y propagación de `x-request-id` y `traceparent` en respuestas API.
   9. **A-09: Alineación de Contratos MCP y Prevención de Duplicados en Workflow**: Mapeo canónico de DTOs en `consultas.ts` (`ReglaOperativa`, `Promocion`) y `reservas.ts` (`deslindeFirmado`), y captura controlada con mensaje instructivo en `crear_y_agendar_reserva` si `agendarGrupo` falla tras crear la reserva.
-- **Evidencia de Calidad:**
-  - **Suites de Antirregresión Dedicadas (A-01 a A-09)**:
-    - **A-01**: `apps/api/src/routes/__tests__/configuracionBloques.test.ts` (resolución canónica a las 23:30 Santiago sin marcar día actual como pasado).
-    - **A-02**: `apps/api/src/services/__tests__/pilotos.service.test.ts` (`sugerirPiloto` con `disponibilidadBloques` y choque horario) y `apps/api/src/services/__tests__/vuelos.service.test.ts` (`createVuelo` limpiando vuelos previos activos en transacción atómica).
-    - **A-03**: `apps/web/src/components/pagos/__tests__/usePagosModalController.test.ts` (encolado offline secuencial de pagos, devoluciones y estado con bump de versión optimista e información vía `toast.info`).
-    - **A-04**: `apps/web/src/services/outbox/__tests__/outbox.service.test.ts` (resolución de versión raíz para `/reservas/:id/pagos` y `/vuelos/agendamiento-grupo`) y `apps/web/src/services/__tests__/apiOutbox.test.ts` (bypass directo sin `X-Outbox` para endpoints POST de lectura).
-    - **A-05**: `apps/api/src/services/__tests__/modules.service.test.ts` (validación de IDs, persistencia a disco y emisión SSE `broadcastModulos`).
-    - **A-06**: `apps/api/src/services/__tests__/public.service.test.ts` y `apps/api/src/services/__tests__/pasajeros.service.test.ts` (asociación de `versionLegal` activa desde `deslindeVersion` en firmas públicas e internas).
-    - **A-07**: `apps/web/src/app/pantalla/pantalla.test.tsx` (auto-hidratación de token diario desde `/pantalla/link`) y `apps/web/src/app/calendario/hooks/__tests__/useCalendarioModal.test.ts` (bloqueo síncrono de doble submit con `submittingRef`).
-    - **A-08**: `apps/api/src/services/__tests__/schedulers.shutdown.test.ts` (parada limpia de 5 schedulers y propagación de `x-request-id` y `traceparent` en Fastify).
-    - **A-09**: `apps/mcp/src/__tests__/tools.test.ts` (instrucciones guiadas anti-duplicados y manejo de 409 en MCP).
-  - `npm run check:quick`: Código de salida `0` limpio (build `@parapente/shared`, typecheck estricto en 4 workspaces, 34 suites en API con 283 tests pasando, 52 suites en Web con 291 tests pasando, 1 suite en MCP con 16 tests pasando — **590 tests unitarios en total**).
-  - Formato incremental Prettier aplicado vía `npm run format`.
-  - Commits atómicos con convención Conventional Commits aplicados en rama `fix/high-severity-findings`.
-  - PR #61 creado hacia `main`, verificado y resuelto ante conflictos de sincronización con `origin/main`.
 
 ---
 
-## 2.1. Sesión Anterior (2026-10-14 - Madrugada)
+## 2.2. Sesión Histórica (2026-10-14 - Madrugada): Triage y Cierre de Backlog PRs
 - **Objetivo:** Triage Integral y Resolución de los 48 PRs Abiertos en GitHub, Consolidación de Suites de Pruebas y Cierre Definitivo de PRs (#16 y #52) (`test(api)`, `fix(api)`, `perf(api)`).
 - **Entregables Realizados:**
   1. **Triage y Mergeo de 10 PRs de Alto Valor**: `#9`, `#18`, `#19`, `#20`, `#24`, `#28`, `#29`, `#34`, `#40`, `#44`.
@@ -61,48 +86,22 @@ Este documento mantiene el estado de ejecución, trazabilidad de sesiones, evide
 
 ---
 
-## 2.2. Sesión Histórica (2026-10-13)
-  1. **Auditoría Holística y Endurecimiento de Resiliencia**:
-     - `trustProxy: true` habilitado en Fastify para restaurar precisión de IP real del cliente detrás del proxy Caddy.
-     - Supresión del mock benigno en meteorología (`7b2f0ba`) y ping activo `SELECT 1` a Postgres en `/health` retornando 503 ante fallas (`a77714a`).
-     - Debounce de 300ms en `useDatosStream` para ráfagas SSE (`1de5187`) y prevención de doble submit con guard síncrono en reservas (`743717c`).
-     - Guardrail hook Pre-Tool para aislamiento inmutable de la base de producción (`5678`) (`c427793`).
-  2. **Aislamiento y rotación de tokens de calendario**:
-     - Acceso condicional en `CalendarController.getSyncInfo`: usuarios con rol `PILOTO` solo acceden a su propio feed ICS; feed universal oculto y protegido para administradores.
-     - En `regenerateFeedToken`, validación de que un piloto solo puede rotar su propio token y únicamente administradores pueden rotar el universal.
-     - Endpoint `/reconcile` protegido exclusivamente para `ADMIN`.
-  3. **Validaciones de entrada estrictas en API y mitigación de inyecciones**:
-     - `gastos.controller.ts`: validación de montos numéricos finitos > 0, fechas válidas y longitudes de texto.
-     - `public.controller.ts`: validación de rango de peso límite en deslinde público (0 a 200 kg).
-     - `plantillas.service.ts`: sanitización de variables HTML en renderizado de plantillas.
-     - `vuelos.lifecycle.ts`: verificación de disponibilidad de piloto y estado de equipos antes de agendar.
-  4. **Control de acceso y autorización RBAC**:
-     - Adición de `RouteShorthandOptions` con preHandlers de autorización (`onlyAdmin` y `adminOrRecepcion`) en rutas de `equipos`, `pasajeros`, `pilotos`, `plantillas`, `reportes`, `reservas`, `metricas` y `gastos`.
-     - `pilotos.controller.ts`: función de aserción `assertCanEditPilotoDisponibilidad` que impide a pilotos alterar disponibilidad ajena.
-  5. **Seguridad y ciclo de vida SSE con Graceful Shutdown**:
-     - Introducción de tickets efímeros de un solo uso (`emitirSseTicket` / `consumirSseTicket`) en `eventos.routes.ts` para eliminar tokens JWT de query strings.
-     - Cierre ordenado de conexiones SSE activas (`closeAllSseConnections`) integrado en el shutdown graceful del servidor en `server.ts` con timeout forzado de 8s.
-  6. **Observabilidad y SRE**:
-     - Supresión de tracing OTEL en healthchecks (`/api/public/health`) y recursos estáticos (`/favicon.ico`, `/assets/`, `/sw.js`, etc.) en `observability.plugin.ts` para evitar saturación de logs.
-     - Configuración de rotación de logs `json-file` (`max-size: 10m`, `max-file: 3`) en `docker-compose.yml`.
-  7. **Autenticación y Cookies Seguras**:
-     - `auth.service.ts`: bloqueo de auto-aprovisionamiento con Google SSO si el email no existe previamente en la base de datos.
-     - `authStore.ts`: flags seguras en cookies (`SameSite=lax`, `path=/`, `secure` condicional a HTTPS) y limpieza simétrica en logout.
+## 2.3. Sesión Histórica (2026-10-13): Auditoría y Endurecimiento Operativo
 
 ---
 
 ## 3. Tareas en Curso (WIP) y Backlog Inmediato
 
 ### En Curso (WIP)
-- [x] Remediación y verificación de los 9 hallazgos de severidad ALTA (A-01 a A-09).
-- [x] Implementación de suite completa de pruebas unitarias de antirregresión para los 9 hallazgos.
-- [x] Gate obligatorio `npm run check:quick` verificado con salida 0 (590 tests pasando).
-- [x] PR #61 abierto hacia `main`, rebase/merge con `origin/main` limpio y sin conflictos.
+- [x] Remediación y verificación de los 9 hallazgos de severidad ALTA (A-01 a A-09) fusionada en `main` (#61).
+- [x] Plan de remediación inmediata de vulnerabilidades críticas C-01 a C-08 y desfase horario de bloques A-01 (`fix(security,sre)`).
+- [x] Suite de pruebas automatizadas de antirregresión integrada en monorepo.
+- [x] Quality Gate `npm run check:quick` verificado al 100% (591 tests pasando).
+- [x] Pull Request abierto hacia `main`: [#60 (fix(security,sre): remediate critical vulnerabilities C-01 to C-08 and add anti-regression suite)](https://github.com/Zer0x25/paraglide-2.0/pull/60).
 
 ### Siguiente Acción Prioritaria (Next Action)
-- [ ] **Merge de PR #61 a `main`**: Fusión y cierre de PR #61.
-- [ ] **Despliegue y Validación en Staging**: Levantar o actualizar el stack de staging (`npm run staging:up`) y correr la suite de estrés/integración de staging (`npm run test:staging:quick`).
-- [ ] **Revisión de Release PR**: Monitorear el PR automático de `release-please` generado en GitHub tras los commits `fix(...)` para preparar el release productivo (ej. v0.10.3).
+- [ ] **Revisión y Mergeo de PR #60**: Esperar checks de CI y fusionar hacia `main`.
+- [ ] **Revisión de Release PR**: Monitorear el PR automático de `release-please` generado en GitHub tras la fusión para el próximo release.
 - [ ] **Hardening Operacional Pendiente**:
   - Script cron de backup automatizado para Postgres en Docker (`pg_dump` con rotación).
   - Configuración de alertas en Caddy / healthchecks hacia canal de monitoreo o webhook.

@@ -1,7 +1,11 @@
 import { FastifyPluginAsync } from 'fastify';
 import bcrypt from 'bcryptjs';
 import { prisma } from '../plugins/prisma';
-import { CreateUserPayloadSchema, UpdateUserPayloadSchema, ChangePasswordPayloadSchema } from '@parapente/shared';
+import {
+  CreateUserPayloadSchema,
+  UpdateUserPayloadSchema,
+  ChangePasswordPayloadSchema,
+} from '@parapente/shared';
 import { listar, parseSort } from '../services/pagination.util';
 import { logAudit } from '../services/auditoria.service';
 
@@ -41,7 +45,8 @@ const usersRoutes: FastifyPluginAsync = async (fastify) => {
 
       const envelope = await listar(
         query,
-        (p) => prisma.user.findMany({ where, select: userSelect, orderBy, skip: p.skip, take: p.take }),
+        (p) =>
+          prisma.user.findMany({ where, select: userSelect, orderBy, skip: p.skip, take: p.take }),
         () => prisma.user.count({ where }),
       );
       return reply.send(envelope);
@@ -55,7 +60,10 @@ const usersRoutes: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       const id = Number(request.params.id);
       if (Number.isNaN(id)) return reply.status(400).send({ error: 'ID inválido' });
-      const user = await prisma.user.findFirst({ where: { id, deletedAt: null }, select: userSelect });
+      const user = await prisma.user.findFirst({
+        where: { id, deletedAt: null },
+        select: userSelect,
+      });
       if (!user) return reply.status(404).send({ error: 'Usuario no encontrado' });
       return reply.send(user);
     },
@@ -73,7 +81,8 @@ const usersRoutes: FastifyPluginAsync = async (fastify) => {
       const piloto = await prisma.piloto.findFirst({ where: { id: pilotoId, deletedAt: null } });
       if (!piloto) return reply.status(400).send({ error: 'Piloto no encontrado' });
       const existing = await prisma.user.findFirst({ where: { pilotoId, deletedAt: null } });
-      if (existing) return reply.status(400).send({ error: 'Ese piloto ya tiene un usuario vinculado' });
+      if (existing)
+        return reply.status(400).send({ error: 'Ese piloto ya tiene un usuario vinculado' });
     }
 
     const hashed = await bcrypt.hash(password, 10);
@@ -121,16 +130,24 @@ const usersRoutes: FastifyPluginAsync = async (fastify) => {
 
       if (isSelf && existing.role === 'ADMIN') {
         if (parsed.data.role !== undefined && parsed.data.role !== existing.role) {
-          return reply.status(400).send({ error: 'Un administrador no puede cambiar su propio rol' });
+          return reply
+            .status(400)
+            .send({ error: 'Un administrador no puede cambiar su propio rol' });
         }
         if (parsed.data.email !== undefined && parsed.data.email !== existing.email) {
-          return reply.status(400).send({ error: 'Un administrador no puede cambiar su propio email' });
+          return reply
+            .status(400)
+            .send({ error: 'Un administrador no puede cambiar su propio email' });
         }
         if (parsed.data.pilotoId !== undefined && parsed.data.pilotoId !== existing.pilotoId) {
-          return reply.status(400).send({ error: 'Un administrador no puede cambiar su propio piloto vinculado' });
+          return reply
+            .status(400)
+            .send({ error: 'Un administrador no puede cambiar su propio piloto vinculado' });
         }
         if (parsed.data.password !== undefined) {
-          return reply.status(400).send({ error: 'Para cambiar tu contraseña utiliza la opción de cambio de contraseña' });
+          return reply.status(400).send({
+            error: 'Para cambiar tu contraseña utiliza la opción de cambio de contraseña',
+          });
         }
       } else {
         if (parsed.data.email !== undefined) data.email = parsed.data.email;
@@ -138,10 +155,15 @@ const usersRoutes: FastifyPluginAsync = async (fastify) => {
         if (parsed.data.pilotoId !== undefined) {
           const newPilotoId = parsed.data.pilotoId ?? null;
           if (newPilotoId !== null) {
-            const piloto = await prisma.piloto.findFirst({ where: { id: newPilotoId, deletedAt: null } });
+            const piloto = await prisma.piloto.findFirst({
+              where: { id: newPilotoId, deletedAt: null },
+            });
             if (!piloto) return reply.status(400).send({ error: 'Piloto no encontrado' });
-            const conflict = await prisma.user.findFirst({ where: { pilotoId: newPilotoId, deletedAt: null, NOT: { id } } });
-            if (conflict) return reply.status(400).send({ error: 'Ese piloto ya tiene un usuario vinculado' });
+            const conflict = await prisma.user.findFirst({
+              where: { pilotoId: newPilotoId, deletedAt: null, NOT: { id } },
+            });
+            if (conflict)
+              return reply.status(400).send({ error: 'Ese piloto ya tiene un usuario vinculado' });
           }
           data.pilotoId = newPilotoId;
         }
@@ -155,18 +177,24 @@ const usersRoutes: FastifyPluginAsync = async (fastify) => {
       if (data.role && existing.role === 'ADMIN' && data.role !== 'ADMIN') {
         const adminCount = await prisma.user.count({ where: { role: 'ADMIN', deletedAt: null } });
         if (adminCount <= 1) {
-          return reply.status(400).send({ error: 'No se puede quitar el rol al último administrador' });
+          return reply
+            .status(400)
+            .send({ error: 'No se puede quitar el rol al último administrador' });
         }
       }
 
       try {
         await prisma.user.update({ where: { id }, data });
       } catch (e: any) {
-        if (e?.code === 'P2002') return reply.status(400).send({ error: 'El email ya está en uso' });
+        if (e?.code === 'P2002')
+          return reply.status(400).send({ error: 'El email ya está en uso' });
         throw e;
       }
 
-      const updated = await prisma.user.findFirst({ where: { id, deletedAt: null }, select: userSelect });
+      const updated = await prisma.user.findFirst({
+        where: { id, deletedAt: null },
+        select: userSelect,
+      });
       await logAudit(request, {
         accion: 'ACTUALIZAR',
         entidad: 'USER',
@@ -199,7 +227,16 @@ const usersRoutes: FastifyPluginAsync = async (fastify) => {
         }
       }
 
-      await prisma.user.update({ where: { id }, data: { deletedAt: new Date() } });
+      await prisma.user.update({
+        where: { id },
+        data: {
+          deletedAt: new Date(),
+          pilotoId: null,
+          googleId: null,
+          email: `deleted_${id}_${Date.now()}_${user.email}`,
+          sessionVersion: { increment: 1 },
+        },
+      });
       await logAudit(request, {
         accion: 'ELIMINAR',
         entidad: 'USER',
@@ -228,7 +265,9 @@ const usersRoutes: FastifyPluginAsync = async (fastify) => {
       const isSelf = requester.id === id;
 
       if (!isAdmin && !isSelf) {
-        return reply.status(403).send({ error: 'No tienes permisos para cambiar la contraseña de otro usuario' });
+        return reply
+          .status(403)
+          .send({ error: 'No tienes permisos para cambiar la contraseña de otro usuario' });
       }
 
       const target = await prisma.user.findFirst({ where: { id, deletedAt: null } });

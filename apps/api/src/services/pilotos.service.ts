@@ -40,11 +40,8 @@ export class PilotosService {
         () => prisma.piloto.count({ where }),
       );
     } catch (err) {
-      console.warn('Advertencia DB en PilotosService.getAll, retornando arreglo vacío:', err);
-      return {
-        data: [],
-        pagination: { page: 1, pageSize: 100, total: 0, totalPages: 0, hasMore: false },
-      };
+      console.error('Error DB en PilotosService.getAll:', err);
+      throw err;
     }
   }
 

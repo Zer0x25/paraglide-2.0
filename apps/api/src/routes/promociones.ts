@@ -17,22 +17,26 @@ function toDate(v: string | Date | null | undefined): Date | null {
  */
 const promocionesRoutes: FastifyPluginAsync = async (fastify) => {
   // Listar (contrato ADR 005)
-  fastify.get('/', { preHandler: fastify.authorize(['ADMIN']) }, async (request, reply) => {
-    const query = (request.query ?? {}) as Record<string, string>;
-    const orderBy = parseSort(query.sort, PROMO_SORT_FIELDS, { createdAt: 'desc' });
-    const envelope = await listar(
-      query,
-      (p) =>
-        prisma.promocion.findMany({
-          where: { deletedAt: null },
-          orderBy,
-          skip: p.skip,
-          take: p.take,
-        }),
-      () => prisma.promocion.count({ where: { deletedAt: null } }),
-    );
-    return reply.send(envelope);
-  });
+  fastify.get(
+    '/',
+    { preHandler: fastify.authorize(['ADMIN', 'RECEPCION']) },
+    async (request, reply) => {
+      const query = (request.query ?? {}) as Record<string, string>;
+      const orderBy = parseSort(query.sort, PROMO_SORT_FIELDS, { createdAt: 'desc' });
+      const envelope = await listar(
+        query,
+        (p) =>
+          prisma.promocion.findMany({
+            where: { deletedAt: null },
+            orderBy,
+            skip: p.skip,
+            take: p.take,
+          }),
+        () => prisma.promocion.count({ where: { deletedAt: null } }),
+      );
+      return reply.send(envelope);
+    },
+  );
 
   // Crear
   fastify.post('/', { preHandler: fastify.authorize(['ADMIN']) }, async (request, reply) => {
