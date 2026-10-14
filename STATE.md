@@ -16,7 +16,26 @@ Este documento mantiene el estado de ejecución, trazabilidad de sesiones, evide
 
 ---
 
-## 2. Última Sesión de Trabajo: Remediación de Hallazgos Medios (M-01 a M-03 - PR #59)
+## 2. Última Sesión de Trabajo: Corrección de Fallo de Build Docker en API (Prisma Engines ECONNRESET)
+
+- **Fecha:** 2026-10-14
+- **Objetivo:** Resolver el fallo de construcción de la imagen Docker de API en GitHub Actions (`npm ci` -> `@prisma/engines` postinstall ECONNRESET en Release Please / Deploy).
+- **Autor / Ejecutor:** Agente Asistente de IA (Antigravity).
+- **Entregables Realizados:**
+  1. **Aislamiento de scripts en Dockerfile API (`apps/api/Dockerfile`)**:
+     - Agregado `--ignore-scripts` a `npm ci` en etapas `prod-deps` y `build` para eliminar descargas ciegas y concurrentes desde `binaries.prisma.sh` durante la instalación de paquetes.
+     - Inyección de `ENV PRISMA_SKIP_POSTINSTALL_GENERATE=true` en ambas etapas.
+     - Implementación de bucle de reintentos (`for i in 1 2 3; do npx prisma generate ... && break || sleep 3; done`) para conferir resiliencia a la descarga oficial de binarios contra el schema real.
+  2. **Verificación Integral**:
+     - Build de la imagen Docker de API verificado localmente con Docker BuildKit (`--no-cache-filter=prod-deps,build`).
+     - Verificación de arranque del contenedor con Node 22.
+     - Gate de calidad `npm run check:quick` pasando al 100% (406 tests API, 305 tests Web, 16 tests MCP, build shared y typecheck de monorepo).
+  3. **Registro y Aprendizaje**:
+     - Documentado post-mortem en `.agents/memories/postmortem-prisma-engines-docker-build.md`.
+
+---
+
+## 2.1. Sesión Anterior: Remediación de Hallazgos Medios (M-01 a M-03 - PR #59)
 
 - **Fecha:** 2026-10-14
 - **Objetivo:** Resolución de Hallazgos Medios M-01 a M-03 (Disponibilidad Pilotos, Warmup/QueryProvider Offline, Soft Delete y Sanitización) + Suites de Anti-regresión (PR #59).
