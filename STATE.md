@@ -47,7 +47,9 @@ Este documento mantiene el estado de ejecución, trazabilidad de sesiones, evide
   - Build de `@parapente/shared` exitoso.
   - Monorepo `typecheck` (`tsc --noEmit`) en los 4 workspaces con 0 errores de tipos.
   - Quality gate `npm run check:quick` pasando al 100%: Web (53 suites, 298 tests), API y MCP (15 tests).
+  - Verificación `npm run lint` en Web con 0 errores y 0 advertencias (`--max-warnings 0`).
   - Formateo incremental `npm run format` aplicado.
+  - Commit atómico `de4791c` (`fix(web): corregir tipos y lint en suites de antirregresion`) enviado a PR #59 (`optimizar_disponibilidad_pilotos_cache`).
 
 ---
 
