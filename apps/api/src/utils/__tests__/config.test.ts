@@ -37,7 +37,9 @@ describe('config - validación de JWT_SECRET en producción', () => {
   it('permite iniciar en producción si JWT_SECRET tiene 32 o más caracteres seguros', async () => {
     process.env.NODE_ENV = 'production';
     process.env.JWT_SECRET = 'un-secreto-muy-seguro-de-mas-de-32-caracteres-para-produccion';
+    process.env.DATABASE_URL = 'postgresql://usuario:password@localhost:5432/db_prod';
     const { config } = await import('../../config.js');
     expect(config.jwtSecret).toBe('un-secreto-muy-seguro-de-mas-de-32-caracteres-para-produccion');
+    expect(config.databaseUrl).toBe('postgresql://usuario:password@localhost:5432/db_prod');
   });
 });
