@@ -57,8 +57,23 @@ export class MeteorologiaService {
       ? new Date(c.time).toLocaleTimeString('es-CL')
       : new Date().toLocaleTimeString('es-CL');
 
+    // Respetar el último estado manual de pista si fue CERRADA o PRECAUCION,
+    // o derivar alerta por viento/racha extremos (>35 km/h CERRADA, >25 km/h PRECAUCION).
+    const ultimo = await this.getUltimoEstado();
+    const viento = c.wind_speed_10m ?? 0;
+    const racha = c.wind_gusts_10m ?? 0;
+    let estadoDerivado: 'ABIERTA' | 'PRECAUCION' | 'CERRADA' = 'ABIERTA';
+    if (viento >= 35 || racha >= 45) {
+      estadoDerivado = 'CERRADA';
+    } else if (viento >= 25 || racha >= 35) {
+      estadoDerivado = 'PRECAUCION';
+    }
+    if (ultimo && ultimo.registradoPor !== 'Open-Meteo' && ultimo.estadoPista !== 'ABIERTA') {
+      estadoDerivado = ultimo.estadoPista;
+    }
+
     return {
-      estadoPista: 'ABIERTA',
+      estadoPista: estadoDerivado,
       velocidadViento: c.wind_speed_10m ?? null,
       rachaViento: c.wind_gusts_10m ?? null,
       direccionViento: gradosADireccion(c.wind_direction_10m),

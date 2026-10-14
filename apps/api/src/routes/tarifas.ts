@@ -15,7 +15,7 @@ const tarifasRoutes: FastifyPluginAsync = async (fastify) => {
   // Listar (contrato ADR 005: envelope { data, pagination })
   fastify.get<{ Querystring: Record<string, string> }>(
     '/',
-    { preHandler: fastify.authorize(['ADMIN']) },
+    { preHandler: fastify.authorize(['ADMIN', 'RECEPCION']) },
     async (_request, reply) => {
       const query = (_request.query ?? {}) as Record<string, string>;
       const orderBy = parseSort(query.sort, TARIFA_SORT_FIELDS, { createdAt: 'desc' });

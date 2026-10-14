@@ -844,19 +844,7 @@ export class PublicService {
 
       return {
         fecha: hoy,
-        clima: clima || {
-          id: 0,
-          fechaHora: today,
-          estadoPista: 'ABIERTA',
-          velocidadViento: 12,
-          rachaViento: 16,
-          direccionViento: 'SO',
-          temperatura: 22,
-          visibilidad: 'EXCELENTE',
-          techoNubes: 1800,
-          observaciones: 'Condiciones normales de vuelo.',
-          registradoPor: 'Sistema',
-        },
+        clima: clima ?? null,
         vuelos: vuelosFormateados,
       };
     } catch (err) {

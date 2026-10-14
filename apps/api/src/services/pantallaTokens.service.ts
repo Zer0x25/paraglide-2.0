@@ -14,9 +14,9 @@ function finDeHoy(): Date {
 
 export class PantallaTokensService {
   async getOrCreate(tipo: PantallaTokenTipo, creadoPor?: number) {
-    const vigenteHasta = tipo === 'DIARIO' ? finDeHoy() : new Date();
+    const ahora = new Date();
     const existing = await prisma.pantallaToken.findFirst({
-      where: { tipo, expiraEn: { gt: vigenteHasta } },
+      where: { tipo, expiraEn: { gt: ahora } },
       orderBy: { expiraEn: 'desc' },
     });
     if (existing) {
@@ -33,10 +33,10 @@ export class PantallaTokensService {
   }
 
   async regenerar(tipo: PantallaTokenTipo, creadoPor?: number) {
-    const vigenteHasta = tipo === 'DIARIO' ? finDeHoy() : new Date();
+    const ahora = new Date();
     await prisma.pantallaToken.updateMany({
-      where: { tipo, expiraEn: { gt: vigenteHasta } },
-      data: { expiraEn: new Date() },
+      where: { tipo, expiraEn: { gt: ahora } },
+      data: { expiraEn: ahora },
     });
     return this.create(tipo, creadoPor);
   }

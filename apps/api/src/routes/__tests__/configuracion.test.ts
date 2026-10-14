@@ -194,6 +194,28 @@ describe('Configuración API (unit)', () => {
       expect(res.statusCode).toBe(403);
       await app.close();
     });
+
+    it('permite listar tarifas a rol RECEPCION (200) pero rechaza a PILOTO (403) (C-03)', async () => {
+      const app = buildApp();
+      await registerAdminRoutes(app);
+      (prisma.tarifa.findMany as any).mockResolvedValue([]);
+      (prisma.tarifa.count as any).mockResolvedValue(0);
+
+      const resRecepcion = await app.inject({
+        method: 'GET',
+        url: '/api/tarifas',
+        headers: { 'x-test-role': 'RECEPCION' },
+      });
+      expect(resRecepcion.statusCode).toBe(200);
+
+      const resPiloto = await app.inject({
+        method: 'GET',
+        url: '/api/tarifas',
+        headers: { 'x-test-role': 'PILOTO' },
+      });
+      expect(resPiloto.statusCode).toBe(403);
+      await app.close();
+    });
   });
 
   // ---------------------------------------------------------------
@@ -216,7 +238,12 @@ describe('Configuración API (unit)', () => {
       await registerAdminRoutes(app);
       const tx = txMock();
       (prisma.$transaction as any).mockImplementation(async (fn: any) => fn(tx));
-      tx.deslindeVersion.create.mockResolvedValue({ id: 10, version: 4, activa: true, texto: 'nuevo' });
+      tx.deslindeVersion.create.mockResolvedValue({
+        id: 10,
+        version: 4,
+        activa: true,
+        texto: 'nuevo',
+      });
 
       const res = await app.inject({
         method: 'POST',
@@ -236,7 +263,12 @@ describe('Configuración API (unit)', () => {
       await registerAdminRoutes(app);
       const tx = txMock();
       (prisma.$transaction as any).mockImplementation(async (fn: any) => fn(tx));
-      tx.deslindeVersion.findUnique.mockResolvedValue({ id: 9, version: 2, revision: 5, activa: false });
+      tx.deslindeVersion.findUnique.mockResolvedValue({
+        id: 9,
+        version: 2,
+        revision: 5,
+        activa: false,
+      });
       tx.deslindeVersion.update.mockResolvedValue({ id: 9, version: 2, revision: 6, activa: true });
 
       const res = await app.inject({
@@ -256,7 +288,12 @@ describe('Configuración API (unit)', () => {
       await registerAdminRoutes(app);
       const tx = txMock();
       (prisma.$transaction as any).mockImplementation(async (fn: any) => fn(tx));
-      tx.deslindeVersion.findUnique.mockResolvedValue({ id: 9, version: 3, revision: 6, activa: true });
+      tx.deslindeVersion.findUnique.mockResolvedValue({
+        id: 9,
+        version: 3,
+        revision: 6,
+        activa: true,
+      });
 
       const res = await app.inject({
         method: 'POST',
@@ -273,7 +310,11 @@ describe('Configuración API (unit)', () => {
       const app = buildApp();
       await registerAdminRoutes(app);
 
-      const res = await app.inject({ method: 'POST', url: '/api/deslindes/9/activar', payload: {} });
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/deslindes/9/activar',
+        payload: {},
+      });
 
       expect(res.statusCode).toBe(400);
       await app.close();
@@ -301,7 +342,12 @@ describe('Configuración API (unit)', () => {
     it('PUT no permite editar el texto de una versión activa (historial legal)', async () => {
       const app = buildApp();
       await registerAdminRoutes(app);
-      (prisma.deslindeVersion.findUnique as any).mockResolvedValue({ id: 1, version: 1, activa: true, texto: 'firmado' });
+      (prisma.deslindeVersion.findUnique as any).mockResolvedValue({
+        id: 1,
+        version: 1,
+        activa: true,
+        texto: 'firmado',
+      });
 
       const res = await app.inject({
         method: 'PUT',
@@ -316,7 +362,11 @@ describe('Configuración API (unit)', () => {
     it('DELETE de la versión activa devuelve 400 y no elimina', async () => {
       const app = buildApp();
       await registerAdminRoutes(app);
-      (prisma.deslindeVersion.findUnique as any).mockResolvedValue({ id: 1, version: 1, activa: true });
+      (prisma.deslindeVersion.findUnique as any).mockResolvedValue({
+        id: 1,
+        version: 1,
+        activa: true,
+      });
 
       const res = await app.inject({ method: 'DELETE', url: '/api/deslindes/1' });
 
@@ -395,6 +445,57 @@ describe('Configuración API (unit)', () => {
       expect(segundaLlamada.where.clave).toBe('k');
       await app.close();
     });
+
+    it('permite listar reglas operativas a rol RECEPCION (200) pero rechaza a PILOTO (403) (C-03)', async () => {
+      const app = buildApp();
+      await registerAdminRoutes(app);
+      (prisma.reglaOperativa.findMany as any).mockResolvedValue([]);
+
+      const resRecepcion = await app.inject({
+        method: 'GET',
+        url: '/api/reglas-operativas',
+        headers: { 'x-test-role': 'RECEPCION' },
+      });
+      expect(resRecepcion.statusCode).toBe(200);
+
+      const resPiloto = await app.inject({
+        method: 'GET',
+        url: '/api/reglas-operativas',
+        headers: { 'x-test-role': 'PILOTO' },
+      });
+      expect(resPiloto.statusCode).toBe(403);
+      await app.close();
+    });
+  });
+
+  // ---------------------------------------------------------------
+  // Promociones
+  // ---------------------------------------------------------------
+  describe('Promociones', () => {
+    it('permite listar promociones a rol RECEPCION (200) pero rechaza a PILOTO (403) (C-03)', async () => {
+      const app = buildApp();
+      await registerAdminRoutes(app);
+      (prisma.promocion.findMany as any).mockResolvedValue([
+        { id: 1, nombre: 'Promo Verano', codigo: 'VERANO26', activo: true },
+      ]);
+      (prisma.promocion.count as any).mockResolvedValue(1);
+
+      const resRecepcion = await app.inject({
+        method: 'GET',
+        url: '/api/promociones',
+        headers: { 'x-test-role': 'RECEPCION' },
+      });
+      expect(resRecepcion.statusCode).toBe(200);
+      expect(resRecepcion.json().data).toHaveLength(1);
+
+      const resPiloto = await app.inject({
+        method: 'GET',
+        url: '/api/promociones',
+        headers: { 'x-test-role': 'PILOTO' },
+      });
+      expect(resPiloto.statusCode).toBe(403);
+      await app.close();
+    });
   });
 
   // ---------------------------------------------------------------
@@ -419,7 +520,10 @@ describe('Configuración API (unit)', () => {
       expect(res.statusCode).toBe(200);
       expect(res.json()).toHaveLength(1);
       expect(prisma.faq.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { publica: true, deletedAt: null }, orderBy: { orden: 'asc' } }),
+        expect.objectContaining({
+          where: { publica: true, deletedAt: null },
+          orderBy: { orden: 'asc' },
+        }),
       );
       await app.close();
     });

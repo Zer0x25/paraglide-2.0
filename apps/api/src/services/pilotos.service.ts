@@ -40,11 +40,8 @@ export class PilotosService {
         () => prisma.piloto.count({ where }),
       );
     } catch (err) {
-      console.warn('Advertencia DB en PilotosService.getAll, retornando arreglo vacío:', err);
-      return {
-        data: [],
-        pagination: { page: 1, pageSize: 100, total: 0, totalPages: 0, hasMore: false },
-      };
+      console.error('Error DB en PilotosService.getAll:', err);
+      throw err;
     }
   }
 
@@ -138,11 +135,14 @@ export class PilotosService {
               lte: endOfDay,
             },
           },
+<<<<<<< HEAD
         },
         disponibilidadBloques: {
           where: {
             fecha: { gte: startOfDay, lte: endOfDay },
           },
+=======
+>>>>>>> c4067f4 (fix(security,sre): remediate C-01 to C-08 vulnerabilities and add anti-regression suite)
         },
         vuelos: {
           where: {
@@ -161,6 +161,7 @@ export class PilotosService {
 
     const candidatos = pilotos.map((piloto) => {
       const tieneExcepcion = piloto.excepciones.length > 0;
+<<<<<<< HEAD
       const disponibleDia = piloto.disponibilidadTotal ? !tieneExcepcion : tieneExcepcion;
       const bloquesDia = piloto.disponibilidadBloques || [];
       const disponibleBloque =
@@ -170,6 +171,9 @@ export class PilotosService {
         (v) => new Date(v.fechaHora).getTime() === targetDate.getTime(),
       );
       const estaDisponible = disponibleDia && disponibleBloque && !ocupadoEnHora;
+=======
+      const estaDisponible = piloto.disponibilidadTotal ? !tieneExcepcion : tieneExcepcion;
+>>>>>>> c4067f4 (fix(security,sre): remediate C-01 to C-08 vulnerabilities and add anti-regression suite)
 
       const minPeso = piloto.pesoMinimoPasajero ?? 30;
       const maxPeso = piloto.pesoMaximoPasajero ?? 110;

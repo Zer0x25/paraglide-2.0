@@ -60,7 +60,7 @@ describe('authStore', () => {
     expect(useAuthStore.getState().user).toEqual(mockUser1);
   });
 
-  it('logout limpia el token y el user del store/localStorage pero mantiene last_user_id y no limpia la caché de IndexedDB', () => {
+  it('logout limpia el token, user y last_user_id del store/localStorage y limpia la caché de IndexedDB', () => {
     localStorage.setItem('last_user_id', '1');
     localStorage.setItem('user', JSON.stringify(mockUser1));
     useAuthStore.setState({ token: 'jwt-token-123', user: mockUser1 });
@@ -69,8 +69,18 @@ describe('authStore', () => {
 
     expect(Cookies.remove).toHaveBeenCalledWith('token', { path: '/' });
     expect(localStorage.getItem('user')).toBeNull();
-    expect(localStorage.getItem('last_user_id')).toBe('1');
-    expect(mockRemoveItem).not.toHaveBeenCalled();
+    expect(localStorage.getItem('last_user_id')).toBeNull();
+    expect(mockRemoveItem).toHaveBeenCalledWith('parapente-query-cache');
+    expect(useAuthStore.getState().token).toBeNull();
+    expect(useAuthStore.getState().user).toBeNull();
+  });
+
+  it('initialize elimina cookie huérfana si no existe user en localStorage', () => {
+    (Cookies.get as any).mockReturnValue('jwt-token-huerfano');
+
+    useAuthStore.getState().initialize();
+
+    expect(Cookies.remove).toHaveBeenCalledWith('token', { path: '/' });
     expect(useAuthStore.getState().token).toBeNull();
     expect(useAuthStore.getState().user).toBeNull();
   });

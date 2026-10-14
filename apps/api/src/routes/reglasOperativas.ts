@@ -10,12 +10,16 @@ import { logAudit } from '../services/auditoria.service';
  */
 const reglasOperativasRoutes: FastifyPluginAsync = async (fastify) => {
   // Listar todas las reglas ordenadas por categoría y clave
-  fastify.get('/', { preHandler: fastify.authorize(['ADMIN']) }, async (_request, reply) => {
-    const reglas = await prisma.reglaOperativa.findMany({
-      orderBy: [{ categoria: 'asc' }, { clave: 'asc' }],
-    });
-    return reply.send(reglas);
-  });
+  fastify.get(
+    '/',
+    { preHandler: fastify.authorize(['ADMIN', 'RECEPCION']) },
+    async (_request, reply) => {
+      const reglas = await prisma.reglaOperativa.findMany({
+        orderBy: [{ categoria: 'asc' }, { clave: 'asc' }],
+      });
+      return reply.send(reglas);
+    },
+  );
 
   // Upsert por clave única
   fastify.put<{ Params: { clave: string } }>(

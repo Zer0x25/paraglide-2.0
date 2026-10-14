@@ -212,22 +212,18 @@ describe('reservas.query', () => {
       );
     });
 
-    it('should catch errors and return empty array fallback', async () => {
+    it('should rethrow errors on DB failure instead of returning empty array fallback', async () => {
       (prisma.reserva.findMany as any).mockRejectedValue(new Error('DB Error'));
-      const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-      const result = await getAllReservas();
+      await expect(getAllReservas()).rejects.toThrow('DB Error');
 
-      expect(consoleWarnSpy).toHaveBeenCalledWith(
-        'Advertencia DB en ReservasService.getAll, retornando arreglo vacío:',
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        'Error DB en ReservasService.getAll:',
         expect.any(Error),
       );
-      expect(result).toEqual({
-        data: [],
-        pagination: { page: 1, pageSize: 100, total: 0, totalPages: 0, hasMore: false },
-      });
 
-      consoleWarnSpy.mockRestore();
+      consoleErrorSpy.mockRestore();
     });
   });
 
