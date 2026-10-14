@@ -30,7 +30,7 @@ export class PlantillasController {
 
   async update(req: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) {
     const id = Number(req.params.id);
-    const data = req.body as any;
+    const data = CreatePlantillaMensajePayloadSchema.partial().parse(req.body);
     const actualizada = await plantillasService.update(id, data);
     return reply.send(actualizada);
   }

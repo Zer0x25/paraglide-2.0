@@ -2,7 +2,7 @@ import fp from 'fastify-plugin';
 import { Prisma, PrismaClient } from '@prisma/client';
 import { config } from '../config';
 
-const SOFT_DELETE_MODELS = [
+export const SOFT_DELETE_MODELS = [
   'User',
   'Piloto',
   'Reserva',
@@ -17,6 +17,9 @@ const SOFT_DELETE_MODELS = [
   'Gasto',
   'ConfiguracionBloque',
   'HorarioBloque',
+  'Tarifa',
+  'Promocion',
+  'Faq',
 ] as const;
 
 const softDeleteExtension = Prisma.defineExtension((client) => {

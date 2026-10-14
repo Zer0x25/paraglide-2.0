@@ -8,6 +8,7 @@ import {
   agruparVuelosPorPiloto,
   agruparVuelosPorLista,
   pilotosLibresEnBloque,
+  pilotosDisponiblesEnBloque,
   type VueloVista,
   type PilotoDia,
 } from './agendas.util';
@@ -92,23 +93,33 @@ describe('agendas.util — vueloEnBloque', () => {
   const dateKey = '2026-08-29';
 
   it('true para un vuelo dentro del intervalo [inicio, fin)', () => {
-    expect(vueloEnBloque(vuelo({ fechaHora: isoDe(2026, 7, 29, 10, 30) }), dateKey, '10:00', '13:00')).toBe(true);
+    expect(
+      vueloEnBloque(vuelo({ fechaHora: isoDe(2026, 7, 29, 10, 30) }), dateKey, '10:00', '13:00'),
+    ).toBe(true);
   });
 
   it('true justo en horaInicio (intervalo cerrado a la izquierda)', () => {
-    expect(vueloEnBloque(vuelo({ fechaHora: isoDe(2026, 7, 29, 10, 0) }), dateKey, '10:00', '13:00')).toBe(true);
+    expect(
+      vueloEnBloque(vuelo({ fechaHora: isoDe(2026, 7, 29, 10, 0) }), dateKey, '10:00', '13:00'),
+    ).toBe(true);
   });
 
   it('false justo en horaFin (intervalo semiabierto)', () => {
-    expect(vueloEnBloque(vuelo({ fechaHora: isoDe(2026, 7, 29, 13, 0) }), dateKey, '10:00', '13:00')).toBe(false);
+    expect(
+      vueloEnBloque(vuelo({ fechaHora: isoDe(2026, 7, 29, 13, 0) }), dateKey, '10:00', '13:00'),
+    ).toBe(false);
   });
 
   it('false para un vuelo anterior al bloque', () => {
-    expect(vueloEnBloque(vuelo({ fechaHora: isoDe(2026, 7, 29, 9, 0) }), dateKey, '10:00', '13:00')).toBe(false);
+    expect(
+      vueloEnBloque(vuelo({ fechaHora: isoDe(2026, 7, 29, 9, 0) }), dateKey, '10:00', '13:00'),
+    ).toBe(false);
   });
 
   it('false para un vuelo de otro día aunque la hora caiga en el rango', () => {
-    expect(vueloEnBloque(vuelo({ fechaHora: isoDe(2026, 7, 28, 11, 0) }), dateKey, '10:00', '13:00')).toBe(false);
+    expect(
+      vueloEnBloque(vuelo({ fechaHora: isoDe(2026, 7, 28, 11, 0) }), dateKey, '10:00', '13:00'),
+    ).toBe(false);
   });
 });
 
@@ -116,12 +127,20 @@ describe('agendas.util — pilotosDisponiblesDia', () => {
   const dateKey = '2026-08-29';
 
   it('excluye al piloto con disponibilidadTotal y excepción ese día', () => {
-    const p = piloto({ id: 1, disponibilidadTotal: true, excepciones: [{ fecha: '2026-08-29T00:00:00.000Z' }] });
+    const p = piloto({
+      id: 1,
+      disponibilidadTotal: true,
+      excepciones: [{ fecha: '2026-08-29T00:00:00.000Z' }],
+    });
     expect(pilotosDisponiblesDia([p], dateKey)).toHaveLength(0);
   });
 
   it('incluye al piloto con disponibilidadTotal false y excepción ese día', () => {
-    const p = piloto({ id: 1, disponibilidadTotal: false, excepciones: [{ fecha: '2026-08-29T00:00:00.000Z' }] });
+    const p = piloto({
+      id: 1,
+      disponibilidadTotal: false,
+      excepciones: [{ fecha: '2026-08-29T00:00:00.000Z' }],
+    });
     const res = pilotosDisponiblesDia([p], dateKey);
     expect(res).toHaveLength(1);
     expect(res[0].id).toBe(1);
@@ -134,13 +153,22 @@ describe('agendas.util — pilotosDisponiblesDia', () => {
 
   it('complemento: total sin excepción → disponible; parcial sin excepción → NO disponible', () => {
     const total = piloto({ id: 1, disponibilidadTotal: true, excepciones: [] });
-    const parcial = piloto({ id: 2, nombre: 'Beto Piloto', disponibilidadTotal: false, excepciones: [] });
+    const parcial = piloto({
+      id: 2,
+      nombre: 'Beto Piloto',
+      disponibilidadTotal: false,
+      excepciones: [],
+    });
     const res = pilotosDisponiblesDia([total, parcial], dateKey);
     expect(res.map((p) => p.id)).toEqual([1]);
   });
 
   it('una excepción de otro día no afecta la disponibilidad', () => {
-    const p = piloto({ id: 1, disponibilidadTotal: true, excepciones: [{ fecha: '2026-08-28T00:00:00.000Z' }] });
+    const p = piloto({
+      id: 1,
+      disponibilidadTotal: true,
+      excepciones: [{ fecha: '2026-08-28T00:00:00.000Z' }],
+    });
     expect(pilotosDisponiblesDia([p], dateKey)).toHaveLength(1);
   });
 });
@@ -149,12 +177,39 @@ describe('agendas.util — agruparVuelosPorPiloto', () => {
   it('agrupa por pilotoId, solo vuelos del día y del bloque, orden alfabético por nombre', () => {
     const dateKey = '2026-08-29';
     const vuelos: VueloVista[] = [
-      vuelo({ id: 2, pilotoId: 1, fechaHora: isoDe(2026, 7, 29, 10, 30), pasajero: { nombre: 'P2' } }),
-      vuelo({ id: 3, pilotoId: 1, fechaHora: isoDe(2026, 7, 29, 12, 30), pasajero: { nombre: 'P3' } }),
-      vuelo({ id: 1, pilotoId: 2, fechaHora: isoDe(2026, 7, 29, 11, 0), piloto: { nombre: 'Beto Piloto' }, pasajero: { nombre: 'P1' } }),
+      vuelo({
+        id: 2,
+        pilotoId: 1,
+        fechaHora: isoDe(2026, 7, 29, 10, 30),
+        pasajero: { nombre: 'P2' },
+      }),
+      vuelo({
+        id: 3,
+        pilotoId: 1,
+        fechaHora: isoDe(2026, 7, 29, 12, 30),
+        pasajero: { nombre: 'P3' },
+      }),
+      vuelo({
+        id: 1,
+        pilotoId: 2,
+        fechaHora: isoDe(2026, 7, 29, 11, 0),
+        piloto: { nombre: 'Beto Piloto' },
+        pasajero: { nombre: 'P1' },
+      }),
       // Fuera del bloque (09:00) y de otro día: no deben aparecer
-      vuelo({ id: 4, pilotoId: 1, fechaHora: isoDe(2026, 7, 29, 9, 0), pasajero: { nombre: 'Fuera bloque' } }),
-      vuelo({ id: 5, pilotoId: 3, fechaHora: isoDe(2026, 7, 28, 11, 0), piloto: { nombre: 'Carla Piloto' }, pasajero: { nombre: 'Otro día' } }),
+      vuelo({
+        id: 4,
+        pilotoId: 1,
+        fechaHora: isoDe(2026, 7, 29, 9, 0),
+        pasajero: { nombre: 'Fuera bloque' },
+      }),
+      vuelo({
+        id: 5,
+        pilotoId: 3,
+        fechaHora: isoDe(2026, 7, 28, 11, 0),
+        piloto: { nombre: 'Carla Piloto' },
+        pasajero: { nombre: 'Otro día' },
+      }),
     ];
 
     const grupos = agruparVuelosPorPiloto(vuelos, dateKey, '10:00', '13:00');
@@ -174,7 +229,7 @@ describe('agendas.util — agruparVuelosPorPiloto', () => {
       [vuelo({ id: 1, fechaHora: isoDe(2026, 7, 29, 14, 0) })],
       '2026-08-29',
       '10:00',
-      '13:00'
+      '13:00',
     );
     expect(grupos).toEqual([]);
   });
@@ -183,8 +238,18 @@ describe('agendas.util — agruparVuelosPorPiloto', () => {
 describe('agendas.util — agruparVuelosPorLista', () => {
   it('agrupa vuelos arbitrarios por piloto con orden alfabético', () => {
     const vuelos: VueloVista[] = [
-      vuelo({ id: 2, pilotoId: 2, piloto: { nombre: 'Beto Piloto' }, fechaHora: isoDe(2026, 7, 29, 6, 0) }),
-      vuelo({ id: 1, pilotoId: 1, piloto: { nombre: 'Ana Piloto' }, fechaHora: isoDe(2026, 7, 29, 7, 30) }),
+      vuelo({
+        id: 2,
+        pilotoId: 2,
+        piloto: { nombre: 'Beto Piloto' },
+        fechaHora: isoDe(2026, 7, 29, 6, 0),
+      }),
+      vuelo({
+        id: 1,
+        pilotoId: 1,
+        piloto: { nombre: 'Ana Piloto' },
+        fechaHora: isoDe(2026, 7, 29, 7, 30),
+      }),
     ];
     const grupos = agruparVuelosPorLista(vuelos);
     expect(grupos).toHaveLength(2);
@@ -208,5 +273,53 @@ describe('agendas.util — pilotosLibresEnBloque', () => {
     const disponibles = [piloto({ id: 1 })];
     const carriles = [{ pilotoId: 1, nombre: 'Ana Piloto', vuelos: [] as VueloVista[] }];
     expect(pilotosLibresEnBloque(disponibles, carriles)).toBe(0);
+  });
+});
+
+describe('agendas.util — pilotosDisponiblesEnBloque', () => {
+  const dateKey = '2026-08-29';
+
+  it('piloto sin disponibilidadBloques está disponible en todos los bloques', () => {
+    const pilotos = [piloto({ id: 1, disponibilidadBloques: undefined })];
+    expect(pilotosDisponiblesEnBloque(pilotos, dateKey, '10:00')).toHaveLength(1);
+  });
+
+  it('piloto con bloques en otro día está disponible en los bloques de hoy', () => {
+    const pilotos = [
+      piloto({
+        id: 1,
+        disponibilidadBloques: [{ fecha: '2026-08-30', horaInicio: '10:00', horaFin: '11:00' }],
+      }),
+    ];
+    expect(pilotosDisponiblesEnBloque(pilotos, dateKey, '10:00')).toHaveLength(1);
+  });
+
+  it('filtra pilotos según el bloque horario específico de la fecha', () => {
+    const p1 = piloto({
+      id: 1,
+      nombre: 'Ana',
+      disponibilidadBloques: [{ fecha: '2026-08-29', horaInicio: '10:00', horaFin: '12:00' }],
+    });
+    const p2 = piloto({
+      id: 2,
+      nombre: 'Beto',
+      disponibilidadBloques: [{ fecha: '2026-08-29', horaInicio: '14:00', horaFin: '16:00' }],
+    });
+    const p3 = piloto({
+      id: 3,
+      nombre: 'Carla', // sin bloques específicos -> disponible todo el día
+    });
+
+    const disponibles10 = pilotosDisponiblesEnBloque([p1, p2, p3], dateKey, '10:00');
+    expect(disponibles10.map((p) => p.id)).toEqual([1, 3]);
+
+    const disponibles11 = pilotosDisponiblesEnBloque([p1, p2, p3], dateKey, '11:00');
+    expect(disponibles11.map((p) => p.id)).toEqual([1, 3]);
+
+    const disponibles14 = pilotosDisponiblesEnBloque([p1, p2, p3], dateKey, '14:00');
+    expect(disponibles14.map((p) => p.id)).toEqual([2, 3]);
+
+    const disponibles18 = pilotosDisponiblesEnBloque([p1, p2, p3], dateKey, '18:00');
+    expect(disponibles18.map((p) => p.id)).toEqual([3]);
   });
 });

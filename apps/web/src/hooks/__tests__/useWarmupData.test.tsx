@@ -123,4 +123,69 @@ describe('useWarmupData (ADR 009 - precarga offline de ±15 días)', () => {
     });
     spyFetch.mockRestore();
   });
+
+  it('Anti-regresión M-02: rol PILOTO omite colecciones restringidas para evitar ráfagas de 403 Forbidden', async () => {
+    (Cookies.get as unknown as ReturnType<typeof vi.fn>).mockReturnValue('mock-jwt-token');
+    window.localStorage.setItem('user', JSON.stringify({ role: 'PILOTO' }));
+
+    const { queryClient, Wrapper } = crearWrapper();
+    const spyPrefetch = vi.spyOn(queryClient, 'prefetchQuery');
+    const spyPrefetchInfinite = vi.spyOn(queryClient, 'prefetchInfiniteQuery');
+
+    renderHook(() => useWarmupData(), { wrapper: Wrapper });
+
+    await waitFor(() => {
+      expect(spyPrefetch).toHaveBeenCalled();
+    });
+
+    const queryKeys = spyPrefetch.mock.calls.map((call) => call[0].queryKey);
+
+    // Permitidas para PILOTO:
+    expect(queryKeys.some((k) => k[0] === 'dashboard')).toBe(true);
+    expect(queryKeys.some((k) => k[0] === 'pilotos')).toBe(true);
+    expect(queryKeys.some((k) => k[0] === 'vuelos')).toBe(true);
+    expect(queryKeys.some((k) => k[0] === 'configuracion-bloques')).toBe(true);
+
+    // Restringidas (prohibidas para PILOTO):
+    expect(queryKeys.some((k) => k[0] === 'pasajeros')).toBe(false);
+    expect(queryKeys.some((k) => k[0] === 'reservas')).toBe(false);
+    expect(queryKeys.some((k) => k[0] === 'tarifas')).toBe(false);
+    expect(queryKeys.some((k) => k[0] === 'promociones')).toBe(false);
+    expect(queryKeys.some((k) => k[0] === 'reglas-operativas')).toBe(false);
+    expect(queryKeys.some((k) => k[0] === 'equipos')).toBe(false);
+    expect(queryKeys.some((k) => k[0] === 'plantillas')).toBe(false);
+    expect(queryKeys.some((k) => k[0] === 'empresa')).toBe(false);
+    expect(queryKeys.some((k) => k[0] === 'faqs')).toBe(false);
+    expect(queryKeys.some((k) => k[0] === 'deslindes')).toBe(false);
+
+    expect(spyPrefetchInfinite).not.toHaveBeenCalled();
+    window.localStorage.removeItem('user');
+  });
+
+  it('Anti-regresión M-02: rol RECEPCION precarga reservas y operativas pero omite deslindes', async () => {
+    (Cookies.get as unknown as ReturnType<typeof vi.fn>).mockReturnValue('mock-jwt-token');
+    window.localStorage.setItem('user', JSON.stringify({ role: 'RECEPCION' }));
+
+    const { queryClient, Wrapper } = crearWrapper();
+    const spyPrefetch = vi.spyOn(queryClient, 'prefetchQuery');
+
+    renderHook(() => useWarmupData(), { wrapper: Wrapper });
+
+    await waitFor(() => {
+      expect(spyPrefetch).toHaveBeenCalled();
+    });
+
+    const queryKeys = spyPrefetch.mock.calls.map((call) => call[0].queryKey);
+
+    // Permitidas para RECEPCION:
+    expect(queryKeys.some((k) => k[0] === 'pasajeros')).toBe(true);
+    expect(queryKeys.some((k) => k[0] === 'reservas')).toBe(true);
+    expect(queryKeys.some((k) => k[0] === 'tarifas')).toBe(true);
+    expect(queryKeys.some((k) => k[0] === 'empresa')).toBe(true);
+
+    // Solo ADMIN:
+    expect(queryKeys.some((k) => k[0] === 'deslindes')).toBe(false);
+
+    window.localStorage.removeItem('user');
+  });
 });

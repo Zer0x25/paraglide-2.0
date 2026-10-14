@@ -143,7 +143,8 @@ export class PlantillasService {
       // Escapar meta-caracteres regex de la clave para no lanzar en new RegExp
       // (claves como {{a.b}}, {{precio(taxa)}} rompían el endpoint con 500).
       const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      result = result.replace(new RegExp(`{{${escaped}}}`, 'g'), value ?? '');
+      const safeValue = String(value ?? '');
+      result = result.replace(new RegExp(`{{${escaped}}}`, 'g'), () => safeValue);
     }
     return result;
   }
