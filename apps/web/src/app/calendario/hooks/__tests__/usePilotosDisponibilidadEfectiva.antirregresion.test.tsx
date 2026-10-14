@@ -51,7 +51,7 @@ describe('usePilotosDisponibilidadEfectiva — Anti-regresión M-01', () => {
   });
 
   it('no re-dispara peticiones HTTP cuando el usuario cambia de fecha (dateKey)', async () => {
-    vi.mocked(api.pilotos.obtenerDisponibilidad).mockImplementation(async (id: number) => ({
+    vi.mocked(api.pilotos.obtenerDisponibilidad).mockImplementation(async () => ({
       excepciones: [{ fecha: '2026-08-20' }],
       disponibilidadBloques: [{ fecha: '2026-08-20', horaInicio: '10:00', horaFin: '12:00' }],
       disponibilidadTotal: true,

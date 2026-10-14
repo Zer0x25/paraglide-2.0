@@ -16,8 +16,9 @@ interface DisponibilidadPilotoEntry {
  */
 export function usePilotosDisponibilidadEfectiva(
   pilotos: PilotoDia[],
-  _dateKey: string,
+  _dateKey?: string,
 ): { pilotosEfectivos: PilotoDia[]; isLoading: boolean } {
+  void _dateKey;
   const pilotoIdsKey = pilotos
     .map((p) => p.id)
     .sort((a, b) => a - b)

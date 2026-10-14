@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactNode } from 'react';
 import { useReservas } from '../useReservas';
 import { typedApiOutbox } from '../../services/apiOutbox';
+import type { CreateReservaPayload, ReservaDTO } from '@parapente/shared';
 
 vi.mock('../../services/api', () => ({
   default: {
@@ -89,15 +90,29 @@ describe('useReservas — Anti-regresión M-02 (Shape de Pasajero Optimista)', (
               peso: 75,
             },
           ],
-        } as any)
+        } as unknown as CreateReservaPayload)
         .catch(() => {});
     });
 
     // Consultar el estado optimista en caché
-    const cacheData = queryClient.getQueryData<any>(['reservas', { tab: 'PROXIMAS' }]);
+    interface ReservaWithPasajeros extends ReservaDTO {
+      pasajeros?: Array<{
+        nombre?: string;
+        nombreCompleto?: string;
+        estado?: string;
+        estadoVuelo?: string;
+      }>;
+    }
+
+    const cacheData = queryClient.getQueryData<{
+      pages: { data: ReservaWithPasajeros[] }[];
+    }>(['reservas', { tab: 'PROXIMAS' }]);
     expect(cacheData).toBeDefined();
-    const reservaOptimista = cacheData.pages[0].data[0];
+    const reservaOptimista = cacheData?.pages[0].data[0];
     expect(reservaOptimista).toBeDefined();
+    if (!reservaOptimista || !reservaOptimista.pasajeros) {
+      throw new Error('Reserva optimista o sus pasajeros no encontrados en caché');
+    }
     expect(reservaOptimista.nombreTitular).toBe('Titular Juan');
 
     // Verificar que el pasajero contiene ambos: nombreCompleto y nombre, más estado PENDIENTE
