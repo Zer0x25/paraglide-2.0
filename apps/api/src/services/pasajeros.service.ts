@@ -61,7 +61,11 @@ export class PasajerosService {
     });
   }
 
-  async guardarFirma(id: number, payload: FirmaDeslindePayload, meta?: { ip?: string; userAgent?: string }) {
+  async guardarFirma(
+    id: number,
+    payload: FirmaDeslindePayload,
+    meta?: { ip?: string; userAgent?: string },
+  ) {
     return prisma.$transaction(async (tx) => {
       if (typeof (tx as any).$queryRaw === 'function') {
         await (tx as any).$queryRaw`SELECT id FROM "Pasajero" WHERE id = ${id} FOR UPDATE`;
@@ -80,6 +84,13 @@ export class PasajerosService {
         throw new Error('No se puede firmar deslinde de una reserva cancelada');
       }
 
+      const deslindeActivo = await (tx as any).deslindeVersion?.findFirst?.({
+        where: { activa: true },
+        orderBy: { version: 'desc' },
+        select: { version: true },
+      });
+      const versionLegal = deslindeActivo?.version ?? 1;
+
       await tx.deslindeFirma.upsert({
         where: { pasajeroId: id },
         create: {
@@ -87,12 +98,14 @@ export class PasajerosService {
           firmaBase64: payload.firmaBase64,
           ip: meta?.ip,
           userAgent: meta?.userAgent,
-          versionLegal: 1,
+          versionLegal,
         },
         update: {
           firmaBase64: payload.firmaBase64,
           ip: meta?.ip,
           userAgent: meta?.userAgent,
+          versionLegal,
+          createdAt: new Date(),
         },
       });
 
@@ -102,9 +115,15 @@ export class PasajerosService {
           firmaDeslinde: true,
           firmaFecha: new Date(),
           ...(payload.rutDni !== undefined && { rutDni: payload.rutDni }),
-          ...(payload.contactoEmergencia !== undefined && { contactoEmergencia: payload.contactoEmergencia }),
-          ...(payload.telefonoEmergencia !== undefined && { telefonoEmergencia: payload.telefonoEmergencia }),
-          ...(payload.condicionFisica !== undefined && { condicionFisica: payload.condicionFisica }),
+          ...(payload.contactoEmergencia !== undefined && {
+            contactoEmergencia: payload.contactoEmergencia,
+          }),
+          ...(payload.telefonoEmergencia !== undefined && {
+            telefonoEmergencia: payload.telefonoEmergencia,
+          }),
+          ...(payload.condicionFisica !== undefined && {
+            condicionFisica: payload.condicionFisica,
+          }),
           ...(payload.pesoVerificado !== undefined && { pesoVerificado: payload.pesoVerificado }),
         },
       });
@@ -114,7 +133,7 @@ export class PasajerosService {
   async delete(id: number) {
     return prisma.pasajero.update({
       where: { id },
-      data: { deletedAt: new Date() }
+      data: { deletedAt: new Date() },
     });
   }
 }

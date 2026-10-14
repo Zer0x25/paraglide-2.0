@@ -34,10 +34,12 @@ export async function samplearOpenMeteo(): Promise<number> {
 }
 
 /** Arranca el sampler: barrido inicial + ciclo cada 15 min. Fire-and-forget. */
-export function iniciarMeteoScheduler(): void {
+export function iniciarMeteoScheduler(): () => void {
   void samplearOpenMeteo();
-  setInterval(() => {
+  const timer = setInterval(() => {
     void samplearOpenMeteo();
-  }, INTERVALO_15_MIN_MS).unref(); // unref: no impide el shutdown del proceso
+  }, INTERVALO_15_MIN_MS);
+  timer.unref();
   console.log('[meteo-sampler] Scheduler iniciado (cada 15 min)');
+  return () => clearInterval(timer);
 }

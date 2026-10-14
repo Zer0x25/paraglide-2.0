@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import { useState } from 'react';
 import { toast } from 'sonner';
@@ -36,7 +36,9 @@ export default function AdminModulesPage() {
 
   const saveMutation = useMutation({
     mutationFn: async (enabledIds: string[]) => {
-      const data = (await apiRaw.put('/admin/modules', { enabled: enabledIds })) as unknown as { modules: ModuleStatus[] };
+      const data = (await apiRaw.put('/admin/modules', { enabled: enabledIds })) as unknown as {
+        modules: ModuleStatus[];
+      };
       return data.modules;
     },
     onSuccess: (newModules) => {
@@ -63,15 +65,15 @@ export default function AdminModulesPage() {
   const derivedModules = getDerivedModules();
 
   const toggle = (id: string) => {
-    const currentStatus = derivedModules.find(m => m.id === id)?.enabled ?? false;
-    setOverrides(prev => ({
+    const currentStatus = derivedModules.find((m) => m.id === id)?.enabled ?? false;
+    setOverrides((prev) => ({
       ...prev,
-      [id]: !currentStatus
+      [id]: !currentStatus,
     }));
   };
 
   const save = () => {
-    const enabledIds = derivedModules.filter(m => m.enabled).map(m => m.id);
+    const enabledIds = derivedModules.filter((m) => m.enabled).map((m) => m.id);
     saveMutation.mutate(enabledIds);
   };
 
@@ -105,88 +107,86 @@ export default function AdminModulesPage() {
     <OfflinePageGuard pageTitle="Gestión de Módulos">
       <div className="p-6 max-w-3xl mx-auto space-y-6">
         <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <ShieldCheck className="text-blue-600" />
-          <h1 className="text-2xl font-bold">Gestión de Módulos Premium</h1>
+          <div className="flex items-center gap-3">
+            <ShieldCheck className="text-blue-600" />
+            <h1 className="text-2xl font-bold">Gestión de Módulos Premium</h1>
+          </div>
+          <button
+            onClick={save}
+            disabled={saveMutation.isPending}
+            className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg flex items-center gap-2 transition disabled:opacity-50"
+          >
+            {saveMutation.isPending ? (
+              <>
+                <RefreshCw className="animate-spin" size={16} />
+                Guardando...
+              </>
+            ) : (
+              <>
+                <Save size={16} />
+                Guardar cambios (en caliente)
+              </>
+            )}
+          </button>
         </div>
-        <button
-          onClick={save}
-          disabled={saveMutation.isPending}
-          className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg flex items-center gap-2 transition disabled:opacity-50"
-        >
-          {saveMutation.isPending ? (
-            <>
-              <RefreshCw className="animate-spin" size={16} />
-              Guardando...
-            </>
-          ) : (
-            <>
-              <Save size={16} />
-              Guardar cambios (en caliente)
-            </>
-          )}
-        </button>
-      </div>
 
-      <p className="text-sm text-slate-500">
-        Activa o desactiva módulos premium. Los cambios se aplican en caliente vía SSE
-        y se persisten en <code className="bg-slate-100 px-1.5 py-0.5 rounded">modules.config.json</code>
-        del repositorio.
-      </p>
+        <p className="text-sm text-slate-500">
+          Activa o desactiva módulos premium. Los cambios se aplican en caliente vía SSE y se
+          persisten en{' '}
+          <code className="bg-slate-100 px-1.5 py-0.5 rounded">modules.config.json</code>
+          del repositorio.
+        </p>
 
-      <div className="border border-slate-200 rounded-lg overflow-hidden bg-white">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left">
-          <thead className="bg-slate-50">
-            <tr>
-              <th className="px-4 py-2 text-xs font-semibold text-slate-500 uppercase">
-                Módulo
-              </th>
-              <th className="px-4 py-2 text-xs font-semibold text-slate-500 uppercase">
-                Estado
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {derivedModules.map((m) => (
-                <tr key={m.id} className="border-t border-slate-100">
-                  <td className="px-4 py-3">
-                    <span className="font-medium capitalize">{m.id}</span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <button
-                      onClick={() => toggle(m.id)}
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full text-xs font-medium transition ${
-                        m.enabled
-                          ? 'bg-blue-600 text-white'
-                          : 'bg-slate-300 text-slate-700'
-                      }`}
-                    >
-                      <span
-                        className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition ${
-                          m.enabled ? 'translate-x-6' : 'translate-x-1'
-                        }`}
-                      />
-                      <span className="sr-only">toggle</span>
-                      <span className="absolute inset-0 flex items-center justify-center">
-                        {m.enabled ? 'ON' : 'OFF'}
-                      </span>
-                    </button>
-                  </td>
+        <div className="border border-slate-200 rounded-lg overflow-hidden bg-white">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left">
+              <thead className="bg-slate-50">
+                <tr>
+                  <th className="px-4 py-2 text-xs font-semibold text-slate-500 uppercase">
+                    Módulo
+                  </th>
+                  <th className="px-4 py-2 text-xs font-semibold text-slate-500 uppercase">
+                    Estado
+                  </th>
                 </tr>
-              ))}
-          </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {derivedModules.map((m) => (
+                  <tr key={m.id} className="border-t border-slate-100">
+                    <td className="px-4 py-3">
+                      <span className="font-medium capitalize">{m.id}</span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <button
+                        onClick={() => toggle(m.id)}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full text-xs font-medium transition ${
+                          m.enabled ? 'bg-blue-600 text-white' : 'bg-slate-300 text-slate-700'
+                        }`}
+                      >
+                        <span
+                          className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition ${
+                            m.enabled ? 'translate-x-6' : 'translate-x-1'
+                          }`}
+                        />
+                        <span className="sr-only">toggle</span>
+                        <span className="absolute inset-0 flex items-center justify-center">
+                          {m.enabled ? 'ON' : 'OFF'}
+                        </span>
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
 
-      <div className="border border-amber-200 bg-amber-50 rounded-lg p-4 text-sm text-amber-800">
-        <AlertCircle className="inline mr-2" size={16} />
-        Los cambios aplicados aquí se propagan en caliente a todos los clientes
-        conectados vía SSE. Para hacerlos persistentes entre reinicios, el estado
-        inicial se lee de <code className="font-bold">modules.config.json</code> en
-        el repositorio.
-      </div>
+        <div className="border border-amber-200 bg-amber-50 rounded-lg p-4 text-sm text-amber-800">
+          <AlertCircle className="inline mr-2" size={16} />
+          Los cambios aplicados aquí se propagan en caliente a todos los clientes conectados vía
+          SSE. Para hacerlos persistentes entre reinicios, el estado inicial se lee de{' '}
+          <code className="font-bold">modules.config.json</code> en el repositorio.
+        </div>
       </div>
     </OfflinePageGuard>
   );

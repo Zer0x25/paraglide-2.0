@@ -45,7 +45,7 @@ describe('calendarScheduler.service', () => {
       expect(result).toEqual(mockStats);
       expect(googleCalendarService.reconcileVuelos).toHaveBeenCalledOnce();
       expect(consoleLogSpy).toHaveBeenCalledWith(
-        '[calendar-scheduler] Reconciliación completada: 1 creados, 2 actualizados, 3 eliminados (6 activos evaluados)'
+        '[calendar-scheduler] Reconciliación completada: 1 creados, 2 actualizados, 3 eliminados (6 activos evaluados)',
       );
     });
 
@@ -70,7 +70,7 @@ describe('calendarScheduler.service', () => {
       expect(result).toBeNull();
       expect(consoleWarnSpy).toHaveBeenCalledWith(
         '[calendar-scheduler] Fallo en tickCalendarReconciliation:',
-        mockError
+        mockError,
       );
     });
   });
@@ -90,7 +90,7 @@ describe('calendarScheduler.service', () => {
       iniciarCalendarScheduler();
 
       expect(consoleLogSpy).toHaveBeenCalledWith(
-        '[calendar-scheduler] Google Calendar no configurado, scheduler omitido.'
+        '[calendar-scheduler] Google Calendar no configurado, scheduler omitido.',
       );
       expect(googleCalendarService.reconcileVuelos).not.toHaveBeenCalled();
     });
@@ -98,13 +98,16 @@ describe('calendarScheduler.service', () => {
     it('debe ejecutar un barrido inicial y programar un intervalo recurrente si está habilitado', async () => {
       vi.mocked(googleCalendarService.isEnabled).mockReturnValue(true);
       vi.mocked(googleCalendarService.reconcileVuelos).mockResolvedValue({
-        creados: 0, actualizados: 0, eliminados: 0, total: 0
+        creados: 0,
+        actualizados: 0,
+        eliminados: 0,
+        total: 0,
       });
 
       iniciarCalendarScheduler();
 
       expect(consoleLogSpy).toHaveBeenCalledWith(
-        '[calendar-scheduler] Scheduler de reconciliación de Google Calendar iniciado (cada 60 min)'
+        '[calendar-scheduler] Scheduler de reconciliación de Google Calendar iniciado (cada 60 min)',
       );
 
       // El scheduler hace `void tickCalendarReconciliation()` sin await.

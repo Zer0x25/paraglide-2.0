@@ -1,6 +1,11 @@
 import { Views } from 'react-big-calendar';
 import { startOfWeek, addDays } from 'date-fns';
-import { resolverConfiguracion, type ResolucionDiaDTO, dateKeyLocal } from '@parapente/shared';
+import {
+  resolverConfiguracion,
+  type ResolucionDiaDTO,
+  dateKeyLocal,
+  horaLocalHHMM,
+} from '@parapente/shared';
 import type { ConfiguracionBloque, HorarioBloque } from './types';
 
 export function useCalendarioBlocks({
@@ -45,15 +50,20 @@ export function useCalendarioBlocks({
       return null;
     }
     if (resolucionIsPending || resolucionIsError) {
-      return resolverConfiguracion(configuraciones, `${dia}T12:00:00Z`) as ConfiguracionBloque | null;
+      return resolverConfiguracion(
+        configuraciones,
+        `${dia}T12:00:00Z`,
+      ) as ConfiguracionBloque | null;
     }
     return null;
   };
 
   const activeConfig = getActiveConfigForDate(fechaFormulario);
   const isBloqueado = activeConfig?.bloqueado || false;
-  const availableBlocks: HorarioBloque[] = activeConfig ? (activeConfig.horarios || []) : [];
-  const selectedTimeIsCustom = Boolean(horaFormulario && !availableBlocks.some(b => b.horaInicio === horaFormulario));
+  const availableBlocks: HorarioBloque[] = activeConfig ? activeConfig.horarios || [] : [];
+  const selectedTimeIsCustom = Boolean(
+    horaFormulario && !availableBlocks.some((b) => b.horaInicio === horaFormulario),
+  );
 
   const timeToMinutes = (time: string) => {
     const [hours, minutes] = time.split(':').map(Number);
@@ -84,24 +94,27 @@ export function useCalendarioBlocks({
     return config.horarios || [];
   });
 
-  const calendarMinMinutes = visibleBlocks.length > 0
-    ? Math.min(...visibleBlocks.map((block) => timeToMinutes(block.horaInicio)))
-    : 9 * 60;
-  const calendarMaxMinutes = visibleBlocks.length > 0
-    ? Math.max(...visibleBlocks.map((block) => timeToMinutes(block.horaFin)))
-    : 18 * 60;
+  const calendarMinMinutes =
+    visibleBlocks.length > 0
+      ? Math.min(...visibleBlocks.map((block) => timeToMinutes(block.horaInicio)))
+      : 9 * 60;
+  const calendarMaxMinutes =
+    visibleBlocks.length > 0
+      ? Math.max(...visibleBlocks.map((block) => timeToMinutes(block.horaFin)))
+      : 18 * 60;
   const calendarMin = createDateAtMinutes(calendarMinMinutes);
   const calendarMax = createDateAtMinutes(calendarMaxMinutes);
-  const calendarStep = visibleBlocks.length > 0
-    ? visibleBlocks
-        .map((block) => timeToMinutes(block.horaFin) - timeToMinutes(block.horaInicio))
-        .filter((duration) => duration > 0)
-        .reduce((step, duration) => greatestCommonDivisor(step, duration))
-    : 60;
+  const calendarStep =
+    visibleBlocks.length > 0
+      ? visibleBlocks
+          .map((block) => timeToMinutes(block.horaFin) - timeToMinutes(block.horaInicio))
+          .filter((duration) => duration > 0)
+          .reduce((step, duration) => greatestCommonDivisor(step, duration))
+      : 60;
 
   const getBlockForDateTime = (start: Date) => {
     const dateKey = getDateKey(start);
-    const startTime = start.toTimeString().substring(0, 5);
+    const startTime = horaLocalHHMM(start);
     const config = getActiveConfigForDate(dateKey);
     return config?.horarios?.find((block) => block.horaInicio === startTime);
   };

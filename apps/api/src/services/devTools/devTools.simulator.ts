@@ -25,16 +25,71 @@ const OBSERVACIONES_CLIMA = [
 ];
 
 const EQUIPOS_BASE = [
-  { codigo: 'VELA-01', nombre: 'Ozone Magnum 3 41m2', tipo: 'VELA', marca: 'Ozone', modelo: 'Magnum 3', numeroSerie: 'OZ-M3-0001', anoFabricacion: 2021, estado: 'OPERATIVO' },
-  { codigo: 'VELA-02', nombre: 'Nova Ion 7 27', tipo: 'VELA', marca: 'Nova', modelo: 'Ion 7', numeroSerie: 'NV-I7-0021', anoFabricacion: 2022, estado: 'REVISION_PENDIENTE' },
-  { codigo: 'ARN-PIL-01', nombre: 'Arnés Piloto Woody Valley', tipo: 'ARNES_PILOTO', marca: 'Woody Valley', modelo: 'Nervous 3', numeroSerie: 'WV-4401', anoFabricacion: 2020, estado: 'OPERATIVO' },
-  { codigo: 'ARN-PAS-01', nombre: 'Arnés Pasajero Gin Verso', tipo: 'ARNES_PASAJERO', marca: 'Gin', modelo: 'Verso', numeroSerie: 'GN-VS-0312', anoFabricacion: 2021, estado: 'OPERATIVO' },
-  { codigo: 'RES-01', nombre: 'Paracaídas de Emergencia', tipo: 'PARACAIDAS_EMERGENCIA', marca: 'Gin', modelo: 'Yeti', numeroSerie: 'GN-YT-0917', anoFabricacion: 2022, estado: 'OPERATIVO' },
+  {
+    codigo: 'VELA-01',
+    nombre: 'Ozone Magnum 3 41m2',
+    tipo: 'VELA',
+    marca: 'Ozone',
+    modelo: 'Magnum 3',
+    numeroSerie: 'OZ-M3-0001',
+    anoFabricacion: 2021,
+    estado: 'OPERATIVO',
+  },
+  {
+    codigo: 'VELA-02',
+    nombre: 'Nova Ion 7 27',
+    tipo: 'VELA',
+    marca: 'Nova',
+    modelo: 'Ion 7',
+    numeroSerie: 'NV-I7-0021',
+    anoFabricacion: 2022,
+    estado: 'REVISION_PENDIENTE',
+  },
+  {
+    codigo: 'ARN-PIL-01',
+    nombre: 'Arnés Piloto Woody Valley',
+    tipo: 'ARNES_PILOTO',
+    marca: 'Woody Valley',
+    modelo: 'Nervous 3',
+    numeroSerie: 'WV-4401',
+    anoFabricacion: 2020,
+    estado: 'OPERATIVO',
+  },
+  {
+    codigo: 'ARN-PAS-01',
+    nombre: 'Arnés Pasajero Gin Verso',
+    tipo: 'ARNES_PASAJERO',
+    marca: 'Gin',
+    modelo: 'Verso',
+    numeroSerie: 'GN-VS-0312',
+    anoFabricacion: 2021,
+    estado: 'OPERATIVO',
+  },
+  {
+    codigo: 'RES-01',
+    nombre: 'Paracaídas de Emergencia',
+    tipo: 'PARACAIDAS_EMERGENCIA',
+    marca: 'Gin',
+    modelo: 'Yeti',
+    numeroSerie: 'GN-YT-0917',
+    anoFabricacion: 2022,
+    estado: 'OPERATIVO',
+  },
 ];
 
-const TIPOS_MANTENIMIENTO = ['REPLEGADO_PARACAIDAS', 'TEST_POROSIDAD', 'REVISION_LINEAS', 'REPARACION', 'INSPECCION_ANUAL'];
+const TIPOS_MANTENIMIENTO = [
+  'REPLEGADO_PARACAIDAS',
+  'TEST_POROSIDAD',
+  'REVISION_LINEAS',
+  'REPARACION',
+  'INSPECCION_ANUAL',
+];
 
-export async function simulateData(params: { months: number; flightsPerDay: number; pilotsCount?: number }) {
+export async function simulateData(params: {
+  months: number;
+  flightsPerDay: number;
+  pilotsCount?: number;
+}) {
   const { months, flightsPerDay, pilotsCount = 10 } = params;
 
   // 0. Plantillas base de WhatsApp
@@ -52,7 +107,11 @@ export async function simulateData(params: { months: number; flightsPerDay: numb
           peso: faker.number.int({ min: 62, max: 95 }),
           tieneLicencia: true,
           numeroLicencia: `LIC-${faker.string.alphanumeric(6).toUpperCase()}`,
-          fechaVencimientoLicencia: faker.helpers.arrayElement([faker.date.future({ years: 2 }), faker.date.future({ years: 2 }), faker.date.past({ years: 1 })]),
+          fechaVencimientoLicencia: faker.helpers.arrayElement([
+            faker.date.future({ years: 2 }),
+            faker.date.future({ years: 2 }),
+            faker.date.past({ years: 1 }),
+          ]),
           prioridad: faker.number.int({ min: 1, max: 3 }),
           activo: true,
           categoria: faker.helpers.arrayElement(CATEGORIAS) as any,
@@ -64,20 +123,20 @@ export async function simulateData(params: { months: number; flightsPerDay: numb
   );
 
   // 2. Equipos + historial de mantenimiento (idempotente: reutiliza códigos existentes)
-  const codigosBase = EQUIPOS_BASE.map(e => e.codigo);
+  const codigosBase = EQUIPOS_BASE.map((e) => e.codigo);
 
   // Fetch active equipos explicitly bypassing/working with the soft-delete filter by stating deletedAt: null
   const activeEquipos = await prisma.equipo.findMany({
-    where: { codigo: { in: codigosBase }, deletedAt: null }
+    where: { codigo: { in: codigosBase }, deletedAt: null },
   });
 
   // Fetch soft-deleted equipos explicitly by querying for deletedAt: { not: null }
   const softDeletedEquipos = await prisma.equipo.findMany({
-    where: { codigo: { in: codigosBase }, deletedAt: { not: null } }
+    where: { codigo: { in: codigosBase }, deletedAt: { not: null } },
   });
 
-  const equiposExistentesActivos = new Map<string, typeof activeEquipos[0]>();
-  const equiposExistentesSoftDeleted = new Map<string, typeof softDeletedEquipos[0]>();
+  const equiposExistentesActivos = new Map<string, (typeof activeEquipos)[0]>();
+  const equiposExistentesSoftDeleted = new Map<string, (typeof softDeletedEquipos)[0]>();
 
   for (const eq of activeEquipos) {
     equiposExistentesActivos.set(eq.codigo, eq);
@@ -161,7 +220,14 @@ export async function simulateData(params: { months: number; flightsPerDay: numb
   const bloquesEsperados = normalizeHorarios(BLOQUES_INDEFINIDO);
 
   const configsIndefinidas = await prisma.configuracionBloque.findMany({
-    where: { deletedAt: null, archivada: false, fechaInicio: null, fechaFin: null, fechaExacta: null, bloqueado: false },
+    where: {
+      deletedAt: null,
+      archivada: false,
+      fechaInicio: null,
+      fechaFin: null,
+      fechaExacta: null,
+      bloqueado: false,
+    },
     include: { horarios: true },
   });
 
@@ -169,7 +235,11 @@ export async function simulateData(params: { months: number; flightsPerDay: numb
   const horariosCoinciden = (h: { horaInicio: string; horaFin: string }[]) => {
     const norm = normalizeHorarios(h);
     if (norm.length !== bloquesEsperados.length) return false;
-    return norm.every((v, i) => v.horaInicio === bloquesEsperados[i].horaInicio && v.horaFin === bloquesEsperados[i].horaFin);
+    return norm.every(
+      (v, i) =>
+        v.horaInicio === bloquesEsperados[i].horaInicio &&
+        v.horaFin === bloquesEsperados[i].horaFin,
+    );
   };
 
   if (!configBase) {
@@ -177,7 +247,13 @@ export async function simulateData(params: { months: number; flightsPerDay: numb
       where: { nombre: 'Horario Regular', deletedAt: null },
       include: { horarios: true },
     });
-    const legacyEsIndefinido = legacy && !legacy.archivada && legacy.fechaExacta == null && legacy.fechaInicio == null && legacy.fechaFin == null && !legacy.bloqueado;
+    const legacyEsIndefinido =
+      legacy &&
+      !legacy.archivada &&
+      legacy.fechaExacta == null &&
+      legacy.fechaInicio == null &&
+      legacy.fechaFin == null &&
+      !legacy.bloqueado;
     if (legacyEsIndefinido) {
       await prisma.horarioBloque.deleteMany({ where: { configuracionBloqueId: legacy.id } });
       configBase = await prisma.configuracionBloque.update({
@@ -222,7 +298,9 @@ export async function simulateData(params: { months: number; flightsPerDay: numb
     }
   }
 
-  const configCerrado = await prisma.configuracionBloque.findFirst({ where: { nombre: 'Cerrado por mantención', deletedAt: null } });
+  const configCerrado = await prisma.configuracionBloque.findFirst({
+    where: { nombre: 'Cerrado por mantención', deletedAt: null },
+  });
   if (!configCerrado) {
     await prisma.configuracionBloque.create({
       data: {
@@ -285,16 +363,27 @@ export async function simulateData(params: { months: number; flightsPerDay: numb
 
     // Resolver configuración del día
     const diaISO = currentDate.toISOString().slice(0, 10);
-    const configDelDia = resolverConfiguracion(todasConfigs as any, `${diaISO}T12:00:00.000Z`) as any;
+    const configDelDia = resolverConfiguracion(
+      todasConfigs as any,
+      `${diaISO}T12:00:00.000Z`,
+    ) as any;
     const bloqueado = Boolean(configDelDia?.bloqueado);
-    const horariosDelDia: { horaInicio: string; horaFin: string }[] = bloqueado ? [] : (configDelDia?.horarios ?? []);
+    const horariosDelDia: { horaInicio: string; horaFin: string }[] = bloqueado
+      ? []
+      : (configDelDia?.horarios ?? []);
 
     if (bloqueado || horariosDelDia.length === 0) {
       continue;
     }
 
     const usedPilotTimes = new Set<string>();
-    const vuelosGenerar = Math.max(1, faker.number.int({ min: Math.floor(flightsPerDay * 0.5), max: Math.ceil(flightsPerDay * 1.5) }));
+    const vuelosGenerar = Math.max(
+      1,
+      faker.number.int({
+        min: Math.floor(flightsPerDay * 0.5),
+        max: Math.ceil(flightsPerDay * 1.5),
+      }),
+    );
 
     for (let i = 0; i < vuelosGenerar; i++) {
       const estadoPago = faker.helpers.arrayElement(['PAGADO', 'ABONADO', 'PENDIENTE', 'DEVUELTO']);
@@ -305,7 +394,8 @@ export async function simulateData(params: { months: number; flightsPerDay: numb
         abono = valorTotal;
         montoDevuelto = abono;
       } else if (estadoPago === 'PAGADO') abono = valorTotal;
-      else if (estadoPago === 'ABONADO') abono = faker.number.int({ min: 20000, max: valorTotal - 10000 });
+      else if (estadoPago === 'ABONADO')
+        abono = faker.number.int({ min: 20000, max: valorTotal - 10000 });
 
       const isFuture = dayOffset < 0;
       const estadoReserva = isFuture
@@ -364,11 +454,12 @@ export async function simulateData(params: { months: number; flightsPerDay: numb
       const minuto = faker.helpers.arrayElement([0, 15, 30, 45]);
       vueloTime.setHours(hora, minuto, 0, 0);
 
-      const estadoVuelo = estadoReserva === 'CANCELADA'
-        ? 'CANCELADO'
-        : isFuture
-          ? 'AGENDADO'
-          : faker.helpers.arrayElement(['COMPLETADO', 'COMPLETADO', 'COMPLETADO', 'CANCELADO']);
+      const estadoVuelo =
+        estadoReserva === 'CANCELADA'
+          ? 'CANCELADO'
+          : isFuture
+            ? 'AGENDADO'
+            : faker.helpers.arrayElement(['COMPLETADO', 'COMPLETADO', 'COMPLETADO', 'CANCELADO']);
 
       await prisma.vuelo.create({
         data: {

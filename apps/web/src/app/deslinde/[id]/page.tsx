@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import { useEffect, useState } from 'react';
 import { ShieldCheck, CheckCircle2, AlertCircle } from 'lucide-react';
@@ -52,10 +52,11 @@ export default function DeslindePublicoPage({ params }: { params: Promise<{ id: 
     ? 'No pudimos encontrar la información de esta reserva o el enlace ha expirado.'
     : null;
 
-  const manualPasajero = reserva?.pasajeros?.find(p => p.id === manualSelectedId);
-  const selectedPasajero = (manualPasajero && !manualPasajero.firmaDeslinde)
-    ? manualPasajero
-    : (reserva?.pasajeros?.find(p => !p.firmaDeslinde) || null);
+  const manualPasajero = reserva?.pasajeros?.find((p) => p.id === manualSelectedId);
+  const selectedPasajero =
+    manualPasajero && !manualPasajero.firmaDeslinde
+      ? manualPasajero
+      : reserva?.pasajeros?.find((p) => !p.firmaDeslinde) || null;
 
   const selectPasajero = (p: PasajeroPublico) => {
     setManualSelectedId(p.id);
@@ -70,8 +71,7 @@ export default function DeslindePublicoPage({ params }: { params: Promise<{ id: 
   const firmaMutation = useMutation({
     mutationFn: (data: FirmaData) => {
       // Identificador no secuencial (tokenPublico/shortId); nunca el id numérico.
-      const paxIdentifier =
-        selectedPasajero?.tokenPublico || selectedPasajero?.shortId || '';
+      const paxIdentifier = selectedPasajero?.tokenPublico || selectedPasajero?.shortId || '';
       return apiRaw.post(`/public/pasajeros/${paxIdentifier}/firma`, data);
     },
     onSuccess: async () => {
@@ -104,7 +104,9 @@ export default function DeslindePublicoPage({ params }: { params: Promise<{ id: 
       <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center p-4">
         <div className="text-center space-y-3">
           <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
-          <p className="text-slate-700 dark:text-slate-200 font-medium">Cargando formulario de deslinde...</p>
+          <p className="text-slate-700 dark:text-slate-200 font-medium">
+            Cargando formulario de deslinde...
+          </p>
         </div>
       </div>
     );
@@ -117,19 +119,20 @@ export default function DeslindePublicoPage({ params }: { params: Promise<{ id: 
           <div className="w-16 h-16 bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 rounded-full flex items-center justify-center mx-auto">
             <AlertCircle size={32} />
           </div>
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Enlace no disponible</h2>
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
+            Enlace no disponible
+          </h2>
           <p className="text-slate-600 dark:text-slate-300 text-sm">{error}</p>
         </div>
       </div>
     );
   }
 
-  const todosFirmados = reserva.pasajeros.every(p => p.firmaDeslinde);
+  const todosFirmados = reserva.pasajeros.every((p) => p.firmaDeslinde);
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 py-6 sm:py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-xl mx-auto space-y-6">
-        
         {/* Banner de Bienvenida */}
         <div className="bg-linear-to-br from-blue-600 to-indigo-700 text-white p-5 sm:p-8 rounded-3xl shadow-lg relative overflow-hidden">
           <div className="relative z-10 space-y-2">
@@ -137,9 +140,12 @@ export default function DeslindePublicoPage({ params }: { params: Promise<{ id: 
               <ShieldCheck size={16} />
               <span>Check-in Digital Seguro</span>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white">Deslinde de Responsabilidad</h1>
+            <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
+              Deslinde de Responsabilidad
+            </h1>
             <p className="text-blue-100 font-medium text-sm">
-              Reserva #{reserva.numeroReserva || reserva.shortId} • Titular: <strong>{reserva.nombreTitular}</strong>
+              Reserva #{reserva.numeroReserva || reserva.shortId} • Titular:{' '}
+              <strong>{reserva.nombreTitular}</strong>
             </p>
           </div>
         </div>
@@ -150,7 +156,7 @@ export default function DeslindePublicoPage({ params }: { params: Promise<{ id: 
             Pasajeros del Grupo ({reserva.pasajeros.length})
           </h2>
           <div className="grid grid-cols-1 gap-2">
-            {reserva.pasajeros.map(p => (
+            {reserva.pasajeros.map((p) => (
               <button
                 key={p.id}
                 type="button"
@@ -160,19 +166,25 @@ export default function DeslindePublicoPage({ params }: { params: Promise<{ id: 
                   p.firmaDeslinde
                     ? 'bg-emerald-50/80 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-900/60 text-emerald-950 dark:text-emerald-300 cursor-default'
                     : selectedPasajero?.id === p.id
-                    ? 'bg-blue-50 dark:bg-blue-950/60 border-blue-600 dark:border-blue-500 shadow-sm ring-2 ring-blue-500/20'
-                    : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 hover:border-slate-400 dark:hover:border-slate-500'
+                      ? 'bg-blue-50 dark:bg-blue-950/60 border-blue-600 dark:border-blue-500 shadow-sm ring-2 ring-blue-500/20'
+                      : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 hover:border-slate-400 dark:hover:border-slate-500'
                 }`}
               >
                 <div className="flex items-center space-x-3">
-                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs ${
-                    p.firmaDeslinde ? 'bg-emerald-200 text-emerald-900 dark:bg-emerald-900/80 dark:text-emerald-200' : 'bg-blue-100 text-blue-800 dark:bg-blue-900/80 dark:text-blue-200'
-                  }`}>
+                  <div
+                    className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs ${
+                      p.firmaDeslinde
+                        ? 'bg-emerald-200 text-emerald-900 dark:bg-emerald-900/80 dark:text-emerald-200'
+                        : 'bg-blue-100 text-blue-800 dark:bg-blue-900/80 dark:text-blue-200'
+                    }`}
+                  >
                     {p.nombre.charAt(0).toUpperCase()}
                   </div>
                   <div>
                     <p className="font-bold text-sm text-slate-900 dark:text-white">{p.nombre}</p>
-                    <p className="text-xs text-slate-600 dark:text-slate-300">{p.rutDni || 'Sin RUT'}</p>
+                    <p className="text-xs text-slate-600 dark:text-slate-300">
+                      {p.rutDni || 'Sin RUT'}
+                    </p>
                   </div>
                 </div>
 
@@ -198,7 +210,9 @@ export default function DeslindePublicoPage({ params }: { params: Promise<{ id: 
             <div className="w-14 h-14 bg-emerald-100 dark:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400 rounded-full flex items-center justify-center mx-auto">
               <CheckCircle2 size={32} />
             </div>
-            <h3 className="text-xl font-bold text-emerald-950 dark:text-emerald-300">¡Todo el grupo ha completado su deslinde!</h3>
+            <h3 className="text-xl font-bold text-emerald-950 dark:text-emerald-300">
+              ¡Todo el grupo ha completado su deslinde!
+            </h3>
             <p className="text-emerald-800 dark:text-emerald-300/90 text-sm">
               Presenten su nombre al equipo en la pista de despegue. ¡Que tengan un vuelo increíble!
             </p>
@@ -210,13 +224,14 @@ export default function DeslindePublicoPage({ params }: { params: Promise<{ id: 
           <div className="bg-white dark:bg-slate-900 p-5 sm:p-8 rounded-3xl shadow-sm border border-slate-200 dark:border-slate-800 space-y-6">
             <div className="border-b border-slate-200 dark:border-slate-800 pb-4">
               <h3 className="text-lg font-bold text-slate-900 dark:text-white">
-                Firmar por: <span className="text-blue-600 dark:text-blue-400">{selectedPasajero.nombre}</span>
+                Firmar por:{' '}
+                <span className="text-blue-600 dark:text-blue-400">{selectedPasajero.nombre}</span>
               </h3>
               <p className="text-slate-600 dark:text-slate-300 text-xs mt-0.5">
                 Por favor verifica tus datos de seguridad antes de firmar.
               </p>
             </div>
-            
+
             <FirmaDeslindeForm
               pasajero={selectedPasajero}
               isSubmitting={submitting}
@@ -224,7 +239,6 @@ export default function DeslindePublicoPage({ params }: { params: Promise<{ id: 
             />
           </div>
         )}
-
       </div>
     </div>
   );

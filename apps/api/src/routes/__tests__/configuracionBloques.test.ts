@@ -245,7 +245,10 @@ describe('Configuración de Bloques API — Fase 2-B (unit)', () => {
       (prisma.configuracionBloque.findUnique as any).mockResolvedValue(rango);
       // Otros rangos activos (excluye el propio id 2): sin conflicto con el nuevo rango
       (prisma.configuracionBloque.findMany as any).mockResolvedValue([]);
-      (prisma.configuracionBloque.update as any).mockResolvedValue({ ...rango, fechaInicio: new Date('2027-01-01') });
+      (prisma.configuracionBloque.update as any).mockResolvedValue({
+        ...rango,
+        fechaInicio: new Date('2027-01-01'),
+      });
       (prisma.configuracionBloque.findUnique as any).mockResolvedValueOnce(rango); // 1ª llamada dentro de tx
 
       const res = await app.inject({
@@ -374,7 +377,9 @@ describe('Configuración de Bloques API — Fase 2-B (unit)', () => {
       });
 
       expect(res.statusCode).toBe(400);
-      expect(res.json().error).toMatch(/La configuración indefinida es la base y no se puede eliminar/i);
+      expect(res.json().error).toMatch(
+        /La configuración indefinida es la base y no se puede eliminar/i,
+      );
       expect(prisma.configuracionBloque.update).not.toHaveBeenCalled();
       await app.close();
     });
@@ -508,7 +513,10 @@ describe('Configuración de Bloques API — Fase 2-B (unit)', () => {
         archivadaEn: new Date(),
       };
 
-      (prisma.configuracionBloque.findMany as any).mockResolvedValue([indefinido, archivadaReciente]);
+      (prisma.configuracionBloque.findMany as any).mockResolvedValue([
+        indefinido,
+        archivadaReciente,
+      ]);
 
       // Fecha pasada: la archivada aplica (snapshot)
       const resPasado = await app.inject({
@@ -699,6 +707,51 @@ describe('Configuración de Bloques API — Fase 2-B (unit)', () => {
         }),
       );
       await app.close();
+    });
+  });
+
+  // -------------------------------------------------------------
+  // Antirregresión A-01: Zona horaria canónica en resolución de bloques
+  // -------------------------------------------------------------
+  describe('Antirregresión A-01: Zona horaria canónica America/Santiago en resolverConfiguracion', () => {
+    it('evaluando a las 23:30 Santiago (día siguiente UTC), no marca el día actual como pasado', async () => {
+      // 2026-10-14 23:30:00 en Santiago (UTC-3) = 2026-10-15T02:30:00.000Z
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-10-15T02:30:00.000Z'));
+
+      const app = buildApp();
+      await registerRoutes(app);
+
+      const configActivaHoy = {
+        id: 99,
+        nombre: 'Configuración Hoy',
+        fechaInicio: null,
+        fechaFin: null,
+        fechaExacta: new Date('2026-10-14T00:00:00.000Z'),
+        bloqueado: false,
+        archivada: false,
+        archivadaEn: null,
+        version: 1,
+        createdAt: new Date('2026-10-14T08:00:00.000Z'),
+        horarios: [{ horaInicio: '10:00', horaFin: '14:00' }],
+      };
+
+      (prisma.configuracionBloque.findMany as any).mockResolvedValue([configActivaHoy]);
+
+      const res = await app.inject({
+        method: 'GET',
+        url: '/api/configuracion-bloques/resolver?desde=2026-10-14&hasta=2026-10-14',
+      });
+
+      expect(res.statusCode).toBe(200);
+      const diaResuelto = res.json()['2026-10-14'];
+      expect(diaResuelto).toBeDefined();
+      expect(diaResuelto.configuracionId).toBe(99);
+      expect(diaResuelto.numero).toBe(1); // Activa vigente (#1), no inactiva/archivada
+      expect(diaResuelto.numeroInactiva).toBeNull();
+
+      await app.close();
+      vi.useRealTimers();
     });
   });
 });

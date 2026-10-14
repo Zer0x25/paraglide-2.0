@@ -60,6 +60,8 @@ services:
       GIT_COMMIT_SHA: ${IMAGE_TAG:-${GIT_COMMIT_SHA:-unknown}}
     ports:
       - '127.0.0.1:${API_HOST_PORT:-3101}:${API_CONTAINER_PORT:-3001}'
+    volumes:
+      - ./apps/api/modules.config.json:/app/apps/api/modules.config.json
     depends_on:
       db:
         condition: service_healthy

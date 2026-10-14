@@ -22,13 +22,17 @@ vi.mock('axios', async (importOriginal) => {
   };
   return {
     ...actual,
-    default: Object.assign(vi.fn(() => instance), actual.default, {
-      create: vi.fn(() => instance),
-    }),
+    default: Object.assign(
+      vi.fn(() => instance),
+      actual.default,
+      {
+        create: vi.fn(() => instance),
+      },
+    ),
   };
 });
 vi.mock('qrcode', () => ({
-  default: { toDataURL: vi.fn().mockResolvedValue('data:image/png;base64,mocked') }
+  default: { toDataURL: vi.fn().mockResolvedValue('data:image/png;base64,mocked') },
 }));
 
 const mockPantallaData = {
@@ -109,7 +113,10 @@ describe('Página Pública de Pantalla FIDS (/pantalla) - Pruebas Unitarias y de
     window.history.replaceState({}, '', '/pantalla?token=caducado');
     vi.mocked(api.get).mockImplementation((async (url: string) => {
       if (url === '/public/pantalla') {
-        throw { isAxiosError: true, response: { status: 401, data: { message: 'Enlace caducado' } } } as unknown as Error;
+        throw {
+          isAxiosError: true,
+          response: { status: 401, data: { message: 'Enlace caducado' } },
+        } as unknown as Error;
       }
       return { token: 'mock-token' } as unknown as Awaited<ReturnType<typeof api.get>>;
     }) as unknown as typeof api.get);
@@ -125,7 +132,10 @@ describe('Página Pública de Pantalla FIDS (/pantalla) - Pruebas Unitarias y de
     window.history.replaceState({}, '', '/pantalla');
     vi.mocked(api.get).mockImplementation((async (url: string) => {
       if (url === '/public/pantalla') {
-        throw { isAxiosError: true, response: { status: 401, data: { message: 'Enlace caducado' } } } as unknown as Error;
+        throw {
+          isAxiosError: true,
+          response: { status: 401, data: { message: 'Enlace caducado' } },
+        } as unknown as Error;
       }
       return { token: 'mock-token' } as unknown as Awaited<ReturnType<typeof api.get>>;
     }) as unknown as typeof api.get);
@@ -136,6 +146,26 @@ describe('Página Pública de Pantalla FIDS (/pantalla) - Pruebas Unitarias y de
       expect(screen.getByText('Enlaces de acceso')).toBeInTheDocument();
     });
     expect(screen.queryByText(/Inicia sesión/)).not.toBeInTheDocument();
+    document.cookie = 'token=; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+  });
+
+  it('5. Admin logueado sin token en URL (A-07): auto-hidrata el token diario desde /pantalla/link y muestra el tablero FIDS', async () => {
+    document.cookie = 'token=test-admin-token';
+    window.history.replaceState({}, '', '/pantalla');
+    vi.mocked(api.get).mockImplementation((async (url: string) => {
+      if (url === '/public/pantalla') {
+        return mockPantallaData as unknown as Awaited<ReturnType<typeof api.get>>;
+      }
+      return { token: 'token-auto-hidratado' } as unknown as Awaited<ReturnType<typeof api.get>>;
+    }) as unknown as typeof api.get);
+
+    render(<PantallaSalaEsperaPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('PARAGLIDE FLIGHT CENTER')).toBeInTheDocument();
+      expect(screen.getByText(/PISTA ABIERTA/i)).toBeInTheDocument();
+    });
+
     document.cookie = 'token=; expires=Thu, 01 Jan 1970 00:00:00 GMT';
   });
 });

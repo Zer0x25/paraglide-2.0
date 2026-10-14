@@ -57,9 +57,13 @@ describe('typedApiOutbox', () => {
       headers: { 'X-Trace': 'abc' },
     });
 
-    expect(mockedApiRaw.post).toHaveBeenCalledWith('/reservas', {}, {
-      headers: { 'X-Outbox': '1', 'X-Trace': 'abc' },
-    });
+    expect(mockedApiRaw.post).toHaveBeenCalledWith(
+      '/reservas',
+      {},
+      {
+        headers: { 'X-Outbox': '1', 'X-Trace': 'abc' },
+      },
+    );
   });
 
   it('eliminarPago(1, 2, 5) → DELETE con params.version y header X-Outbox', async () => {
@@ -78,13 +82,26 @@ describe('typedApiOutbox', () => {
     await typedApiOutbox.pilotos.actualizar(32, { telefono: '922479839' } as never);
 
     expect(mockedApiRaw.patch).toHaveBeenCalledTimes(1);
-    expect(mockedApiRaw.patch).toHaveBeenCalledWith('/pilotos/32', { telefono: '922479839' }, {
-      headers: { 'X-Outbox': '1' },
-    });
+    expect(mockedApiRaw.patch).toHaveBeenCalledWith(
+      '/pilotos/32',
+      { telefono: '922479839' },
+      {
+        headers: { 'X-Outbox': '1' },
+      },
+    );
     expect(mockedApiRaw.put).not.toHaveBeenCalledWith(
       '/pilotos/32',
       expect.anything(),
       expect.anything(),
     );
+  });
+
+  it('endpoints POST de solo lectura (A-04) conservan la referencia directa de typedApi sin X-Outbox', () => {
+    // Estos endpoints usan POST por convención HTTP pero son queries de cálculo/consulta
+    // y no deben encolarse en el outbox offline ni enviar X-Outbox: 1.
+    expect(typedApiOutbox.vuelos.asignacionAutomatica).toBe(typedApi.vuelos.asignacionAutomatica);
+    expect(typedApiOutbox.reservas.calcularValor).toBe(typedApi.reservas.calcularValor);
+    expect(typedApiOutbox.pilotos.sugerir).toBe(typedApi.pilotos.sugerir);
+    expect(typedApiOutbox.plantillas.renderizar).toBe(typedApi.plantillas.renderizar);
   });
 });

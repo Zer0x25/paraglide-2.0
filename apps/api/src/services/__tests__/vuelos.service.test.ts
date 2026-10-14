@@ -300,6 +300,13 @@ describe('Vuelos Service - validateWeightAndConflict', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     service = new VuelosService();
+    (prisma.piloto.findUnique as any).mockResolvedValue({
+      id: 1,
+      nombre: 'Piloto Test',
+      activo: true,
+      pesoMinimoPasajero: 30,
+      pesoMaximoPasajero: 110,
+    });
   });
 
   it('filtra deletedAt: null y estado: { not: "CANCELADO" } en findFirst de conflicto', async () => {
@@ -333,6 +340,32 @@ describe('Vuelos Service - validateWeightAndConflict', () => {
     await expect(
       service.validateWeightAndConflict(1, 50, '2026-08-25T11:00:00.000Z'),
     ).rejects.toThrow('Límite de peso excedido');
+  });
+
+  it('lanza error si el piloto no existe o no se encuentra activo', async () => {
+    (prisma.pasajero.findUnique as any).mockResolvedValue({ id: 50, peso: 70 });
+    (prisma.piloto.findUnique as any).mockResolvedValue(null);
+
+    await expect(
+      service.validateWeightAndConflict(1, 50, '2026-08-25T11:00:00.000Z'),
+    ).rejects.toThrow('El piloto seleccionado no existe o no se encuentra activo.');
+  });
+
+  it('lanza error si el peso del pasajero está fuera del rango del piloto', async () => {
+    (prisma.pasajero.findUnique as any).mockResolvedValue({ id: 50, peso: 112 });
+    (prisma.piloto.findUnique as any).mockResolvedValue({
+      id: 1,
+      nombre: 'Piloto Test',
+      activo: true,
+      pesoMinimoPasajero: 40,
+      pesoMaximoPasajero: 90,
+    });
+
+    await expect(
+      service.validateWeightAndConflict(1, 50, '2026-08-25T11:00:00.000Z'),
+    ).rejects.toThrow(
+      'Límite de peso fuera de rango para el piloto Piloto Test (40kg - 90kg vs 112kg)',
+    );
   });
 });
 
@@ -615,5 +648,78 @@ describe('Vuelos Service - deleteVuelo (Reversión de agenda y limpieza de fecha
         }),
       }),
     );
+  });
+
+  describe('createVuelo — antirregresión A-02', () => {
+    it('limpia vuelos activos previos del pasajero dentro de la transacción atómica', async () => {
+      (prisma.pasajero.findUnique as any).mockResolvedValue({
+        id: 10,
+        reservaId: 1,
+        peso: 70,
+        deletedAt: null,
+      });
+      (prisma.piloto.findUnique as any).mockResolvedValue({
+        id: 2,
+        activo: true,
+        tarifaPorVuelo: 25000,
+        pesoMinimoPasajero: 30,
+        pesoMaximoPasajero: 110,
+        deletedAt: null,
+      });
+      (prisma.vuelo.findFirst as any).mockResolvedValue(null);
+
+      const mockTx = {
+        reserva: {
+          findFirst: vi.fn().mockResolvedValue({
+            id: 1,
+            cerradaAt: null,
+            pasajeros: [
+              {
+                id: 10,
+                vuelos: [{ id: 501, fechaHora: new Date('2026-10-14T14:00:00-03:00') }],
+              },
+            ],
+          }),
+          update: vi.fn().mockResolvedValue({ id: 1 }),
+        },
+        vuelo: {
+          findFirst: vi.fn().mockResolvedValue({ id: 999 }),
+          update: vi.fn().mockResolvedValue({ id: 999, deletedAt: new Date() }),
+          create: vi.fn().mockResolvedValue({
+            id: 501,
+            pasajeroId: 10,
+            pilotoId: 2,
+            reservaId: 1,
+            fechaHora: new Date('2026-10-14T14:00:00-03:00'),
+          }),
+        },
+        pasajero: {
+          update: vi.fn().mockResolvedValue({ id: 10 }),
+        },
+      };
+
+      (prisma.$transaction as any).mockImplementation((cb: any) => cb(mockTx));
+
+      const res = await service.create({
+        pasajeroId: 10,
+        pilotoId: 2,
+        fechaHora: '2026-10-14T14:00:00-03:00',
+        valorPactado: 80000,
+      });
+
+      expect(mockTx.vuelo.findFirst).toHaveBeenCalledWith({
+        where: {
+          pasajeroId: 10,
+          deletedAt: null,
+          estado: { not: 'COMPLETADO' },
+        },
+      });
+      expect(mockTx.vuelo.update).toHaveBeenCalledWith({
+        where: { id: 999 },
+        data: { deletedAt: expect.any(Date), version: { increment: 1 } },
+      });
+      expect(mockTx.vuelo.create).toHaveBeenCalled();
+      expect(res.id).toBe(501);
+    });
   });
 });

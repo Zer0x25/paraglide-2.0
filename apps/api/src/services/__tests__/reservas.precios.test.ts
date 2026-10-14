@@ -64,7 +64,7 @@ describe('Reservas Precios - calcularValor', () => {
 
     expect(result).toEqual({
       precioBase: 600000, // 200000 * 3
-      descuento: 60000,  // 10% de 600000
+      descuento: 60000, // 10% de 600000
       valorTotal: 540000,
       detalle: 'Vuelo VIP ×3 − Promo 10% (10%)',
     });
@@ -130,7 +130,6 @@ describe('Reservas Precios - calcularValor', () => {
     });
   });
 
-
   it('caps the fixed discount per passenger if it exceeds the unit price', async () => {
     vi.mocked(prisma.tarifa.findFirst).mockResolvedValue({
       id: 1,
@@ -164,8 +163,9 @@ describe('Reservas Precios - calcularValor', () => {
   it('throws an error if tarifa is not found', async () => {
     vi.mocked(prisma.tarifa.findFirst).mockResolvedValue(null);
 
-    await expect(calcularValor({ tarifaId: 99, cantidadPasajeros: 1 }))
-      .rejects.toThrow('Tarifa no encontrada o inactiva');
+    await expect(calcularValor({ tarifaId: 99, cantidadPasajeros: 1 })).rejects.toThrow(
+      'Tarifa no encontrada o inactiva',
+    );
   });
 
   it('throws an error if promocion is not found', async () => {
@@ -178,8 +178,9 @@ describe('Reservas Precios - calcularValor', () => {
 
     vi.mocked(prisma.promocion.findFirst).mockResolvedValue(null);
 
-    await expect(calcularValor({ tarifaId: 1, promocionId: 99, cantidadPasajeros: 1 }))
-      .rejects.toThrow('Promoción no encontrada o inactiva');
+    await expect(
+      calcularValor({ tarifaId: 1, promocionId: 99, cantidadPasajeros: 1 }),
+    ).rejects.toThrow('Promoción no encontrada o inactiva');
   });
 
   it('throws an error if promotion fechaInicio is in the future', async () => {
@@ -202,8 +203,9 @@ describe('Reservas Precios - calcularValor', () => {
       deletedAt: null,
     } as any);
 
-    await expect(calcularValor({ tarifaId: 1, promocionId: 10, cantidadPasajeros: 1 }))
-      .rejects.toThrow('La promoción "Promo Futura" aún no está vigente');
+    await expect(
+      calcularValor({ tarifaId: 1, promocionId: 10, cantidadPasajeros: 1 }),
+    ).rejects.toThrow('La promoción "Promo Futura" aún no está vigente');
   });
 
   it('throws an error if promotion fechaFin is in the past', async () => {
@@ -226,7 +228,8 @@ describe('Reservas Precios - calcularValor', () => {
       deletedAt: null,
     } as any);
 
-    await expect(calcularValor({ tarifaId: 1, promocionId: 10, cantidadPasajeros: 1 }))
-      .rejects.toThrow('La promoción "Promo Pasada" está vencida');
+    await expect(
+      calcularValor({ tarifaId: 1, promocionId: 10, cantidadPasajeros: 1 }),
+    ).rejects.toThrow('La promoción "Promo Pasada" está vencida');
   });
 });
