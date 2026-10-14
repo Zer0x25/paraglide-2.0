@@ -98,14 +98,13 @@ export class AuthService {
 
     const email = gPayload.email;
     const googleId = gPayload.sub;
-    const nombre = gPayload.name || gPayload.given_name || email.split('@')[0];
 
     // 1) Buscar por googleId
     let user = await prisma.user.findFirst({
       where: { googleId, deletedAt: null },
     });
 
-    // 2) Si no, buscar por email y vincular
+    // 2) Si no, buscar por email pre-registrado y vincular
     if (!user) {
       const byEmail = await prisma.user.findFirst({
         where: { email, deletedAt: null },
@@ -128,17 +127,14 @@ export class AuthService {
       }
     }
 
-    // 3) Si no existe ninguno, crear usuario nuevo (RECEPCION por defecto)
+    // 3) Cierre de auto-provisionamiento abierto (CRÍTICO-01):
+    // Solo cuentas previamente dadas de alta por un ADMIN pueden iniciar sesión.
     if (!user) {
-      user = await prisma.user.create({
-        data: {
-          email,
-          nombre,
-          role: 'RECEPCION',
-          googleId,
-          password: null,
-        },
-      });
+      const err: any = new Error(
+        'Esta cuenta de Google no está autorizada en el sistema. Solicita el alta a un administrador.',
+      );
+      err.statusCode = 403;
+      throw err;
     }
 
     const userPayload = {

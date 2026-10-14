@@ -5,6 +5,80 @@ based on [Conventional Commits](https://www.conventionalcommits.org/) and this
 file is maintained automatically by
 [release-please](https://github.com/googleapis/release-please).
 
+## [0.10.2](https://github.com/Zer0x25/paraglide-2.0/compare/v0.10.1...v0.10.2) (2026-10-14)
+
+
+### Bug Fixes
+
+* **api:** aislar entorno en config.test.ts proveyendo DATABASE_URL para CI ([79c5fe6](https://github.com/Zer0x25/paraglide-2.0/commit/79c5fe6cd9f25b087f8f7b97cc20730e4e79afb0))
+* **api:** requerir longitud minima de 32 caracteres para JWT_SECRET en produccion ([b63d756](https://github.com/Zer0x25/paraglide-2.0/commit/b63d7562b8c3446da823acbd81486e4f588d311b))
+
+
+### Performance Improvements
+
+* **api:** paralelizar consulta de pilotosTopRaw en metricas financieras ([94c9996](https://github.com/Zer0x25/paraglide-2.0/commit/94c99962c8062317a4b9370f4a3535df841040ba))
+
+
+### Documentation
+
+* actualizar STATE.md con resolucion integral de PRs y balance 0 de backlog ([439aa26](https://github.com/Zer0x25/paraglide-2.0/commit/439aa26df4677662259030ece9b5d30e0958527b))
+
+## [0.10.1](https://github.com/Zer0x25/paraglide-2.0/compare/v0.10.0...v0.10.1) (2026-10-14)
+
+
+### Performance Improvements
+
+* **api:** fix N+1 queries in simulator equipos lookup ([c2b302c](https://github.com/Zer0x25/paraglide-2.0/commit/c2b302c74291016906366c7715c581656a12e46c))
+
+
+### Miscellaneous Chores
+
+* **docs:** actualizar STATE.md con cobertura E2E y leccion operativa ADR 013 ([a14b227](https://github.com/Zer0x25/paraglide-2.0/commit/a14b2270733b24959694ce5dc28329335d98c0aa))
+
+
+### Code Refactoring
+
+* **web:** migrate AdminModulesPage to react-query ([e15c568](https://github.com/Zer0x25/paraglide-2.0/commit/e15c5682ab94892b993b7accc4045e5a6dfd4cef))
+* **web:** use derived state for passenger selection in deslinde ([0a13721](https://github.com/Zer0x25/paraglide-2.0/commit/0a13721bd00fb68b82a7b2f002a40966003bbad5))
+
+## [0.10.0](https://github.com/Zer0x25/paraglide-2.0/compare/v0.9.5...v0.10.0) (2026-10-13)
+
+
+### Features
+
+* **web:** agendamiento smart proactivo y validacion de compatibilidad de pilotos ([5b4704a](https://github.com/Zer0x25/paraglide-2.0/commit/5b4704af6b88dbdf57b24816e8b50f54ff04bebd))
+
+
+### Bug Fixes
+
+* **api:** add database connectivity check to public health endpoint ([a77714a](https://github.com/Zer0x25/paraglide-2.0/commit/a77714ab8b68b049e1085f4f95187ef5c5f1691e))
+* **api:** avoid inventing benign weather conditions on db failure ([7b2f0ba](https://github.com/Zer0x25/paraglide-2.0/commit/7b2f0ba2e51d6a05e6af13f8fd046c2af5264025))
+* **api:** enable trustProxy in Fastify for accurate rate limiting and audit logging ([2682659](https://github.com/Zer0x25/paraglide-2.0/commit/26826595e1bd69ff755a31b764b9beba548b6221))
+* **api:** implement graceful shutdown and gate console span exporter ([e60002c](https://github.com/Zer0x25/paraglide-2.0/commit/e60002c3a6259a072275c57f4174053f98f76ade))
+* **ops,ux:** remediate high and medium production-readiness findings ([c26b4f2](https://github.com/Zer0x25/paraglide-2.0/commit/c26b4f281efcf9a76edfd8512a1d2ac7cba93a8b))
+* **ops,ux:** remediate high and medium production-readiness findings ([ef6b44f](https://github.com/Zer0x25/paraglide-2.0/commit/ef6b44fff316404f6c00a844aced595b0cfbc9dd))
+* **security,sre:** remediate pre-production critical vulnerabilities and operational gaps ([abf3a40](https://github.com/Zer0x25/paraglide-2.0/commit/abf3a40b6fdbdd12074fe52e2a1553235052a4c0))
+* **security,sre:** remediate pre-production critical vulnerabilities and operational gaps ([8ccfd26](https://github.com/Zer0x25/paraglide-2.0/commit/8ccfd263d75d92bba68b9061bd31b21cf1fdeb08))
+* validar y bloquear agendamiento en fechas pasadas; limpiar agenda al eliminar vuelos ([0aa9cbb](https://github.com/Zer0x25/paraglide-2.0/commit/0aa9cbbdfc9bd74270ec295bf7f5968650881a45))
+* **web:** debounce query invalidations on incoming SSE events ([1de5187](https://github.com/Zer0x25/paraglide-2.0/commit/1de518795bfa8360e2d2c521a329948f06756a8b))
+* **web:** prevent duplicate submission in reservation form modal ([743717c](https://github.com/Zer0x25/paraglide-2.0/commit/743717cad3963ce6d83ffd5b7c28a8719a5ecc8b))
+
+
+### Documentation
+
+* update STATE.md with pre-production audit outcomes ([9ccbe33](https://github.com/Zer0x25/paraglide-2.0/commit/9ccbe33507a4ff658c7ac7916b817e1ea69842e6))
+
+
+### Miscellaneous Chores
+
+* **agents:** add db safety guardrail hook for production db isolation ([c427793](https://github.com/Zer0x25/paraglide-2.0/commit/c427793478b75fb950f70bb7805bc400273e9f2e))
+* **agents:** track db safety guardrail script ([62b927c](https://github.com/Zer0x25/paraglide-2.0/commit/62b927cc427c382582a35e1f80f9f6b64b7b04e5))
+
+
+### Code Refactoring
+
+* **web:** unificar agendamiento grupal con agendarGrupo y canonizar fechas ([a3e0a39](https://github.com/Zer0x25/paraglide-2.0/commit/a3e0a3982ccbb272c911a8907aeb8ea02c77ec30))
+
 ## [0.9.5](https://github.com/Zer0x25/paraglide-2.0/compare/v0.9.4...v0.9.5) (2026-10-07)
 
 

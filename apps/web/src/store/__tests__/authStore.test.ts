@@ -48,7 +48,12 @@ describe('authStore', () => {
   it('setAuth guarda el token en cookies, el user y last_user_id en localStorage', () => {
     useAuthStore.getState().setAuth('jwt-token-123', mockUser1);
 
-    expect(Cookies.set).toHaveBeenCalledWith('token', 'jwt-token-123', { expires: 7 });
+    expect(Cookies.set).toHaveBeenCalledWith('token', 'jwt-token-123', {
+      expires: 7,
+      path: '/',
+      sameSite: 'lax',
+      secure: false,
+    });
     expect(localStorage.getItem('user')).toBe(JSON.stringify(mockUser1));
     expect(localStorage.getItem('last_user_id')).toBe('1');
     expect(useAuthStore.getState().token).toBe('jwt-token-123');
@@ -62,7 +67,7 @@ describe('authStore', () => {
 
     useAuthStore.getState().logout();
 
-    expect(Cookies.remove).toHaveBeenCalledWith('token');
+    expect(Cookies.remove).toHaveBeenCalledWith('token', { path: '/' });
     expect(localStorage.getItem('user')).toBeNull();
     expect(localStorage.getItem('last_user_id')).toBe('1');
     expect(mockRemoveItem).not.toHaveBeenCalled();
@@ -70,7 +75,7 @@ describe('authStore', () => {
     expect(useAuthStore.getState().user).toBeNull();
   });
 
-  it('setAuth con un usuario con diferente id llama a resolveStorage().removeItem(\'parapente-query-cache\')', () => {
+  it("setAuth con un usuario con diferente id llama a resolveStorage().removeItem('parapente-query-cache')", () => {
     localStorage.setItem('last_user_id', '1');
 
     useAuthStore.getState().setAuth('jwt-token-456', mockUser2);

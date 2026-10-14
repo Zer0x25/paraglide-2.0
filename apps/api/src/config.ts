@@ -20,9 +20,12 @@ const jwtSecret = required('JWT_SECRET', nodeEnv === 'test' ? 'test-only-jwt-sec
 // conocidos (p. ej. el fallback de docker-compose) ni secretos triviales.
 if (
   nodeEnv === 'production' &&
-  (['change-me-in-production', 'test-only-jwt-secret', 'secret'].includes(jwtSecret) || jwtSecret.length < 16)
+  (['change-me-in-production', 'test-only-jwt-secret', 'secret'].includes(jwtSecret) ||
+    jwtSecret.length < 32)
 ) {
-  throw new Error('JWT_SECRET inválido en producción: define un secreto fuerte en el .env (sin valores por defecto)');
+  throw new Error(
+    'JWT_SECRET inválido en producción: define un secreto fuerte en el .env (sin valores por defecto)',
+  );
 }
 
 function required(name: string, testFallback?: string): string {
@@ -62,7 +65,10 @@ export const config = {
   centroLon: Number(process.env.CENTRO_LON?.trim() || '-70.13'),
   // Clave de servicio para agentes IA y servidores satélite (MCP).
   // En desarrollo se provee una clave fija si no está definida en .env.
-  serviceApiKey: process.env.SERVICE_API_KEY || process.env.PARAPENTE_API_KEY || (nodeEnv === 'development' ? 'dev-mcp-service-key-12345' : undefined),
+  serviceApiKey:
+    process.env.SERVICE_API_KEY ||
+    process.env.PARAPENTE_API_KEY ||
+    (nodeEnv === 'development' ? 'dev-mcp-service-key-12345' : undefined),
   // OAuth Google
   googleClientId: process.env.GOOGLE_CLIENT_ID ?? '',
   // Google Calendar API (Service Account)

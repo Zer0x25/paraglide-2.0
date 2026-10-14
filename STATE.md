@@ -19,7 +19,7 @@ Este documento mantiene el estado de ejecución, trazabilidad de sesiones, evide
 ## 2. Última Sesión de Trabajo
 
 - **Fecha:** 2026-10-14
-- **Objetivo:** Remediación Integral de los 9 Hallazgos de Severidad Alta (A-01 a A-09) de Pre-producción.
+- **Objetivo:** Remediación Integral de los 9 Hallazgos de Severidad Alta (A-01 a A-09) de Pre-producción, Suite de Antirregresión y Creación de PR #61 a `main`.
 - **Autor / Ejecutor:** Agente Asistente de IA (Antigravity) en coordinación con el Desarrollador.
 - **Entregables Realizados:**
   1. **A-01: Zona Horaria Canónica en Bloques del Calendario**: Sustitución de `new Date().toISOString().slice(0, 10)` por `dateKeyLocal()` en `resolverConfiguracion` y uso de `horaLocalHHMM(start)` en `useCalendarioBlocks.ts`.
@@ -45,6 +45,49 @@ Este documento mantiene el estado de ejecución, trazabilidad de sesiones, evide
   - `npm run check:quick`: Código de salida `0` limpio (build `@parapente/shared`, typecheck estricto en 4 workspaces, 34 suites en API con 283 tests pasando, 52 suites en Web con 291 tests pasando, 1 suite en MCP con 16 tests pasando — **590 tests unitarios en total**).
   - Formato incremental Prettier aplicado vía `npm run format`.
   - Commits atómicos con convención Conventional Commits aplicados en rama `fix/high-severity-findings`.
+  - PR #61 creado hacia `main`, verificado y resuelto ante conflictos de sincronización con `origin/main`.
+
+---
+
+## 2.1. Sesión Anterior (2026-10-14 - Madrugada)
+- **Objetivo:** Triage Integral y Resolución de los 48 PRs Abiertos en GitHub, Consolidación de Suites de Pruebas y Cierre Definitivo de PRs (#16 y #52) (`test(api)`, `fix(api)`, `perf(api)`).
+- **Entregables Realizados:**
+  1. **Triage y Mergeo de 10 PRs de Alto Valor**: `#9`, `#18`, `#19`, `#20`, `#24`, `#28`, `#29`, `#34`, `#40`, `#44`.
+  2. **Cierre Masivo Justificado de 29 PRs Incompletos o Redundantes**: Descartados y cerrados con explicación técnica individual y ramas remotas eliminadas.
+  3. **Consolidación de la Suite de Ciclo de Vida de Reservas**: Unificación de 6 PRs fragmentados (`#22`, `#33`, `#36`, `#39`, `#41`, `#43`) en `apps/api/src/services/__tests__/reservas.ciclo-vida.test.ts`.
+  4. **Publicación de Versiones Automáticas (Release Please)**: Sincronización de releases `v0.10.1` (#57) y `v0.10.2` (#58).
+  5. **Aplicación Quirúrgica y Cierre de PR #16 y PR #52**: Longitud mínima de 32 caracteres para `JWT_SECRET` (#16) y paralelización de `pilotosTopRaw` en métricas (#52).
+  6. **Hito de Limpieza de Backlog**: 0 PRs abiertos restantes en el repositorio previo a la apertura de PR #61.
+
+---
+
+## 2.2. Sesión Histórica (2026-10-13)
+  1. **Auditoría Holística y Endurecimiento de Resiliencia**:
+     - `trustProxy: true` habilitado en Fastify para restaurar precisión de IP real del cliente detrás del proxy Caddy.
+     - Supresión del mock benigno en meteorología (`7b2f0ba`) y ping activo `SELECT 1` a Postgres en `/health` retornando 503 ante fallas (`a77714a`).
+     - Debounce de 300ms en `useDatosStream` para ráfagas SSE (`1de5187`) y prevención de doble submit con guard síncrono en reservas (`743717c`).
+     - Guardrail hook Pre-Tool para aislamiento inmutable de la base de producción (`5678`) (`c427793`).
+  2. **Aislamiento y rotación de tokens de calendario**:
+     - Acceso condicional en `CalendarController.getSyncInfo`: usuarios con rol `PILOTO` solo acceden a su propio feed ICS; feed universal oculto y protegido para administradores.
+     - En `regenerateFeedToken`, validación de que un piloto solo puede rotar su propio token y únicamente administradores pueden rotar el universal.
+     - Endpoint `/reconcile` protegido exclusivamente para `ADMIN`.
+  3. **Validaciones de entrada estrictas en API y mitigación de inyecciones**:
+     - `gastos.controller.ts`: validación de montos numéricos finitos > 0, fechas válidas y longitudes de texto.
+     - `public.controller.ts`: validación de rango de peso límite en deslinde público (0 a 200 kg).
+     - `plantillas.service.ts`: sanitización de variables HTML en renderizado de plantillas.
+     - `vuelos.lifecycle.ts`: verificación de disponibilidad de piloto y estado de equipos antes de agendar.
+  4. **Control de acceso y autorización RBAC**:
+     - Adición de `RouteShorthandOptions` con preHandlers de autorización (`onlyAdmin` y `adminOrRecepcion`) en rutas de `equipos`, `pasajeros`, `pilotos`, `plantillas`, `reportes`, `reservas`, `metricas` y `gastos`.
+     - `pilotos.controller.ts`: función de aserción `assertCanEditPilotoDisponibilidad` que impide a pilotos alterar disponibilidad ajena.
+  5. **Seguridad y ciclo de vida SSE con Graceful Shutdown**:
+     - Introducción de tickets efímeros de un solo uso (`emitirSseTicket` / `consumirSseTicket`) en `eventos.routes.ts` para eliminar tokens JWT de query strings.
+     - Cierre ordenado de conexiones SSE activas (`closeAllSseConnections`) integrado en el shutdown graceful del servidor en `server.ts` con timeout forzado de 8s.
+  6. **Observabilidad y SRE**:
+     - Supresión de tracing OTEL en healthchecks (`/api/public/health`) y recursos estáticos (`/favicon.ico`, `/assets/`, `/sw.js`, etc.) en `observability.plugin.ts` para evitar saturación de logs.
+     - Configuración de rotación de logs `json-file` (`max-size: 10m`, `max-file: 3`) en `docker-compose.yml`.
+  7. **Autenticación y Cookies Seguras**:
+     - `auth.service.ts`: bloqueo de auto-aprovisionamiento con Google SSO si el email no existe previamente en la base de datos.
+     - `authStore.ts`: flags seguras en cookies (`SameSite=lax`, `path=/`, `secure` condicional a HTTPS) y limpieza simétrica en logout.
 
 ---
 
@@ -54,12 +97,12 @@ Este documento mantiene el estado de ejecución, trazabilidad de sesiones, evide
 - [x] Remediación y verificación de los 9 hallazgos de severidad ALTA (A-01 a A-09).
 - [x] Implementación de suite completa de pruebas unitarias de antirregresión para los 9 hallazgos.
 - [x] Gate obligatorio `npm run check:quick` verificado con salida 0 (590 tests pasando).
-- [x] PR #61 abierto hacia `main` y verificado 100% verde en GitHub Actions CI (7 checks passing).
+- [x] PR #61 abierto hacia `main`, rebase/merge con `origin/main` limpio y sin conflictos.
 
 ### Siguiente Acción Prioritaria (Next Action)
-- [ ] **Merge de PR #61 a `main`**: El PR #61 está listo y validado para merge.
+- [ ] **Merge de PR #61 a `main`**: Fusión y cierre de PR #61.
 - [ ] **Despliegue y Validación en Staging**: Levantar o actualizar el stack de staging (`npm run staging:up`) y correr la suite de estrés/integración de staging (`npm run test:staging:quick`).
-- [ ] **Revisión de Release PR**: Monitorear el PR automático de `release-please` generado en GitHub tras los commits `fix(...)` para preparar el release productivo (ej. v0.9.6).
+- [ ] **Revisión de Release PR**: Monitorear el PR automático de `release-please` generado en GitHub tras los commits `fix(...)` para preparar el release productivo (ej. v0.10.3).
 - [ ] **Hardening Operacional Pendiente**:
   - Script cron de backup automatizado para Postgres en Docker (`pg_dump` con rotación).
   - Configuración de alertas en Caddy / healthchecks hacia canal de monitoreo o webhook.
@@ -89,8 +132,9 @@ Este documento mantiene el estado de ejecución, trazabilidad de sesiones, evide
    - *Lección*: Tras aprobar un PR que ya superó el CI, el commit de merge a `main` no necesita volver a ejecutar todas las suites. Detectar merges (`Merge pull request #`) y commits de release (`chore(main): release`) permite omitir ejecuciones redundantes y resolver el Quality Gate en 2 segundos.
 10. **Re-asociación de Runners Self-Hosted al Migrar Repositorios**:
     - *Lección*: Si se clona o bifurca el repo en GitHub, los daemons de runners self-hosted (`actions-runner.service`) siguen escuchando al repositorio anterior hasta que se re-registren explícitamente con `./config.sh` apuntando a la nueva URL.
-11. **Antirregresión y Zonas Horarias en Pruebas Unitarias**:
+11. **ADR 013 y Concurrencia de Sesiones en Tests E2E de Playwright**:
+    - *Lección*: Cuando se ejecutan pruebas E2E contra un backend vivo (Staging o Dev) autenticadas con el mismo usuario administrativo, el paralelismo con múltiples workers invalida sesiones concurrentes (`SESSION_REVOKED` de ADR 013). Para tests con login administrativo real, estructurar los flujos en suites seriales atómicas (`test.describe.serial`) y limitar la concurrencia (`workers: 1`) para evitar revocaciones inesperadas de sesión.
+12. **Antirregresión y Zonas Horarias en Pruebas Unitarias**:
     - *Lección*: Cuando se prueban cálculos horarios dependientes de zona horaria local (`America/Santiago`), fijar la fecha del sistema (`vi.setSystemTime`) con offsets UTC puede simular horas nocturnas (ej. 23:30 local = 02:30 UTC siguiente) donde la fecha civil UTC avanza al día siguiente. La lógica de negocio y las pruebas deben siempre normalizar con `dateKeyLocal()` / `horaLocalHHMM()` para evitar desajustes entre el reloj del servidor y la jornada operativa de Chile.
-12. **Tipado Estricto en Tests y ESLint con `--max-warnings 0`**:
+13. **Tipado Estricto en Tests y ESLint con `--max-warnings 0`**:
     - *Lección*: En `apps/web`, el linter de CI ejecuta ESLint con `--max-warnings 0` sobre todo el workspace incluyendo `__tests__`. Casteos relajados como `as any` disparan fallos en `@typescript-eslint/no-explicit-any` en CI aunque el test pase en Vitest. En tests de frontend se deben utilizar contratos tipados explícitos (`as unknown as TargetType` o `Parameters<typeof hook>[0]`) para asegurar paridad estricta entre Vitest local y el Quality Gate de GitHub Actions.
-

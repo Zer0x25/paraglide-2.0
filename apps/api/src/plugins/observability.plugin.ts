@@ -47,12 +47,11 @@ export default fp(async (fastify, opts) => {
     if (start) {
       const hrtime = process.hrtime(start);
       const durationInSeconds = hrtime[0] + hrtime[1] / 1e9;
+      // Normalizar rutas no coincidentes a 'UNMATCHED_ROUTE' para evitar
+      // explosión de cardinalidad en memoria (OOM) y filtración de query params.
+      const normalizedRoute = request.routeOptions?.url || 'UNMATCHED_ROUTE';
       httpRequestDurationMicroseconds
-        .labels(
-          request.method,
-          request.routeOptions.url || request.url,
-          reply.statusCode.toString(),
-        )
+        .labels(request.method, normalizedRoute, reply.statusCode.toString())
         .observe(durationInSeconds);
     }
     done();
@@ -64,8 +63,13 @@ export default fp(async (fastify, opts) => {
     outboxQueueSize,
   });
 
-  // Endpoint de Prometheus
-  fastify.get('/metrics', async (request, reply) => {
+  // Endpoint de Prometheus restringido a ADMIN (o red interna autenticada)
+  const metricsOpts =
+    typeof (fastify as any).authorize === 'function'
+      ? { preHandler: (fastify as any).authorize(['ADMIN']) }
+      : {};
+
+  fastify.get('/metrics', metricsOpts, async (request, reply) => {
     reply.header('Content-Type', register.contentType);
     return register.metrics();
   });

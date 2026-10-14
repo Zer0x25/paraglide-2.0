@@ -1,9 +1,26 @@
 import { FastifyPluginAsync } from 'fastify';
+import type { ServerResponse } from 'http';
 import { subscribe } from '../services/eventos.service';
 import { consumirSseTicket, emitirSseTicket } from '../services/sse-tickets.service';
 import type { SSEEvent } from '@parapente/shared';
 
 const HEARTBEAT_INTERVAL_MS = 30_000;
+const activeSseResponses = new Set<ServerResponse>();
+
+/**
+ * Cierra limpiamente todos los streams SSE activos durante el apagado (SIGTERM/SIGINT)
+ * para que Fastify pueda drenar conexiones sin esperar al timeout de SIGKILL.
+ */
+export function closeAllSseConnections(): void {
+  for (const raw of activeSseResponses) {
+    try {
+      raw.end();
+    } catch {
+      // Ignorar errores en sockets ya cerrados
+    }
+  }
+  activeSseResponses.clear();
+}
 
 const eventosRoutes: FastifyPluginAsync = async (fastify) => {
   /**
@@ -43,19 +60,27 @@ const eventosRoutes: FastifyPluginAsync = async (fastify) => {
       'X-Accel-Buffering': 'no',
     });
     reply.raw.write(`retry: 3000\n\n`);
+    activeSseResponses.add(reply.raw);
 
     const unsubscribe = subscribe((event: SSEEvent) => {
-      reply.raw.write(`event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`);
+      if (!reply.raw.writableEnded) {
+        reply.raw.write(`event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`);
+      }
     });
 
     // Heartbeat — prevents proxies/LBs from cutting idle connections.
+    // .unref() evita que el timer mantenga vivo el event loop durante un graceful shutdown.
     const heartbeat = setInterval(() => {
-      reply.raw.write(`:heartbeat\n\n`);
+      if (!reply.raw.writableEnded) {
+        reply.raw.write(`:heartbeat\n\n`);
+      }
     }, HEARTBEAT_INTERVAL_MS);
+    heartbeat.unref?.();
 
     request.raw.on('close', () => {
       clearInterval(heartbeat);
       unsubscribe();
+      activeSseResponses.delete(reply.raw);
     });
   });
 };

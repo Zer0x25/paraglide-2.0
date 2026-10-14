@@ -16,10 +16,18 @@ export const useAuthStore = create<AuthState>((set) => ({
   user: null,
 
   setAuth: (token, user) => {
-    Cookies.set('token', token, { expires: 7 }); // 7 days
+    const isSecure = typeof window !== 'undefined' && window.location.protocol === 'https:';
+    Cookies.set('token', token, {
+      expires: 7,
+      path: '/',
+      sameSite: 'lax',
+      secure: isSecure,
+    });
     const lastUserId = localStorage.getItem('last_user_id');
     if (lastUserId && lastUserId !== String(user.id)) {
-      resolveStorage().removeItem('parapente-query-cache').catch(() => {});
+      resolveStorage()
+        .removeItem('parapente-query-cache')
+        .catch(() => {});
     }
     localStorage.setItem('last_user_id', String(user.id));
     localStorage.setItem('user', JSON.stringify(user));
@@ -27,7 +35,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   logout: () => {
-    Cookies.remove('token');
+    Cookies.remove('token', { path: '/' });
     localStorage.removeItem('user');
     set({ token: null, user: null });
   },
@@ -57,5 +65,5 @@ export const useAuthStore = create<AuthState>((set) => ({
     if (token && user) {
       set({ token, user });
     }
-  }
+  },
 }));

@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import { X, CheckCircle2 } from 'lucide-react';
 import type { ReservaConPasajeros } from '@/types/reservaDetalle';
@@ -18,14 +18,17 @@ export interface PagosModalProps {
 }
 
 export function PagosModal({ reserva, isOpen, onClose, onSuccess }: PagosModalProps) {
-  const c = usePagosModalController({ reserva: reserva as Parameters<typeof usePagosModalController>[0]['reserva'], onSuccess, onClose });
+  const c = usePagosModalController({
+    reserva: reserva as Parameters<typeof usePagosModalController>[0]['reserva'],
+    onSuccess,
+    onClose,
+  });
 
   if (!isOpen || !reserva) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-100 dark:border-slate-800 w-full max-w-2xl max-h-[90vh] overflow-y-auto flex flex-col">
-        
         {/* Cabecera */}
         <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-950/50">
           <div>
@@ -38,11 +41,13 @@ export function PagosModal({ reserva, isOpen, onClose, onSuccess }: PagosModalPr
               </h2>
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-              Titular: <strong>{reserva.nombreTitular}</strong> • {reserva.pasajeros?.length || 1} pasajeros
+              Titular: <strong>{reserva.nombreTitular}</strong> • {reserva.pasajeros?.length || 1}{' '}
+              pasajeros
             </p>
           </div>
-          <button 
+          <button
             onClick={onClose}
+            aria-label="Cerrar modal"
             className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
           >
             <X size={20} />
@@ -122,7 +127,9 @@ export function PagosModal({ reserva, isOpen, onClose, onSuccess }: PagosModalPr
               isCompleted={c.vueloCompletado}
               onToggle={(completed) => c.setVueloCompletado(completed)}
               disabled={!c.puedeCompletar && !c.vueloCompletado}
-              disabledReason={!c.puedeCompletar && !c.vueloCompletado ? c.slideDisabledReason : null}
+              disabledReason={
+                !c.puedeCompletar && !c.vueloCompletado ? c.slideDisabledReason : null
+              }
             />
           ) : !c.esFinalizadaOCancelada ? (
             <p
@@ -152,7 +159,6 @@ export function PagosModal({ reserva, isOpen, onClose, onSuccess }: PagosModalPr
             </button>
           )}
         </div>
-
       </div>
     </div>
   );

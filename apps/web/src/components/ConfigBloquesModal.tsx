@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import { PlusCircle, X } from 'lucide-react';
 import { type ConfiguracionBloque } from './config-bloques/types';
@@ -48,11 +48,14 @@ export function ConfigBloquesModal({ isOpen, onClose }: { isOpen: boolean; onClo
       <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-xl w-full max-w-4xl p-5 sm:p-6 relative my-auto max-h-[90vh] overflow-y-auto">
         <button
           onClick={onClose}
+          aria-label="Cerrar modal"
           className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
         >
           <X size={24} />
         </button>
-        <h2 className="text-xl font-bold mb-4 text-slate-800 dark:text-white">Configuración de Horarios</h2>
+        <h2 className="text-xl font-bold mb-4 text-slate-800 dark:text-white">
+          Configuración de Horarios
+        </h2>
 
         <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-5">
           <button
