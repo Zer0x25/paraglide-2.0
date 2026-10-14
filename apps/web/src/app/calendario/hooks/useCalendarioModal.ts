@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
@@ -58,6 +58,8 @@ export function useCalendarioModal({
   const [editingEstado, setEditingEstado] = useState<string>('AGENDADO');
   const [filterReservaId, setFilterReservaId] = useState<number | null>(null);
   const [groupPilotSelections, setGroupPilotSelections] = useState<Record<number, string>>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const submittingRef = useRef(false);
 
   const [formData, setFormData] = useState<FormDataVuelo>({
     pilotoId: '',
@@ -178,6 +180,7 @@ export function useCalendarioModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submittingRef.current) return;
     if (!formData.fecha || !formData.hora) {
       toast.error('Por favor selecciona una fecha y una hora.');
       return;
@@ -199,6 +202,8 @@ export function useCalendarioModal({
       }
     }
 
+    submittingRef.current = true;
+    setIsSubmitting(true);
     try {
       const fechaHoraIso = fechaHoraLocalToIso(formData.fecha, formData.hora);
 
@@ -312,6 +317,9 @@ export function useCalendarioModal({
           toast.error('Ocurrió un error inesperado al guardar el vuelo.');
         }
       }
+    } finally {
+      submittingRef.current = false;
+      setIsSubmitting(false);
     }
   };
 
@@ -413,6 +421,7 @@ export function useCalendarioModal({
     setGroupPilotSelections,
     formData,
     setFormData,
+    isSubmitting,
     handleAsignacionAutomatica,
     isPilotoDisabled,
     handleEditarVuelo,
