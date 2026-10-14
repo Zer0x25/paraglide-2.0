@@ -725,6 +725,13 @@ export class PublicService {
         }
       }
 
+      const deslindeActivo = await (tx as any).deslindeVersion?.findFirst?.({
+        where: { activa: true },
+        orderBy: { version: 'desc' },
+        select: { version: true },
+      });
+      const versionLegal = deslindeActivo?.version ?? 1;
+
       await tx.deslindeFirma.upsert({
         where: { pasajeroId: pasajeroExistente.id },
         create: {
@@ -732,12 +739,14 @@ export class PublicService {
           firmaBase64,
           ip: meta.ip,
           userAgent: meta.userAgent || null,
-          versionLegal: 1,
+          versionLegal,
         },
         update: {
           firmaBase64,
           ip: meta.ip,
           userAgent: meta.userAgent || null,
+          versionLegal,
+          createdAt: new Date(),
         },
       });
 
