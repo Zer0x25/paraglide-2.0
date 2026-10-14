@@ -54,8 +54,10 @@ Este documento mantiene el estado de ejecución, trazabilidad de sesiones, evide
 - [x] Remediación y verificación de los 9 hallazgos de severidad ALTA (A-01 a A-09).
 - [x] Implementación de suite completa de pruebas unitarias de antirregresión para los 9 hallazgos.
 - [x] Gate obligatorio `npm run check:quick` verificado con salida 0 (590 tests pasando).
+- [x] PR #61 abierto hacia `main` y verificado 100% verde en GitHub Actions CI (7 checks passing).
 
 ### Siguiente Acción Prioritaria (Next Action)
+- [ ] **Merge de PR #61 a `main`**: El PR #61 está listo y validado para merge.
 - [ ] **Despliegue y Validación en Staging**: Levantar o actualizar el stack de staging (`npm run staging:up`) y correr la suite de estrés/integración de staging (`npm run test:staging:quick`).
 - [ ] **Revisión de Release PR**: Monitorear el PR automático de `release-please` generado en GitHub tras los commits `fix(...)` para preparar el release productivo (ej. v0.9.6).
 - [ ] **Hardening Operacional Pendiente**:
@@ -89,4 +91,6 @@ Este documento mantiene el estado de ejecución, trazabilidad de sesiones, evide
     - *Lección*: Si se clona o bifurca el repo en GitHub, los daemons de runners self-hosted (`actions-runner.service`) siguen escuchando al repositorio anterior hasta que se re-registren explícitamente con `./config.sh` apuntando a la nueva URL.
 11. **Antirregresión y Zonas Horarias en Pruebas Unitarias**:
     - *Lección*: Cuando se prueban cálculos horarios dependientes de zona horaria local (`America/Santiago`), fijar la fecha del sistema (`vi.setSystemTime`) con offsets UTC puede simular horas nocturnas (ej. 23:30 local = 02:30 UTC siguiente) donde la fecha civil UTC avanza al día siguiente. La lógica de negocio y las pruebas deben siempre normalizar con `dateKeyLocal()` / `horaLocalHHMM()` para evitar desajustes entre el reloj del servidor y la jornada operativa de Chile.
+12. **Tipado Estricto en Tests y ESLint con `--max-warnings 0`**:
+    - *Lección*: En `apps/web`, el linter de CI ejecuta ESLint con `--max-warnings 0` sobre todo el workspace incluyendo `__tests__`. Casteos relajados como `as any` disparan fallos en `@typescript-eslint/no-explicit-any` en CI aunque el test pase en Vitest. En tests de frontend se deben utilizar contratos tipados explícitos (`as unknown as TargetType` o `Parameters<typeof hook>[0]`) para asegurar paridad estricta entre Vitest local y el Quality Gate de GitHub Actions.
 
