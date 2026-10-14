@@ -5,6 +5,13 @@ based on [Conventional Commits](https://www.conventionalcommits.org/) and this
 file is maintained automatically by
 [release-please](https://github.com/googleapis/release-please).
 
+## [0.10.4](https://github.com/Zer0x25/paraglide-2.0/compare/v0.10.3...v0.10.4) (2026-10-14)
+
+
+### Bug Fixes
+
+* **api:** evitar fallo en docker build ignorando scripts en npm ci y agregando reintentos a prisma generate ([#63](https://github.com/Zer0x25/paraglide-2.0/issues/63)) ([84cab12](https://github.com/Zer0x25/paraglide-2.0/commit/84cab12fc311100ca78da1dc70353f2339e6d7a8))
+
 ## [0.10.3](https://github.com/Zer0x25/paraglide-2.0/compare/v0.10.2...v0.10.3) (2026-10-14)
 
 
