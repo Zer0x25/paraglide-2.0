@@ -76,7 +76,7 @@ describe('authStore', () => {
   });
 
   it('initialize elimina cookie huérfana si no existe user en localStorage', () => {
-    (Cookies.get as any).mockReturnValue('jwt-token-huerfano');
+    vi.mocked(Cookies.get).mockReturnValue('jwt-token-huerfano');
 
     useAuthStore.getState().initialize();
 
