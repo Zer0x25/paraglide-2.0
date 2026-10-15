@@ -221,6 +221,7 @@ export function MantenimientoModal({
                     onClick={() => onDeleteMantenimiento(equipo.id, m.id)}
                     className="p-1.5 text-slate-400 hover:text-red-600 dark:hover:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/50 transition"
                     title="Eliminar registro"
+                    aria-label="Eliminar registro"
                   >
                     <Trash2 size={14} />
                   </button>
