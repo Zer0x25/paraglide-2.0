@@ -13,3 +13,6 @@
 ## 2025-01-20 - Fast Array Lookups in Nested Loops
 **Learning:** Nested array lookups (e.g. `Array.find` inside a loop) can quickly degrade performance to O(N^2).
 **Action:** When searching an array iteratively for elements matching varying criteria, precompute Map or Dictionary structures based on the key identifiers to allow for O(1) lookups. When matching on multiple optional fields (like Name OR ID), separate lookup maps should be created for each criterion. Take care not to use exclusive logic (if/else) when populating the Maps if the entity might match against different criteria independently.
+## 2026-10-15 - Array Lookups in Nested Loops Optimization
+**Learning:** Nested array lookups (e.g. `Array.find` inside a loop) were detected in `reservas.crud.ts` where `currentPasajeros.find` was repeatedly executed to search for existing passengers within an update transaction loop.
+**Action:** Refactored the O(N²) `Array.find` into O(N) by creating an index map (`currentPasajerosById`) and pre-filtering target payloads (`signedPasajeros`) outside the nested `for` loop, speeding up the sequential processing of booking arrays.
