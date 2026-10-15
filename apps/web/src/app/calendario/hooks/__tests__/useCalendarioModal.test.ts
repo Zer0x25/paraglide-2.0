@@ -74,7 +74,7 @@ describe('useCalendarioModal — antirregresión A-07', () => {
       result.current.setFormData({
         pilotoId: '1',
         pasajeroId: '10',
-        fecha: '2026-10-14',
+        fecha: '2030-10-14',
         hora: '14:00',
         valorPactado: '70000',
       });
