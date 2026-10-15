@@ -440,18 +440,26 @@ export async function updateReserva(
       let nextPasajeroCorrelative = maxCorrelative + 1;
       const usedSignedPaxIds = new Set<number>();
 
+      const currentPasajerosById = new Map(currentPasajeros.map(cp => [cp.id, cp]));
+      const signedPasajeros = currentPasajeros.filter(cp => cp.firmaDeslinde);
+
       for (const p of normalizedPasajeros) {
         // Buscar si existe un pasajero previo que ya haya firmado el deslinde y cuya identidad
         // legal (Nombre + RUT/DNI) coincida con la de este pasajero entrante:
-        const matchingSignedPax = currentPasajeros.find(
-          (cp) => cp.firmaDeslinde && !usedSignedPaxIds.has(cp.id) && esMismaPersona(cp, p),
-        );
+        let matchingSignedPax = null;
+        for (const cp of signedPasajeros) {
+          if (!usedSignedPaxIds.has(cp.id) && esMismaPersona(cp, p)) {
+            matchingSignedPax = cp;
+            break;
+          }
+        }
+
         if (matchingSignedPax) {
           usedSignedPaxIds.add(matchingSignedPax.id);
         }
 
         if (p.id) {
-          const currentPax = currentPasajeros.find((cp) => cp.id === p.id);
+          const currentPax = currentPasajerosById.get(p.id);
 
           let firmaDeslindeFinal = false;
           let firmaFechaFinal: Date | null = null;
