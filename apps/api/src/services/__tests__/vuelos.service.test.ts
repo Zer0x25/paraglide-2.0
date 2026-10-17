@@ -676,7 +676,7 @@ describe('Vuelos Service - deleteVuelo (Reversión de agenda y limpieza de fecha
             pasajeros: [
               {
                 id: 10,
-                vuelos: [{ id: 501, fechaHora: new Date('2026-10-14T14:00:00-03:00') }],
+                vuelos: [{ id: 501, fechaHora: new Date('2030-10-14T14:00:00-03:00') }],
               },
             ],
           }),
@@ -690,7 +690,7 @@ describe('Vuelos Service - deleteVuelo (Reversión de agenda y limpieza de fecha
             pasajeroId: 10,
             pilotoId: 2,
             reservaId: 1,
-            fechaHora: new Date('2026-10-14T14:00:00-03:00'),
+            fechaHora: new Date('2030-10-14T14:00:00-03:00'),
           }),
         },
         pasajero: {
@@ -703,7 +703,7 @@ describe('Vuelos Service - deleteVuelo (Reversión de agenda y limpieza de fecha
       const res = await service.create({
         pasajeroId: 10,
         pilotoId: 2,
-        fechaHora: '2026-10-14T14:00:00-03:00',
+        fechaHora: '2030-10-14T14:00:00-03:00',
         valorPactado: 80000,
       });
 

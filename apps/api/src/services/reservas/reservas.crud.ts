@@ -64,6 +64,109 @@ export function esMismaPersona(
   return normNombreA === normNombreB;
 }
 
+type PasajeroIdentidad = {
+  id: number;
+  nombre: string;
+  rutDni?: string | null;
+  firmaDeslinde?: boolean | null;
+};
+
+type CandidatoFirmado<T> = { pasajero: T; posicion: number };
+
+type ColaCandidatos<T> = {
+  candidatos: CandidatoFirmado<T>[];
+  cursor: number;
+};
+
+type GrupoFirmado<T> = {
+  todos: ColaCandidatos<T>;
+  sinRut: ColaCandidatos<T>;
+  porRut: Map<string, ColaCandidatos<T>>;
+};
+
+function crearCola<T>(): ColaCandidatos<T> {
+  return { candidatos: [], cursor: 0 };
+}
+
+function siguienteSinUsar<T extends PasajeroIdentidad>(
+  cola: ColaCandidatos<T>,
+  usados: Set<number>,
+): CandidatoFirmado<T> | undefined {
+  while (
+    cola.cursor < cola.candidatos.length &&
+    usados.has(cola.candidatos[cola.cursor].pasajero.id)
+  ) {
+    cola.cursor += 1;
+  }
+  return cola.candidatos[cola.cursor];
+}
+
+/**
+ * Indexa las firmas por nombre normalizado y RUT para preservar la semántica de
+ * esMismaPersona sin recorrer todas las firmas por cada pasajero entrante.
+ * Las colas mantienen el orden original y consumen cada candidato como máximo
+ * una vez, haciendo el recorrido O(n) amortizado.
+ */
+export function crearBuscadorPasajerosFirmados<T extends PasajeroIdentidad>(
+  pasajeros: readonly T[],
+) {
+  const grupos = new Map<string, GrupoFirmado<T>>();
+  const usados = new Set<number>();
+
+  pasajeros.forEach((pasajero, posicion) => {
+    if (!pasajero.firmaDeslinde) return;
+    const nombre = normalizarNombre(pasajero.nombre);
+    if (!nombre) return;
+
+    let grupo = grupos.get(nombre);
+    if (!grupo) {
+      grupo = { todos: crearCola(), sinRut: crearCola(), porRut: new Map() };
+      grupos.set(nombre, grupo);
+    }
+
+    const candidato = { pasajero, posicion };
+    grupo.todos.candidatos.push(candidato);
+    const rut = normalizarRut(pasajero.rutDni);
+    if (!rut) {
+      grupo.sinRut.candidatos.push(candidato);
+      return;
+    }
+
+    let colaRut = grupo.porRut.get(rut);
+    if (!colaRut) {
+      colaRut = crearCola();
+      grupo.porRut.set(rut, colaRut);
+    }
+    colaRut.candidatos.push(candidato);
+  });
+
+  return (pasajero: { nombre: string; rutDni?: string | null }): T | null => {
+    const nombre = normalizarNombre(pasajero.nombre);
+    if (!nombre) return null;
+
+    const grupo = grupos.get(nombre);
+    if (!grupo) return null;
+
+    const rut = normalizarRut(pasajero.rutDni);
+    let candidato: CandidatoFirmado<T> | undefined;
+
+    if (!rut) {
+      candidato = siguienteSinUsar(grupo.todos, usados);
+    } else {
+      const sinRut = siguienteSinUsar(grupo.sinRut, usados);
+      const conMismoRut = grupo.porRut.get(rut);
+      const mismoRut = conMismoRut ? siguienteSinUsar(conMismoRut, usados) : undefined;
+      if (!sinRut) candidato = mismoRut;
+      else if (!mismoRut || sinRut.posicion < mismoRut.posicion) candidato = sinRut;
+      else candidato = mismoRut;
+    }
+
+    if (!candidato) return null;
+    usados.add(candidato.pasajero.id);
+    return candidato.pasajero;
+  };
+}
+
 export async function generarNumeroReserva(): Promise<string> {
   const today = new Date();
   const year = today.getFullYear().toString().slice(-2);
@@ -383,6 +486,9 @@ export async function updateReserva(
         include: { deslindeFirma: true },
       });
       const currentIds = currentPasajeros.map((p) => p.id);
+      const currentPasajerosById = new Map(
+        currentPasajeros.map((pasajero) => [pasajero.id, pasajero]),
+      );
 
       // Defensa en profundidad: si ningún pasajero trae ID pero la cantidad coincide con los existentes,
       // asociar por posición para evitar borrar cupos/vuelos si un cliente legacy no manda IDs.
@@ -397,7 +503,8 @@ export async function updateReserva(
         .filter((p) => p.id !== undefined)
         .map((p) => p.id as number);
 
-      const idsToDelete = currentIds.filter((pid: number) => !payloadIds.includes(pid));
+      const payloadIdsSet = new Set(payloadIds);
+      const idsToDelete = currentIds.filter((pid: number) => !payloadIdsSet.has(pid));
       if (idsToDelete.length > 0) {
         // Liberar slots de calendario de los pasajeros removidos (evita vuelos fantasma)
         await tx.vuelo.updateMany({
@@ -438,20 +545,14 @@ export async function updateReserva(
       });
 
       let nextPasajeroCorrelative = maxCorrelative + 1;
-      const usedSignedPaxIds = new Set<number>();
-
+      const buscarPasajeroFirmado = crearBuscadorPasajerosFirmados(currentPasajeros);
       for (const p of normalizedPasajeros) {
         // Buscar si existe un pasajero previo que ya haya firmado el deslinde y cuya identidad
         // legal (Nombre + RUT/DNI) coincida con la de este pasajero entrante:
-        const matchingSignedPax = currentPasajeros.find(
-          (cp) => cp.firmaDeslinde && !usedSignedPaxIds.has(cp.id) && esMismaPersona(cp, p),
-        );
-        if (matchingSignedPax) {
-          usedSignedPaxIds.add(matchingSignedPax.id);
-        }
+        const matchingSignedPax = buscarPasajeroFirmado(p);
 
         if (p.id) {
-          const currentPax = currentPasajeros.find((cp) => cp.id === p.id);
+          const currentPax = currentPasajerosById.get(p.id);
 
           let firmaDeslindeFinal = false;
           let firmaFechaFinal: Date | null = null;
