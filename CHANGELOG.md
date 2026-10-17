@@ -5,6 +5,32 @@ based on [Conventional Commits](https://www.conventionalcommits.org/) and this
 file is maintained automatically by
 [release-please](https://github.com/googleapis/release-please).
 
+## [0.11.0](https://github.com/Zer0x25/paraglide-2.0/compare/v0.10.4...v0.11.0) (2026-10-17)
+
+
+### Features
+
+* **web:** add flight marking workflow ([4e75a31](https://github.com/Zer0x25/paraglide-2.0/commit/4e75a3189eff5e7bcaab0e5a4b21399dbb6eb4ed))
+
+
+### Bug Fixes
+
+* add aria-label to delete maintenance log button ([ec5eb18](https://github.com/Zer0x25/paraglide-2.0/commit/ec5eb1891f0a789c31dfb098c1d32fd13bf9b70c))
+* add aria-label to delete maintenance log button and fix failing test ([8ad9f06](https://github.com/Zer0x25/paraglide-2.0/commit/8ad9f068fd5042880ffa1e67e2fe7ad07f45f910))
+* **api:** keep passenger matching linear ([5ad700d](https://github.com/Zer0x25/paraglide-2.0/commit/5ad700d7aa90255ba28b11fd93dbd7cac9986efa))
+* **web:** align accessible labels and fallback queries ([a531d83](https://github.com/Zer0x25/paraglide-2.0/commit/a531d8349e1914e1a6c54d148634cf01178d3e44))
+
+
+### Performance Improvements
+
+* **api:** batch independent db queries in validateWeightAndConflict ([7c2e10c](https://github.com/Zer0x25/paraglide-2.0/commit/7c2e10ce26be3c1a71914497e2716b1d74681a10))
+
+
+### Miscellaneous Chores
+
+* **agents:** record marking fixes and validation ([f9f74ce](https://github.com/Zer0x25/paraglide-2.0/commit/f9f74ce0e783eed0e7b78ee00f11e5c0c84252cf))
+* **docs:** actualizar STATE.md tras release v0.10.4 y despliegue exitoso ([0678e01](https://github.com/Zer0x25/paraglide-2.0/commit/0678e0199e6a312423da3a16eab51ab8281a4c5d))
+
 ## [0.10.4](https://github.com/Zer0x25/paraglide-2.0/compare/v0.10.3...v0.10.4) (2026-10-14)
 
 
