@@ -1,9 +1,21 @@
-"use client";
+'use client';
 
 import { useState, useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { UserCircle, Calendar, Users, BookOpen, BarChart3, ShieldCheck, LogOut, Menu, X, Settings } from 'lucide-react';
+import {
+  UserCircle,
+  Calendar,
+  Users,
+  BookOpen,
+  BarChart3,
+  ShieldCheck,
+  LogOut,
+  Menu,
+  X,
+  Settings,
+  CheckCircle2,
+} from 'lucide-react';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { OutboxBadge } from '@/components/OutboxBadge';
 import { OfflineBanner } from './OfflineBanner';
@@ -21,6 +33,7 @@ const coreNav = [
   { href: '/pilotos', label: 'Pilotos', icon: UserCircle },
   { href: '/reservas', label: 'Reservas y Pasajeros', icon: BookOpen },
   { href: '/calendario', label: 'Calendario de Vuelos', icon: Calendar },
+  { href: '/marcacion', label: 'Marcación de Pista', icon: CheckCircle2, receptionOnly: true },
   { href: '/analiticas', label: 'Analíticas', icon: BarChart3 },
   { href: '/admin/users', label: 'Usuarios', icon: Users, adminOnly: true },
   { href: '/configuracion', label: 'Configuración', icon: Settings, adminOnly: true },
@@ -84,11 +97,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         children
       ) : (
         <div className="flex flex-col md:flex-row h-screen w-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 overflow-hidden">
-          
           {/* Cabecera Móvil */}
           <div className="md:hidden flex items-center justify-between bg-slate-900 text-white px-4 py-3 shrink-0 shadow-md z-30 border-b border-slate-800">
             <div className="flex items-center space-x-3 min-w-0">
-              <button 
+              <button
                 onClick={() => setIsMobileMenuOpen(true)}
                 aria-label="Abrir menú"
                 className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-100 border border-slate-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 active:scale-95"
@@ -97,30 +109,36 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </button>
               <WeatherWidget />
             </div>
-            <div className="text-lg font-black tracking-tight bg-clip-text text-transparent bg-linear-to-r from-blue-400 to-cyan-300 whitespace-nowrap">ParaglideAdmin</div>
+            <div className="text-lg font-black tracking-tight bg-clip-text text-transparent bg-linear-to-r from-blue-400 to-cyan-300 whitespace-nowrap">
+              ParaglideAdmin
+            </div>
           </div>
 
           {/* Overlay para Móvil */}
           {isMobileMenuOpen && (
-            <div 
-              className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-40 md:hidden transition-opacity" 
+            <div
+              className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-40 md:hidden transition-opacity"
               onClick={() => setIsMobileMenuOpen(false)}
             />
           )}
 
           {/* Sidebar */}
-          <aside className={`fixed inset-y-0 left-0 z-50 w-72 md:w-64 bg-slate-900 text-white flex flex-col shrink-0 transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0 ${isMobileMenuOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'} border-r border-slate-800`}>
+          <aside
+            className={`fixed inset-y-0 left-0 z-50 w-72 md:w-64 bg-slate-900 text-white flex flex-col shrink-0 transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0 ${isMobileMenuOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'} border-r border-slate-800`}
+          >
             <div className="p-5 text-2xl font-bold bg-slate-950 flex justify-between items-center border-b border-slate-800/50">
-              <span className="bg-clip-text text-transparent bg-linear-to-r from-blue-400 to-cyan-300">ParaglideAdmin</span>
-              <button 
-                className="md:hidden p-2 rounded-lg bg-slate-800/80 hover:bg-slate-700 border border-slate-700 transition-colors text-slate-300 hover:text-white active:scale-95" 
+              <span className="bg-clip-text text-transparent bg-linear-to-r from-blue-400 to-cyan-300">
+                ParaglideAdmin
+              </span>
+              <button
+                className="md:hidden p-2 rounded-lg bg-slate-800/80 hover:bg-slate-700 border border-slate-700 transition-colors text-slate-300 hover:text-white active:scale-95"
                 onClick={() => setIsMobileMenuOpen(false)}
                 aria-label="Cerrar menú"
               >
                 <X size={20} />
               </button>
             </div>
-            
+
             {user && (
               <div className="px-5 py-4 bg-slate-900/50 text-sm border-b border-slate-800 flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-linear-to-br from-blue-500 to-purple-600 flex items-center justify-center font-bold text-white shadow-inner ring-2 ring-blue-500/20">
@@ -136,6 +154,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <nav className="flex-1 p-3 space-y-1 text-sm font-medium overflow-y-auto custom-scrollbar">
               {coreNav
                 .filter((item) => !(item.adminOnly && user?.role !== 'ADMIN'))
+                .filter(
+                  (item) =>
+                    !item.receptionOnly || user?.role === 'ADMIN' || user?.role === 'RECEPCION',
+                )
                 .map((item) => {
                   const isActive = pathname === item.href;
                   return (
@@ -156,7 +178,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
               {premiumMainModules.length > 0 && (
                 <div className="pt-3 mt-3 border-t border-slate-800/80">
-                  <p className="px-2.5 pb-1 text-[10px] font-bold uppercase tracking-widest text-slate-500">Features</p>
+                  <p className="px-2.5 pb-1 text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                    Features
+                  </p>
                 </div>
               )}
 
@@ -194,17 +218,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     <div className="flex items-center justify-between w-full">
                       <span>{m.label}</span>
                       {m.badge && (
-                        <span className="text-[10px] uppercase font-bold bg-blue-500/20 text-blue-300 px-1.5 py-0.5 rounded">{m.badge}</span>
+                        <span className="text-[10px] uppercase font-bold bg-blue-500/20 text-blue-300 px-1.5 py-0.5 rounded">
+                          {m.badge}
+                        </span>
                       )}
                     </div>
                   </Link>
                 );
               })}
-
             </nav>
             <div className="p-4 border-t border-slate-800/80 flex items-center gap-3 bg-slate-950/30">
               <ThemeToggle />
-              <button 
+              <button
                 onClick={() => setShowLogoutConfirm(true)}
                 className="flex-1 flex items-center justify-center space-x-2 p-2.5 text-red-400 hover:bg-red-500/10 hover:text-red-300 rounded-lg transition-all text-sm font-semibold border border-transparent hover:border-red-500/20"
               >
@@ -219,9 +244,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden overflow-x-hidden">
             <OfflineBanner />
             <main className="flex-1 overflow-auto overflow-x-hidden p-4 md:p-8 relative w-full h-full min-w-0">
-              <div className="max-w-7xl mx-auto">
-                {children}
-              </div>
+              <div className="max-w-7xl mx-auto">{children}</div>
             </main>
           </div>
 
@@ -241,7 +264,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     Cancelar
                   </button>
                   <button
-                    onClick={() => { setShowLogoutConfirm(false); logout(); }}
+                    onClick={() => {
+                      setShowLogoutConfirm(false);
+                      logout();
+                    }}
                     className="px-4 py-2 rounded-lg text-sm font-semibold bg-red-600 text-white hover:bg-red-500 transition-all"
                   >
                     Cerrar Sesión

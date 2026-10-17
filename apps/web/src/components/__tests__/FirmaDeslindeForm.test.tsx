@@ -1,6 +1,14 @@
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '../../test/render';
+import { beforeEach, describe, it, expect, vi } from 'vitest';
+import { render, screen, fireEvent, waitFor, queryClient } from '../../test/render';
 import { FirmaDeslindeForm, DESLINDE_TEXTO_FALLBACK } from '../FirmaDeslindeForm';
+
+const { mockDeslindeActivo } = vi.hoisted(() => ({
+  mockDeslindeActivo: vi.fn(),
+}));
+
+vi.mock('@/services/api', () => ({
+  default: { public: { deslindeActivo: mockDeslindeActivo } },
+}));
 
 describe('FirmaDeslindeForm Component', () => {
   const mockPasajero = {
@@ -10,18 +18,18 @@ describe('FirmaDeslindeForm Component', () => {
     telefonoEmergencia: '+56988776655',
   };
 
-  it('debe renderizar el texto de la declaración jurada legal y los campos del pasajero', () => {
-    render(
-      <FirmaDeslindeForm
-        pasajero={mockPasajero}
-        isSubmitting={false}
-        onSubmit={vi.fn()}
-      />
-    );
+  beforeEach(() => {
+    queryClient.removeQueries({ queryKey: ['deslinde-activo'] });
+    mockDeslindeActivo.mockResolvedValue(undefined);
+  });
+
+  it('debe renderizar el texto de la declaración jurada legal y los campos del pasajero', async () => {
+    render(<FirmaDeslindeForm pasajero={mockPasajero} isSubmitting={false} onSubmit={vi.fn()} />);
 
     // Texto legal
     expect(screen.getByText('Términos y Declaración Jurada')).toBeInTheDocument();
     expect(screen.getByText(DESLINDE_TEXTO_FALLBACK)).toBeInTheDocument();
+    await waitFor(() => expect(mockDeslindeActivo).toHaveBeenCalledOnce());
 
     // Campos del formulario hidratados
     expect(screen.getByDisplayValue('12.345.678-9')).toBeInTheDocument();
@@ -36,13 +44,7 @@ describe('FirmaDeslindeForm Component', () => {
   });
 
   it('debe mantener deshabilitado el botón de confirmar si no hay trazo de firma', () => {
-    render(
-      <FirmaDeslindeForm
-        pasajero={mockPasajero}
-        isSubmitting={false}
-        onSubmit={vi.fn()}
-      />
-    );
+    render(<FirmaDeslindeForm pasajero={mockPasajero} isSubmitting={false} onSubmit={vi.fn()} />);
 
     const submitBtn = screen.getByRole('button', { name: /Confirmar y Firmar/i });
     expect(submitBtn).toBeDisabled();
@@ -56,7 +58,7 @@ describe('FirmaDeslindeForm Component', () => {
         isSubmitting={false}
         onSubmit={vi.fn()}
         onCancel={onCancelMock}
-      />
+      />,
     );
 
     const cancelBtn = screen.getByRole('button', { name: /Cancelar/i });

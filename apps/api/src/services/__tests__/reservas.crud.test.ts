@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { normalizarRut, normalizarNombre, esMismaPersona } from '../reservas/reservas.crud';
+import {
+  crearBuscadorPasajerosFirmados,
+  normalizarRut,
+  normalizarNombre,
+  esMismaPersona,
+} from '../reservas/reservas.crud';
 
 describe('reservas.crud utils', () => {
   describe('normalizarRut', () => {
@@ -100,6 +105,34 @@ describe('reservas.crud utils', () => {
         esMismaPersona({ nombre: 'María José' }, { nombre: 'Juan Perez', rutDni: '11111111-1' }),
       ).toBe(false);
       expect(esMismaPersona({ nombre: 'María José' }, { nombre: 'Juan Perez' })).toBe(false);
+    });
+  });
+
+  describe('crearBuscadorPasajerosFirmados', () => {
+    it('indexa por nombre y RUT manteniendo el orden y evitando identidades duplicadas', () => {
+      const firmados = [
+        { id: 1, nombre: 'Juan Pérez', rutDni: '11.111.111-1', firmaDeslinde: true },
+        { id: 2, nombre: 'Juan Perez', rutDni: '22.222.222-2', firmaDeslinde: true },
+        { id: 3, nombre: 'Juan Pérez', rutDni: null, firmaDeslinde: true },
+        { id: 4, nombre: 'Juan Pérez', rutDni: '33.333.333-3', firmaDeslinde: false },
+      ];
+      const buscar = crearBuscadorPasajerosFirmados(firmados);
+
+      expect(buscar({ nombre: 'juan perez', rutDni: '22.222.222-2' })?.id).toBe(2);
+      expect(buscar({ nombre: 'Juan Perez', rutDni: '11.111.111-1' })?.id).toBe(1);
+      expect(buscar({ nombre: 'Juan Perez', rutDni: '33.333.333-3' })?.id).toBe(3);
+      expect(buscar({ nombre: 'Juan Perez', rutDni: '44.444.444-4' })).toBeNull();
+    });
+
+    it('usa el orden original cuando el pasajero entrante no trae RUT', () => {
+      const buscar = crearBuscadorPasajerosFirmados([
+        { id: 1, nombre: 'María José', rutDni: '11.111.111-1', firmaDeslinde: true },
+        { id: 2, nombre: 'maria jose', rutDni: null, firmaDeslinde: true },
+      ]);
+
+      expect(buscar({ nombre: 'Maria Jose' })?.id).toBe(1);
+      expect(buscar({ nombre: 'MARÍA JOSÉ' })?.id).toBe(2);
+      expect(buscar({ nombre: '   ' })).toBeNull();
     });
   });
 });

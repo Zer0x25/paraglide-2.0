@@ -38,7 +38,12 @@ export interface FirmaDeslindeFormProps {
   onCancel?: () => void;
 }
 
-export function FirmaDeslindeForm({ pasajero, isSubmitting, onSubmit, onCancel }: FirmaDeslindeFormProps) {
+export function FirmaDeslindeForm({
+  pasajero,
+  isSubmitting,
+  onSubmit,
+  onCancel,
+}: FirmaDeslindeFormProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [hasSignature, setHasSignature] = useState(false);
 
@@ -48,7 +53,7 @@ export function FirmaDeslindeForm({ pasajero, isSubmitting, onSubmit, onCancel }
     queryFn: async () => {
       try {
         const { default: typedApi } = await import('@/services/api');
-        return await typedApi.public.deslindeActivo();
+        return (await typedApi.public.deslindeActivo()) ?? null;
       } catch {
         return null; // fallback silencioso
       }

@@ -40,6 +40,7 @@ export function SyncDirectLinkSection({
           <button
             type="button"
             onClick={onCopyUrl}
+            aria-label={copied ? '¡Copiado!' : 'Copiar enlace'}
             className="inline-flex items-center space-x-1.5 bg-blue-600 hover:bg-blue-700 text-white px-3.5 py-1.5 rounded-lg text-xs font-bold shadow-sm transition cursor-pointer"
           >
             {copied ? <Check size={14} className="text-emerald-300" /> : <Copy size={14} />}
@@ -59,6 +60,7 @@ export function SyncDirectLinkSection({
                 setConfirming(false);
                 onRegenerate();
               }}
+              aria-label={isRegenerating ? 'Regenerando…' : 'Sí, regenerar enlace'}
               disabled={isRegenerating}
               className="inline-flex items-center space-x-1 bg-amber-600 hover:bg-amber-700 text-white px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer disabled:opacity-60"
             >
@@ -68,6 +70,7 @@ export function SyncDirectLinkSection({
             <button
               type="button"
               onClick={() => setConfirming(false)}
+              aria-label="Cancelar"
               disabled={isRegenerating}
               className="px-3 py-1 rounded-lg text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
             >
@@ -94,6 +97,7 @@ export function SyncDirectLinkSection({
             <button
               type="button"
               onClick={() => setConfirming(true)}
+              aria-label="Regenerar enlace"
               disabled={isRegenerating}
               className="inline-flex items-center space-x-1.5 border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer disabled:opacity-60"
             >

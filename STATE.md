@@ -11,8 +11,18 @@ Este documento mantiene el estado de ejecución, trazabilidad de sesiones, evide
 | **Fase Activa del Roadmap** | Fase 5 & Gobernanza Lean | Ver [`docs/roadmap.md`](docs/roadmap.md) y [`PRD.md`](PRD.md). |
 | **Arquitectura de Gobernanza** | Activa (Lean 3-Tier + 7 Pilares) | Tier 1 Architectural, Tier 2 Standard, Tier 3 Fast-Track. |
 | **Bases de Datos** | Dev `:5679` / Staging `:5680` | Producción `:5678` aislado y protegido. |
-| **Módulos Core** | 6 Módulos Operativos | `/`, `/pilotos`, `/reservas`, `/calendario`, `/analiticas`, `/auditoria`. |
+| **Módulos Core** | 7 Módulos Operativos | `/`, `/pilotos`, `/reservas`, `/calendario`, `/marcacion`, `/analiticas`, `/auditoria`. |
 | **Módulos Premium** | Runtime Toggleable | Controlados vía `modules.config.json` y SSE. |
+
+---
+
+## 1.1 Avance reciente: Marcación de pista y revisión de PRs
+
+- **Fecha:** 2026-10-17
+- **Implementación:** Nueva vista `/marcacion` para la agenda diaria, filtros por estado, búsqueda, panel de jornada y ficha del pasajero. La marcación se guarda por reserva en lote usando el endpoint existente, `version` optimista y outbox offline. Acceso limitado a `ADMIN` y `RECEPCION`.
+- **Correcciones:** Los cambios locales ahora mantienen el historial de `.jules/palette.md`, hacen que los nombres accesibles incluyan el texto visible y reemplazan las búsquedas repetidas por índices de identidad/RUT e ID. También quedó un test de componentes para los paneles y guardado de marcación; se estabilizó un fixture de vuelo cuya fecha ya había pasado y el query de deslinde convierte una respuesta vacía en `null`.
+- **PRs revisados:** #67 y #69 se mergearon con CI verde. Las correcciones de #66 y #68 están en esta rama local, pero sus PR siguen abiertos en GitHub con sus cabezas antiguas; no se empujaron cambios a esas ramas. #65 incluye los merges y apunta a `main` actualizado, pero su CI sigue en `action_required` sin jobs ejecutados.
+- **Evidencia local:** `npm run format`, `git diff --check` y `npm run check:quick` completaron sin errores. El gate pasó build de shared, typecheck en todos los workspaces, API (46 archivos/408 tests), web (56 archivos/307 tests) y MCP (1 archivo/16 tests). No se ejecutaron E2E ni despliegue.
 
 ---
 
