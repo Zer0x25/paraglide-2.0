@@ -13,3 +13,7 @@
 ## 2025-01-20 - Fast Array Lookups in Nested Loops
 **Learning:** Nested array lookups (e.g. `Array.find` inside a loop) can quickly degrade performance to O(N^2).
 **Action:** When searching an array iteratively for elements matching varying criteria, precompute Map or Dictionary structures based on the key identifiers to allow for O(1) lookups. When matching on multiple optional fields (like Name OR ID), separate lookup maps should be created for each criterion. Take care not to use exclusive logic (if/else) when populating the Maps if the entity might match against different criteria independently.
+
+## 2024-10-14 - Batch independent DB queries in validateWeightAndConflict
+**Learning:** Found sequential DB queries in `validateWeightAndConflict` where `pasajero`, `piloto` and `vuelo` conflicts were fetched sequentially outside of any database transaction.
+**Action:** Move independent queries into the same `Promise.all()` block to execute them concurrently, reducing network latency by avoiding waterfall patterns.
