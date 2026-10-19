@@ -5,6 +5,13 @@ based on [Conventional Commits](https://www.conventionalcommits.org/) and this
 file is maintained automatically by
 [release-please](https://github.com/googleapis/release-please).
 
+## [0.11.1-rc.3](https://github.com/Zer0x25/paraglide-2.0/compare/v0.11.1-rc.2...v0.11.1-rc.3) (2026-10-19)
+
+
+### Bug Fixes
+
+* **ci:** evitar repetir suites entre PR, release y RC ([#75](https://github.com/Zer0x25/paraglide-2.0/issues/75)) ([8e92541](https://github.com/Zer0x25/paraglide-2.0/commit/8e92541db2b09f8d843ac0bf5bdaf4d19e637600))
+
 ## [0.11.1-rc.2](https://github.com/Zer0x25/paraglide-2.0/compare/v0.11.1-rc.1...v0.11.1-rc.2) (2026-10-19)
 
 
