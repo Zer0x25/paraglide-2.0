@@ -35,6 +35,14 @@ Este documento mantiene el estado de ejecución, trazabilidad de sesiones, evide
 - **Evidencia local:** Node 22; `npm run check:quick` aprobado (API 408, Web 307, MCP 16: 731 tests), `npm run test:ci` (6 tests), typecheck Web y lint de los cambios, Actionlint 1.7.7, schema oficial de Release Please, Compose y filtros de rutas comprobados. Despliegue aislado en el entorno cloud con imágenes ya publicadas del mismo código de aplicación (`ab62ac8`): 7/7 suites HTTP y 22/22 E2E (43.9 s), sin reintentos en la ejecución final. Open-Meteo se accedió mediante el proxy y CA del entorno en un override temporal no versionado.
 - **Límite y siguiente paso:** no se publicó una RC real ni se desplegó producción. El flujo productivo automático anterior se elimina; Stable y su promoción se definirán después. La integración respondió 403 al consultar la protección administrativa de `main`; la regla requerida y prerrequisitos del runner quedan documentados en `docs/ci-cd.md`.
 
+## 1.3 Publicación y validación de la RC v0.11.1-rc.1 (2026-10-19)
+
+- **Release:** PR #72 se mergeó y publicó `v0.11.1-rc.1` como prerelease. El commit candidato es `af7be0928ce226359017b9d079baeba27cac6226`; sus imágenes API y Web quedaron fijadas por digest en `rc-manifest.json`.
+- **Staging:** el workflow [#39191956947](https://github.com/Zer0x25/paraglide-2.0/actions/runs/39191956947) terminó en verde. Validó el manifiesto, omitió el CI y la reconstrucción ya completados, desplegó los digests exactos y confirmó el commit desde la API. Las pruebas pasaron: 7/7 suites HTTP (49 comprobaciones) y 22/22 E2E en Chromium. La prerelease contiene `staging-verification.json`; el artefacto de resultados se conserva en el workflow.
+- **Ajustes del runner:** el runner self-hosted no tiene `gh`, dependencias nativas de Chromium ni `sudo` sin contraseña. El PR #73 reemplaza las llamadas de staging a `gh` por la API de GitHub y ejecuta las pruebas en la imagen Playwright `v1.62.1-noble`. La primera descarga de esa imagen tomó cerca de cuatro minutos; queda en caché para siguientes ejecuciones.
+- **Corrección del flujo de reintento:** la primera ejecución con manifiesto existente omitió staging por una dependencia transitiva omitida; se corrigió con una condición explícita en el job. El run final confirmó que staging sí se ejecuta y publica evidencia aunque se salten la validación completa y las imágenes.
+- **Estado y siguiente paso:** PR #73 sigue abierto con CI verde para fusionar el arreglo permanente. La RC permanece prerelease validada en staging; no se promovió a Stable ni se desplegó producción. Definir la promoción Stable queda como siguiente conversación.
+
 ---
 
 ## 2. Última Sesión de Trabajo: Corrección de Fallo de Build Docker en API (Prisma Engines ECONNRESET) y Release v0.10.4

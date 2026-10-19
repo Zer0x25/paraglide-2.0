@@ -44,6 +44,7 @@ jobs:
       tag: ${{ steps.rc.outputs.tag }}
       commit: ${{ steps.rc.outputs.commit }}
       image_base: ${{ steps.rc.outputs.image_base }}
+      manifest_exists: ${{ steps.manifest.outputs.present }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -56,9 +57,26 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RC_TAG: ${{ inputs.rc_tag || github.event.release.tag_name }}
         run: node scripts/ci/candidate.mjs resolve
+      - name: Verificar manifiesto previo para reintentar sin repetir CI
+        id: manifest
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RC_TAG: ${{ steps.rc.outputs.tag }}
+          RC_COMMIT: ${{ steps.rc.outputs.commit }}
+          RC_MANIFEST: ${{ runner.temp }}/rc-manifest.json
+        run: |
+          exists=$(gh release view "$RC_TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '[.assets[].name] | index("rc-manifest.json") != null')
+          if [ "$exists" = "true" ]; then
+            gh release download "$RC_TAG" --repo "$GITHUB_REPOSITORY" --pattern rc-manifest.json --dir "$RUNNER_TEMP" --clobber
+            node scripts/ci/candidate.mjs verify
+            echo 'present=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'present=false' >> "$GITHUB_OUTPUT"
+          fi
 
   validate:
     name: Validación completa de la candidata
+    if: needs.resolve.outputs.manifest_exists != 'true'
     needs: resolve
     uses: ./.github/workflows/ci.yml
     with:
@@ -68,6 +86,7 @@ jobs:
   images:
     name: Construir una vez y registrar imágenes
     needs: [resolve, validate]
+    if: always() && needs.resolve.result == 'success' && (needs.validate.result == 'success' || needs.validate.result == 'skipped')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -151,6 +170,8 @@ jobs:
   staging:
     name: Desplegar y probar staging
     needs: [resolve, images]
+    # `validate` se omite cuando ya existe un manifiesto verificado; no omitir staging por esa dependencia transitiva.
+    if: always() && needs.resolve.result == 'success' && needs.images.result == 'success'
     runs-on: [self-hosted, srv-hp-vm]
     timeout-minutes: 40
     environment:
@@ -176,13 +197,38 @@ jobs:
           node-version: '22'
           cache: npm
       - name: Descargar y verificar el manifiesto
-        run: |
-          gh release download "$RC_TAG" --repo "$GITHUB_REPOSITORY" --pattern rc-manifest.json --dir "$RUNNER_TEMP" --clobber
-          node scripts/ci/candidate.mjs verify
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('node:fs/promises');
+            const { owner, repo } = context.repo;
+            const tag = process.env.RC_TAG;
+            const { data: release } = await github.rest.repos.getReleaseByTag({ owner, repo, tag });
+            if (release.draft || !release.prerelease || release.tag_name !== tag) {
+              throw new Error(`La release ${tag} no es una prerelease publicada.`);
+            }
+            const asset = release.assets.find(({ name }) => name === 'rc-manifest.json');
+            if (!asset) throw new Error(`La release ${tag} no contiene rc-manifest.json.`);
+            const { data } = await github.rest.repos.getReleaseAsset({
+              owner,
+              repo,
+              asset_id: asset.id,
+              headers: { accept: 'application/octet-stream' },
+            });
+            const contents = Buffer.isBuffer(data) ? data : Buffer.from(data);
+            if (contents.length !== asset.size) throw new Error('El manifiesto descargado está incompleto.');
+            await fs.writeFile(process.env.RC_MANIFEST, contents);
+            core.info(`Descargado rc-manifest.json (${contents.length} bytes).`);
+        env:
+          RC_TAG: ${{ needs.resolve.outputs.tag }}
+          RC_MANIFEST: ${{ runner.temp }}/rc-manifest.json
+      - name: Verificar el manifiesto y el commit de la RC
+        run: node scripts/ci/candidate.mjs verify
       - name: Preparar herramientas de pruebas
         run: |
           npm ci --no-audit --prefer-offline --loglevel=error
-          npx playwright install chromium
+          docker pull mcr.microsoft.com/playwright:v1.62.1-noble
       - name: Login GHCR
         uses: docker/login-action@v3
         with:
@@ -192,13 +238,95 @@ jobs:
       - name: Preparar esquema y arrancar la RC por digest
         run: node scripts/ci/staging.mjs deploy
       - name: Integración HTTP y E2E contra staging
-        run: node scripts/ci/staging.mjs test 2>&1 | tee "$RUNNER_TEMP/staging-tests.log"
+        env:
+          STAGING_TEST_ENV: ${{ runner.temp }}/staging-test.env
+        run: |
+          set -o pipefail
+          node --input-type=module <<'NODE'
+          import { chmodSync, readFileSync, writeFileSync } from 'node:fs';
+          import { homedir } from 'node:os';
+          import { join } from 'node:path';
+
+          const state = join(homedir(), '.local/state/paraglide-staging/credentials.json');
+          const credentials = JSON.parse(readFileSync(state, 'utf8'));
+          const values = {
+            CI: 'true',
+            PROD_URL: 'http://localhost:3200',
+            WEB_BASE_URL: 'http://localhost:3200',
+            ADMIN_EMAIL: credentials.adminEmail,
+            ADMIN_PASSWORD: credentials.adminPassword,
+            EXPECTED_COMMIT: process.env.RC_COMMIT,
+            HEADLESS: 'true',
+          };
+          if (Object.values(values).some((value) => /[\r\n]/.test(value))) {
+            throw new Error('Una variable de pruebas contiene saltos de línea.');
+          }
+          writeFileSync(
+            process.env.STAGING_TEST_ENV,
+            `${Object.entries(values).map(([key, value]) => `${key}=${value}`).join('\n')}\n`,
+            { mode: 0o600 },
+          );
+          chmodSync(process.env.STAGING_TEST_ENV, 0o600);
+
+          const api = await fetch('http://127.0.0.1:3201/api/public/health');
+          const health = await api.json();
+          if (!api.ok || health.status !== 'ok' || health.commit !== process.env.RC_COMMIT) {
+            throw new Error('Staging no ejecuta el commit exacto de la RC.');
+          }
+          const web = await fetch('http://127.0.0.1:3200/login');
+          if (!web.ok) throw new Error('La Web de staging no está lista.');
+          NODE
+
+          docker run --rm --init --ipc=host --network host \
+            --volume "$GITHUB_WORKSPACE:/workspace" \
+            --workdir /workspace \
+            --env-file "$STAGING_TEST_ENV" \
+            mcr.microsoft.com/playwright:v1.62.1-noble \
+            bash -euo pipefail -c 'npm run test:staging && npm run test:e2e' \
+            2>&1 | tee "$RUNNER_TEMP/staging-tests.log"
+
+          node --input-type=module <<'NODE'
+          const api = await fetch('http://127.0.0.1:3201/api/public/health');
+          const health = await api.json();
+          if (!api.ok || health.status !== 'ok' || health.commit !== process.env.RC_COMMIT) {
+            throw new Error('La RC dejó de estar lista o cambió el commit durante las pruebas.');
+          }
+          NODE
       - name: Guardar evidencia de aprobación técnica
         run: |
           node scripts/ci/candidate.mjs verified
-          gh release upload "$RC_TAG" "$RC_VERIFICATION" --repo "$GITHUB_REPOSITORY" --clobber
           echo "RC $RC_TAG validada en staging. Stable requiere una promoción posterior de estas mismas imágenes." >> "$GITHUB_STEP_SUMMARY"
           cat "$RC_MANIFEST" >> "$GITHUB_STEP_SUMMARY"
+      - name: Publicar evidencia en la prerelease
+        uses: actions/github-script@v7
+        env:
+          RC_TAG: ${{ needs.resolve.outputs.tag }}
+          RC_VERIFICATION: ${{ runner.temp }}/staging-verification.json
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('node:fs/promises');
+            const { owner, repo } = context.repo;
+            const tag = process.env.RC_TAG;
+            const { data: release } = await github.rest.repos.getReleaseByTag({ owner, repo, tag });
+            if (release.draft || !release.prerelease || release.tag_name !== tag) {
+              throw new Error(`La release ${tag} no es una prerelease publicada.`);
+            }
+            const name = 'staging-verification.json';
+            const existing = release.assets.find((asset) => asset.name === name);
+            if (existing) {
+              await github.rest.repos.deleteReleaseAsset({ owner, repo, asset_id: existing.id });
+            }
+            const data = await fs.readFile(process.env.RC_VERIFICATION);
+            await github.rest.repos.uploadReleaseAsset({
+              owner,
+              repo,
+              release_id: release.id,
+              name,
+              data,
+              headers: { 'content-type': 'application/json', 'content-length': data.length },
+            });
+            core.info(`Publicada ${name} en ${tag}.`);
       - name: Diagnóstico si falla staging
         if: failure()
         run: node scripts/ci/staging.mjs logs
