@@ -5,6 +5,13 @@ based on [Conventional Commits](https://www.conventionalcommits.org/) and this
 file is maintained automatically by
 [release-please](https://github.com/googleapis/release-please).
 
+## [0.11.1-rc.1](https://github.com/Zer0x25/paraglide-2.0/compare/v0.11.0...v0.11.1-rc.1) (2026-10-19)
+
+
+### Bug Fixes
+
+* **ci:** validar PRs y desplegar RC solo en staging ([#71](https://github.com/Zer0x25/paraglide-2.0/issues/71)) ([6cede89](https://github.com/Zer0x25/paraglide-2.0/commit/6cede897b7efe17d23f5c8e17c954ed8d8c8c57a))
+
 ## [0.11.0](https://github.com/Zer0x25/paraglide-2.0/compare/v0.10.4...v0.11.0) (2026-10-17)
 
 
