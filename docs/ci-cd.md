@@ -49,7 +49,7 @@ una solicitud nueva puede reemplazar otra que todavía no comenzó.
 ## Preparación del runner de staging
 
 - Runner Linux con las etiquetas existentes `self-hosted` y `srv-hp-vm`.
-- Docker, Compose v2 con soporte de `--wait`, acceso al daemon y GitHub CLI `gh`.
+- Docker, Compose v2 con soporte de `--wait` y acceso al daemon.
 - Node 22 se configura en el workflow. Deben estar instaladas las bibliotecas
   nativas de Chromium; preparar una vez con `npx playwright install-deps chromium`
   si faltan. El workflow descarga el navegador y aprovecha su caché local.

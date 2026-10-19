@@ -176,9 +176,34 @@ jobs:
           node-version: '22'
           cache: npm
       - name: Descargar y verificar el manifiesto
-        run: |
-          gh release download "$RC_TAG" --repo "$GITHUB_REPOSITORY" --pattern rc-manifest.json --dir "$RUNNER_TEMP" --clobber
-          node scripts/ci/candidate.mjs verify
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('node:fs/promises');
+            const { owner, repo } = context.repo;
+            const tag = process.env.RC_TAG;
+            const { data: release } = await github.rest.repos.getReleaseByTag({ owner, repo, tag });
+            if (release.draft || !release.prerelease || release.tag_name !== tag) {
+              throw new Error(`La release ${tag} no es una prerelease publicada.`);
+            }
+            const asset = release.assets.find(({ name }) => name === 'rc-manifest.json');
+            if (!asset) throw new Error(`La release ${tag} no contiene rc-manifest.json.`);
+            const { data } = await github.rest.repos.getReleaseAsset({
+              owner,
+              repo,
+              asset_id: asset.id,
+              headers: { accept: 'application/octet-stream' },
+            });
+            const contents = Buffer.isBuffer(data) ? data : Buffer.from(data);
+            if (contents.length !== asset.size) throw new Error('El manifiesto descargado está incompleto.');
+            await fs.writeFile(process.env.RC_MANIFEST, contents);
+            core.info(`Descargado rc-manifest.json (${contents.length} bytes).`);
+        env:
+          RC_TAG: ${{ needs.resolve.outputs.tag }}
+          RC_MANIFEST: ${{ runner.temp }}/rc-manifest.json
+      - name: Verificar el manifiesto y el commit de la RC
+        run: node scripts/ci/candidate.mjs verify
       - name: Preparar herramientas de pruebas
         run: |
           npm ci --no-audit --prefer-offline --loglevel=error
@@ -196,9 +221,38 @@ jobs:
       - name: Guardar evidencia de aprobación técnica
         run: |
           node scripts/ci/candidate.mjs verified
-          gh release upload "$RC_TAG" "$RC_VERIFICATION" --repo "$GITHUB_REPOSITORY" --clobber
           echo "RC $RC_TAG validada en staging. Stable requiere una promoción posterior de estas mismas imágenes." >> "$GITHUB_STEP_SUMMARY"
           cat "$RC_MANIFEST" >> "$GITHUB_STEP_SUMMARY"
+      - name: Publicar evidencia en la prerelease
+        uses: actions/github-script@v7
+        env:
+          RC_TAG: ${{ needs.resolve.outputs.tag }}
+          RC_VERIFICATION: ${{ runner.temp }}/staging-verification.json
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('node:fs/promises');
+            const { owner, repo } = context.repo;
+            const tag = process.env.RC_TAG;
+            const { data: release } = await github.rest.repos.getReleaseByTag({ owner, repo, tag });
+            if (release.draft || !release.prerelease || release.tag_name !== tag) {
+              throw new Error(`La release ${tag} no es una prerelease publicada.`);
+            }
+            const name = 'staging-verification.json';
+            const existing = release.assets.find((asset) => asset.name === name);
+            if (existing) {
+              await github.rest.repos.deleteReleaseAsset({ owner, repo, asset_id: existing.id });
+            }
+            const data = await fs.readFile(process.env.RC_VERIFICATION);
+            await github.rest.repos.uploadReleaseAsset({
+              owner,
+              repo,
+              release_id: release.id,
+              name,
+              data,
+              headers: { 'content-type': 'application/json', 'content-length': data.length },
+            });
+            core.info(`Publicada ${name} en ${tag}.`);
       - name: Diagnóstico si falla staging
         if: failure()
         run: node scripts/ci/staging.mjs logs
