@@ -13,6 +13,13 @@ CI corre por `pull_request`, sin una segunda ejecución por push. Los nuevos
 commits cancelan las validaciones anteriores del mismo PR. Un fallo de detección,
 tipos, lint o pruebas falla el propio check, y una cancelación no lo aprueba.
 
+Al aprobar las suites, CI conserva durante 30 días un artefacto con la huella
+del contenido probado y las suites ejecutadas. Esa huella incluye código,
+dependencias (también integridades del lockfile), scripts, workflows y modos de
+archivo. Omite documentación y solo normaliza los campos de versión que cambia
+Release Please. Un cambio de dependencias o de definición de CI invalida la
+evidencia anterior.
+
 ## Publicar una RC
 
 Release Please crea o actualiza un PR con versión y changelog. Su configuración
@@ -20,13 +27,22 @@ está en modo prerelease: `versioning: prerelease`, `prerelease-type: rc.1` y
 `prerelease: true`. La siguiente versión parte de la última publicada; no se
 modifica a mano `.release-please-manifest.json` para simular una publicación.
 
-1. Revisar y fusionar el PR de release cuando se quiera preparar una candidata.
+1. Revisar el PR de release. Su check obligatorio comprueba la coherencia de
+   versiones en paquetes, lockfile y manifest, y limita la vía ligera a los
+   archivos de release esperados. Reutiliza CI únicamente si encuentra evidencia
+   exitosa de ese mismo contenido; verifica el origen del artefacto y recalcula
+   la huella desde el commit probado. Si cambia código o dependencias, no hay
+   evidencia vigente o no se puede verificar, ejecuta las suites completas.
+   Aprobar el workflow del bot si GitHub lo solicita; no se lanza un segundo CI
+   por `workflow_dispatch`.
 2. Release Please publica `vX.Y.Z-rc.N` como prerelease e invoca explícitamente
    `RC → Staging`. Esto funciona con `GITHUB_TOKEN`, cuyos eventos automáticos
-   no disparan otros workflows. El CI del PR del bot también se solicita por
-   `workflow_dispatch`, sin pedir un token personal.
+   pueden requerir autorización para ejecutar el workflow del PR del bot. No
+   se necesita un PAT adicional.
 3. Se comprueba que la prerelease está publicada, que el tag pertenece a `main`
-   y que coincide con la versión del commit. Se valida ese commit completo.
+   y que coincide con la versión del commit. Si su contenido ya tiene evidencia
+   de CI verificable, no repite tipos, lint y unitarios. Sin esa evidencia,
+   valida la candidata completa antes de construir imágenes.
 4. Se construyen API y Web para `linux/amd64`, con caché y sin emulación QEMU.
    No se mueve `latest`. Los digests y el commit quedan en `rc-manifest.json`,
    adjunto a la prerelease antes del despliegue.
@@ -45,6 +61,15 @@ comprobaciones. No editar ni mover tags RC ya publicados.
 La concurrencia serializa cada ciclo completo de RC para evitar despliegues
 durante las pruebas de otra candidata. GitHub conserva una ejecución pendiente;
 una solicitud nueva puede reemplazar otra que todavía no comenzó.
+
+El ciclo habitual es: **PR de código (suites por módulos) → PR de release
+(metadatos y evidencia) → RC (build, integración HTTP y E2E en staging)**.
+Las pruebas de staging verifican las imágenes desplegadas y siempre se ejecutan;
+no son una repetición de las pruebas unitarias del PR.
+
+El dispatch manual de CI sigue disponible para diagnósticos: por defecto ejecuta
+las suites completas. La opción explícita `reuse` permite comprobar la evidencia
+del contenido seleccionado; si no puede verificarla, ejecuta CI completo.
 
 ## Preparación del runner de staging
 

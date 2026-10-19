@@ -45,6 +45,15 @@ Este documento mantiene el estado de ejecución, trazabilidad de sesiones, evide
 
 ---
 
+## 1.4 Eliminar repetición de CI entre PR, release y RC (2026-10-19)
+
+- **Diagnóstico:** el ciclo PR #73 → release PR #74 ejecutó cuatro Quality Gates completos: CI #154, #155, #156 y el job reutilizable de Release Please #55. #155 y #156 comprobaron el mismo head; el último gate repitió las suites antes de construir la RC.
+- **Cambio:** se elimina el dispatch automático del CI de Release Please. El check obligatorio conserva su nombre; el PR de release verifica versiones y cambios permitidos y reutiliza evidencia de un PR exitoso con el mismo contenido. La RC consulta esa misma evidencia antes de decidir si necesita suites completas. La huella conserva código, dependencias, integridades, scripts y workflows; normaliza únicamente versiones de release y omite documentación. La evidencia declarada se contrasta con el origen del run y con una huella recalculada desde el commit probado. Una fuente ajena, fallida, cancelada, expirada o no verificable no evita CI.
+- **Validación local:** `check:quick` aprobado (API 408, Web 307, MCP 16), 30 pruebas del pipeline aprobadas, Actionlint y formato sin errores. La selección de metadatos también se comprobó contra el diff real del PR #74; las versiones internas de workspaces del lockfile se conservan sin normalizar, como hace el generador actual. La verificación remota se registrará en el PR.
+- **Staging actual:** la RC `v0.11.1-rc.2` construyó sus imágenes en el run #39195501805, pero falló en checkout del runner self-hosted antes de desplegar o ejecutar pruebas. No tiene aprobación técnica de staging. Stable sigue pendiente.
+
+---
+
 ## 2. Última Sesión de Trabajo: Corrección de Fallo de Build Docker en API (Prisma Engines ECONNRESET) y Release v0.10.4
 
 - **Fecha:** 2026-10-14

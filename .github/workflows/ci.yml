@@ -4,6 +4,11 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      reuse:
+        description: Reutilizar evidencia verificada del contenido actual; sin evidencia, ejecutar CI
+        type: boolean
+        default: false
   workflow_call:
     inputs:
       ref:
@@ -16,6 +21,7 @@ on:
 permissions:
   contents: read
   pull-requests: read
+  actions: read
 
 concurrency:
   group: ci-${{ github.event.pull_request.number || inputs.ref || github.ref }}
@@ -35,10 +41,22 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.ref || github.ref }}
+          fetch-depth: 0
           persist-credentials: false
 
+      - name: Comprobar evidencia y metadatos de release
+        id: evidence
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CI_EVENT: ${{ github.event_name }}
+          CI_HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+          CI_HEAD_BRANCH: ${{ github.head_ref }}
+          CI_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          CI_REUSE: ${{ inputs.reuse }}
+        run: node scripts/ci/evidence.mjs plan
+
       - name: Detectar módulos afectados
-        if: github.event_name == 'pull_request' && !inputs.full
+        if: github.event_name == 'pull_request' && !inputs.full && steps.evidence.outputs.full != 'true' && steps.evidence.outputs.reused != 'true'
         id: changes
         uses: dorny/paths-filter@v3
         with:
@@ -63,9 +81,10 @@ jobs:
               - 'apps/mcp/**/!(*.md)'
 
       - name: Seleccionar validaciones
+        if: steps.evidence.outputs.reused != 'true'
         id: scope
         env:
-          FULL: ${{ inputs.full || github.event_name != 'pull_request' }}
+          FULL: ${{ inputs.full || steps.evidence.outputs.full == 'true' || github.event_name != 'pull_request' }}
           INFRASTRUCTURE: ${{ steps.changes.outputs.infrastructure }}
           API: ${{ steps.changes.outputs.api }}
           WEB: ${{ steps.changes.outputs.web }}
@@ -111,11 +130,36 @@ jobs:
         if: steps.scope.outputs.mcp == 'true'
         run: npm run test:mcp
 
+      - name: Registrar el contenido y las suites aprobadas
+        if: github.event_name == 'pull_request' && steps.scope.outputs.any == 'true'
+        env:
+          CI_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          CI_EVIDENCE: ${{ runner.temp }}/ci-evidence.json
+          ANY: ${{ steps.scope.outputs.any }}
+          API: ${{ steps.scope.outputs.api }}
+          WEB: ${{ steps.scope.outputs.web }}
+          MCP: ${{ steps.scope.outputs.mcp }}
+        run: node scripts/ci/evidence.mjs record
+
+      - name: Conservar evidencia para la release y la RC
+        if: github.event_name == 'pull_request' && steps.scope.outputs.any == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-evidence-${{ steps.evidence.outputs.fingerprint }}
+          path: ${{ runner.temp }}/ci-evidence.json
+          if-no-files-found: error
+          overwrite: true
+          retention-days: 30
+
       - name: Resultado
         env:
           ANY_CODE: ${{ steps.scope.outputs.any }}
+          REUSED: ${{ steps.evidence.outputs.reused }}
+          CI_RUN: ${{ steps.evidence.outputs.ci_run }}
         run: |
-          if [ "$ANY_CODE" = "true" ]; then
+          if [ "$REUSED" = "true" ]; then
+            echo "Contenido ya validado; evidencia verificada: $CI_RUN" >> "$GITHUB_STEP_SUMMARY"
+          elif [ "$ANY_CODE" = "true" ]; then
             echo "Validaciones de los módulos afectados aprobadas." >> "$GITHUB_STEP_SUMMARY"
           else
             echo "Cambios de documentación: no requieren instalar dependencias ni ejecutar suites." >> "$GITHUB_STEP_SUMMARY"
