@@ -54,11 +54,19 @@ modifica a mano `.release-please-manifest.json` para simular una publicación.
    ambos terminan bien se publica `rc-manifest.json` con los dos digests y el
    commit; si uno falla, no se publica el manifiesto ni se despliega staging.
    No se mueve `latest`. Un reintento con manifiesto previo omite ambos builds.
-5. El runner descarga esas imágenes, prepara el esquema y los datos mínimos de
-   staging antes de iniciar la aplicación. Verifica el commit reportado por la
-   API y ejecuta las suites HTTP 01–07 más Playwright contra staging.
-6. Solo si todo pasa se adjunta `staging-verification.json`, con los mismos
-   digests, commit y enlace a la ejecución. Los fallos conservan logs y capturas.
+5. Un runner `ubuntu-24.04` de GitHub descarga las imágenes por digest y levanta
+   API, Web y una DB temporal con credenciales propias. Verifica el commit y
+   ejecuta las suites HTTP 01–07 más Playwright. El entorno temporal y su DB se
+   eliminan al terminar, también cuando hay fallos. Logs y capturas se conservan.
+6. Solo si todo pasa se publica `rc-verification.json` y se entrega un artefacto
+   con la aprobación y el manifiesto probado. El job de VM depende del éxito de
+   las pruebas y valida el commit, los dos digests, el origen GitHub y el run de
+   esa aprobación antes de descargar imágenes. Un fallo de pruebas bloquea todo
+   el job local y mantiene la versión que ya estaba desplegada.
+7. El runner `srv-hp-vm` descarga esos mismos digests, prepara el esquema local y
+   actualiza staging. Solo comprueba arranque, salud y commit; no repite HTTP/E2E.
+   Publica `staging-deployment.json` para registrar el despliegue. La aprobación
+   de tests y el despliegue local quedan como evidencias distintas.
 
 Una RC fallida no queda aprobada. Si requiere cambiar código, hacer otro PR y
 publicar otra RC. Para reintentar una RC existente, ejecutar `RC → Staging` desde
@@ -77,9 +85,11 @@ durante las pruebas de otra candidata. GitHub conserva una ejecución pendiente;
 una solicitud nueva puede reemplazar otra que todavía no comenzó.
 
 El ciclo habitual es: **PR de código (suites por módulos) → PR de release
-(metadatos y evidencia) → RC (build, integración HTTP y E2E en staging)**.
-Las pruebas de staging verifican las imágenes desplegadas y siempre se ejecutan;
-no son una repetición de las pruebas unitarias del PR.
+(metadatos y evidencia) → RC (build y pruebas de imágenes en GitHub) → VM
+(despliegue de imágenes aprobadas)**. Las pruebas de imágenes se ejecutan una vez
+por intento de RC y no repiten las pruebas unitarias del PR. Un reintento con
+imágenes ya registradas omite CI/build, pero vuelve a probarlas en GitHub antes
+de actualizar la VM.
 
 El dispatch manual de CI sigue disponible para diagnósticos: por defecto ejecuta
 las suites completas. La opción explícita `reuse` permite comprobar la evidencia
@@ -89,14 +99,10 @@ del contenido seleccionado; si no puede verificarla, ejecuta CI completo.
 
 - Runner Linux con las etiquetas existentes `self-hosted` y `srv-hp-vm`.
 - Docker, Compose v2 con soporte de `--wait` y acceso al daemon.
-- Node 22 se configura en el workflow. Las pruebas HTTP y E2E corren en la imagen
-  oficial de Playwright fijada a la versión del proyecto, así que no requieren
-  bibliotecas de Chromium instaladas en el host.
-- El contenedor de pruebas usa el UID/GID del runner y un HOME/cache temporal
-  escribible. Así los resultados se pueden limpiar en el checkout siguiente.
-  Antes del checkout se recupera la propiedad de archivos de root dejados por
-  ejecuciones antiguas, únicamente en `test-results/` y
-  `apps/web/test-results/`, sin seguir enlaces ni cambiar el resto del repositorio.
+- Node 22 se configura en el workflow. La VM ejecuta scripts sin dependencias de
+  npm para el despliegue y usa un checkout propio en `rc-deploy/`. No instala
+  dependencias de pruebas ni Chromium. Las pruebas HTTP/E2E y su contenedor
+  Playwright se ejecutan en GitHub, con el UID/GID del runner hospedado.
 - Puertos de staging disponibles: Web `3200`, API `3201`, DB `5680`. Todos
   escuchan solo en loopback. El proyecto Compose es `paraglide-staging`.
 - Las credenciales se generan con aleatoriedad criptográfica y se conservan con
@@ -143,7 +149,7 @@ Este cambio termina en RC validada en staging. Se eliminan los despliegues de
 producción por push, tag, marcadores de commit y merge de release. No se publica
 Stable ni se modifica la instalación productiva con este flujo.
 
-La promoción futura deberá comprobar la evidencia de staging y desplegar los
-digests de `rc-manifest.json`, sin construir imágenes nuevas. También habrá que
+La promoción futura deberá comprobar `rc-verification.json`, la evidencia del
+despliegue local y los digests de `rc-manifest.json`, sin construir imágenes nuevas. También habrá que
 definir aprobación, metadatos de versión final, backups, cambios de esquema y
 recuperación. No se presupone que revertir una imagen revierta la base de datos.

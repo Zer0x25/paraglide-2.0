@@ -227,15 +227,13 @@ jobs:
           node scripts/ci/candidate.mjs create
           gh release upload "$RC_TAG" "$RC_MANIFEST" --repo "$GITHUB_REPOSITORY"
 
-  staging:
-    name: Desplegar y probar ${{ needs.resolve.outputs.tag }} en staging
+  test:
+    name: Probar ${{ needs.resolve.outputs.tag }} en GitHub
     needs: [resolve, manifest]
-    # `validate` se omite cuando ya existe un manifiesto verificado; no omitir staging por esa dependencia transitiva.
-    if: always() && needs.resolve.result == 'success' && needs.manifest.result == 'success'
-    runs-on: [self-hosted, srv-hp-vm]
+    # Las dependencias transitivas omitidas por reutilización no deben omitir las pruebas.
+    if: ${{ !cancelled() && needs.resolve.result == 'success' && needs.manifest.result == 'success' }}
+    runs-on: ubuntu-24.04
     timeout-minutes: 40
-    environment:
-      name: staging
     permissions:
       contents: write
       packages: read
@@ -244,25 +242,6 @@ jobs:
       RC_TAG: ${{ needs.resolve.outputs.tag }}
       RC_COMMIT: ${{ needs.resolve.outputs.commit }}
     steps:
-      - name: Recuperar permisos de resultados de ejecuciones anteriores
-        working-directory: ${{ runner.temp }}
-        run: |
-          # Playwright antes escribía como root en el checkout persistente.
-          # Recuperar solo sus directorios de resultados, sin seguir enlaces.
-          echo "Usuario del runner: $(id -u):$(id -g)"
-          docker run --rm --network none --user 0:0 \
-            --mount "type=bind,source=$GITHUB_WORKSPACE,target=/workspace" \
-            --entrypoint bash \
-            mcr.microsoft.com/playwright:v1.62.1-noble \
-            -euo pipefail -c '
-              for directory in /workspace/test-results /workspace/apps/web/test-results; do
-                if [ -d "$directory" ] && [ ! -L "$directory" ]; then
-                  find "$directory" -xdev -user 0 \
-                    -print \
-                    -exec chown -h -- "$1:$2" {} +
-                fi
-              done
-            ' -- "$(id -u)" "$(id -g)"
       - uses: actions/checkout@v4
         id: checkout
         with:
@@ -271,39 +250,15 @@ jobs:
       - name: Preparar rutas de evidencia
         run: |
           echo "RC_MANIFEST=$RUNNER_TEMP/rc-manifest.json" >> "$GITHUB_ENV"
-          echo "RC_VERIFICATION=$RUNNER_TEMP/staging-verification.json" >> "$GITHUB_ENV"
+          echo "RC_VERIFICATION=$RUNNER_TEMP/rc-verification.json" >> "$GITHUB_ENV"
+          echo "STAGING_STATE_DIR=$RUNNER_TEMP/rc-test-state" >> "$GITHUB_ENV"
       - uses: actions/setup-node@v4
         id: node
         with:
           node-version: '22'
           cache: npm
       - name: Descargar y verificar el manifiesto
-        uses: actions/github-script@v7
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const fs = require('node:fs/promises');
-            const { owner, repo } = context.repo;
-            const tag = process.env.RC_TAG;
-            const { data: release } = await github.rest.repos.getReleaseByTag({ owner, repo, tag });
-            if (release.draft || !release.prerelease || release.tag_name !== tag) {
-              throw new Error(`La release ${tag} no es una prerelease publicada.`);
-            }
-            const asset = release.assets.find(({ name }) => name === 'rc-manifest.json');
-            if (!asset) throw new Error(`La release ${tag} no contiene rc-manifest.json.`);
-            const { data } = await github.rest.repos.getReleaseAsset({
-              owner,
-              repo,
-              asset_id: asset.id,
-              headers: { accept: 'application/octet-stream' },
-            });
-            const contents = Buffer.isBuffer(data) ? data : Buffer.from(data);
-            if (contents.length !== asset.size) throw new Error('El manifiesto descargado está incompleto.');
-            await fs.writeFile(process.env.RC_MANIFEST, contents);
-            core.info(`Descargado rc-manifest.json (${contents.length} bytes).`);
-        env:
-          RC_TAG: ${{ needs.resolve.outputs.tag }}
-          RC_MANIFEST: ${{ runner.temp }}/rc-manifest.json
+        run: gh release download "$RC_TAG" --repo "$GITHUB_REPOSITORY" --pattern rc-manifest.json --dir "$RUNNER_TEMP" --clobber
       - name: Verificar el manifiesto y el commit de la RC
         run: node scripts/ci/candidate.mjs verify
       - name: Preparar herramientas de pruebas
@@ -316,19 +271,19 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Preparar esquema y arrancar la RC por digest
+      - name: Arrancar las imágenes RC en un entorno temporal de GitHub
+        id: deploy
         run: node scripts/ci/staging.mjs deploy
-      - name: Integración HTTP y E2E contra staging
+      - name: Integración HTTP y E2E en GitHub
         env:
           STAGING_TEST_ENV: ${{ runner.temp }}/staging-test.env
         run: |
           set -o pipefail
           node --input-type=module <<'NODE'
           import { chmodSync, readFileSync, writeFileSync } from 'node:fs';
-          import { homedir } from 'node:os';
           import { join } from 'node:path';
 
-          const state = join(homedir(), '.local/state/paraglide-staging/credentials.json');
+          const state = join(process.env.STAGING_STATE_DIR, 'credentials.json');
           const credentials = JSON.parse(readFileSync(state, 'utf8'));
           const values = {
             CI: 'true',
@@ -377,15 +332,26 @@ jobs:
           }
           NODE
       - name: Guardar evidencia de aprobación técnica
+        env:
+          CI_RUNNER_ENVIRONMENT: ${{ runner.environment }}
         run: |
           node scripts/ci/candidate.mjs verified
-          echo "RC $RC_TAG validada en staging. Stable requiere una promoción posterior de estas mismas imágenes." >> "$GITHUB_STEP_SUMMARY"
+          node --input-type=module <<'NODE'
+          import { readFileSync, writeFileSync } from 'node:fs';
+          if (process.env.CI_RUNNER_ENVIRONMENT !== 'github-hosted') {
+            throw new Error('La aprobación de imágenes requiere un runner hospedado por GitHub.');
+          }
+          const proof = JSON.parse(readFileSync(process.env.RC_VERIFICATION, 'utf8'));
+          proof.runnerEnvironment = 'github-hosted';
+          writeFileSync(process.env.RC_VERIFICATION, `${JSON.stringify(proof, null, 2)}\n`);
+          NODE
+          echo "RC $RC_TAG validada en GitHub. La VM recibirá estos mismos digests después de aprobar las pruebas." >> "$GITHUB_STEP_SUMMARY"
           cat "$RC_MANIFEST" >> "$GITHUB_STEP_SUMMARY"
       - name: Publicar evidencia en la prerelease
         uses: actions/github-script@v7
         env:
           RC_TAG: ${{ needs.resolve.outputs.tag }}
-          RC_VERIFICATION: ${{ runner.temp }}/staging-verification.json
+          RC_VERIFICATION: ${{ runner.temp }}/rc-verification.json
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
@@ -396,7 +362,7 @@ jobs:
             if (release.draft || !release.prerelease || release.tag_name !== tag) {
               throw new Error(`La release ${tag} no es una prerelease publicada.`);
             }
-            const name = 'staging-verification.json';
+            const name = 'rc-verification.json';
             const existing = release.assets.find((asset) => asset.name === name);
             if (existing) {
               await github.rest.repos.deleteReleaseAsset({ owner, repo, asset_id: existing.id });
@@ -411,17 +377,146 @@ jobs:
               headers: { 'content-type': 'application/json', 'content-length': data.length },
             });
             core.info(`Publicada ${name} en ${tag}.`);
-      - name: Diagnóstico si falla staging
+      - name: Conservar manifiesto y aprobación para la VM
+        uses: actions/upload-artifact@v4
+        with:
+          name: verified-rc-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/rc-manifest.json
+            ${{ runner.temp }}/rc-verification.json
+          if-no-files-found: error
+          overwrite: true
+          retention-days: 14
+      - name: Diagnóstico si falla el entorno temporal
         if: failure() && steps.checkout.outcome == 'success' && steps.node.outcome == 'success'
         run: node scripts/ci/staging.mjs logs
       - name: Conservar resultados de pruebas
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: staging-results-${{ needs.resolve.outputs.tag }}
+          name: rc-test-results-${{ needs.resolve.outputs.tag }}
           path: |
             ${{ runner.temp }}/staging-tests.log
             test-results/
             apps/web/test-results/
           if-no-files-found: ignore
           retention-days: 14
+      - name: Eliminar contenedores y base de datos temporales de GitHub
+        if: always() && steps.deploy.outcome != 'skipped' && steps.checkout.outcome == 'success'
+        run: |
+          if [ -f "$STAGING_STATE_DIR/rc.env" ]; then
+            docker compose --project-name paraglide-staging \
+              --env-file "$STAGING_STATE_DIR/rc.env" \
+              -f docker-compose.staging.yml down --volumes --remove-orphans
+          fi
+
+  staging:
+    name: Desplegar ${{ needs.resolve.outputs.tag }} aprobada en la VM
+    needs: [resolve, test]
+    if: ${{ !cancelled() && needs.resolve.result == 'success' && needs.test.result == 'success' }}
+    runs-on: [self-hosted, srv-hp-vm]
+    timeout-minutes: 15
+    environment:
+      name: staging
+    defaults:
+      run:
+        working-directory: ${{ github.workspace }}/rc-deploy
+    permissions:
+      contents: write
+      packages: read
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      RC_TAG: ${{ needs.resolve.outputs.tag }}
+      RC_COMMIT: ${{ needs.resolve.outputs.commit }}
+    steps:
+      - uses: actions/checkout@v4
+        id: checkout
+        with:
+          ref: ${{ needs.resolve.outputs.commit }}
+          path: rc-deploy
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        id: node
+        with:
+          node-version: '22'
+      - name: Descargar únicamente el manifiesto aprobado en esta ejecución
+        uses: actions/download-artifact@v4
+        with:
+          name: verified-rc-${{ github.run_id }}
+          path: ${{ runner.temp }}/rc-approved
+      - name: Verificar aprobación, commit y digests antes de descargar imágenes
+        run: |
+          echo "RC_MANIFEST=$RUNNER_TEMP/rc-approved/rc-manifest.json" >> "$GITHUB_ENV"
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import { readFileSync } from 'node:fs';
+          import { join } from 'node:path';
+          import { validateManifest } from './scripts/ci/candidate.mjs';
+          const directory = join(process.env.RUNNER_TEMP, 'rc-approved');
+          const expected = {
+            tag: process.env.RC_TAG,
+            commit: process.env.RC_COMMIT,
+            repository: process.env.GITHUB_REPOSITORY,
+          };
+          const manifest = validateManifest(JSON.parse(readFileSync(join(directory, 'rc-manifest.json'), 'utf8')), expected);
+          const proof = validateManifest(JSON.parse(readFileSync(join(directory, 'rc-verification.json'), 'utf8')), expected);
+          assert.equal(proof.status, 'passed');
+          assert.equal(proof.runnerEnvironment, 'github-hosted');
+          assert.equal(proof.workflowRun, `${process.env.GITHUB_SERVER_URL}/${expected.repository}/actions/runs/${process.env.GITHUB_RUN_ID}`);
+          assert.deepEqual(proof.images, manifest.images);
+          for (const check of ['readiness-and-commit', 'staging-suites-01-07', 'playwright-e2e']) {
+            assert.ok(proof.checks?.includes(check), `Falta aprobación de ${check}`);
+          }
+          NODE
+      - name: Login GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Descargar imágenes aprobadas y actualizar staging local
+        id: deploy
+        run: node scripts/ci/staging.mjs deploy
+      - name: Registrar despliegue local y comprobación de arranque
+        env:
+          CI_RUNNER_ENVIRONMENT: ${{ runner.environment }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFileSync, writeFileSync } from 'node:fs';
+          import { join } from 'node:path';
+          const manifest = JSON.parse(readFileSync(process.env.RC_MANIFEST, 'utf8'));
+          const deployment = {
+            ...manifest,
+            status: 'deployed',
+            deployedAt: new Date().toISOString(),
+            runnerEnvironment: process.env.CI_RUNNER_ENVIRONMENT,
+            workflowRun: `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`,
+            checks: ['readiness-and-commit'],
+          };
+          writeFileSync(join(process.env.RUNNER_TEMP, 'staging-deployment.json'), `${JSON.stringify(deployment, null, 2)}\n`);
+          NODE
+          echo "RC $RC_TAG desplegada en la VM por sus digests aprobados en GitHub. HTTP/E2E no se repiten localmente." >> "$GITHUB_STEP_SUMMARY"
+      - name: Publicar evidencia de despliegue en la prerelease
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('node:fs/promises');
+            const { owner, repo } = context.repo;
+            const { data: release } = await github.rest.repos.getReleaseByTag({ owner, repo, tag: process.env.RC_TAG });
+            if (release.draft || !release.prerelease) throw new Error('Se requiere una prerelease publicada.');
+            const name = 'staging-deployment.json';
+            const existing = release.assets.find((asset) => asset.name === name);
+            if (existing) await github.rest.repos.deleteReleaseAsset({ owner, repo, asset_id: existing.id });
+            const data = await fs.readFile(`${process.env.RUNNER_TEMP}/${name}`);
+            await github.rest.repos.uploadReleaseAsset({
+              owner, repo, release_id: release.id, name, data,
+              headers: { 'content-type': 'application/json', 'content-length': data.length },
+            });
+      - name: Diagnóstico si falla el despliegue local
+        if: failure() && steps.deploy.outcome == 'failure'
+        run: |
+          if [ -f "$RUNNER_TEMP/rc-approved/rc-manifest.json" ]; then
+            export RC_MANIFEST="$RUNNER_TEMP/rc-approved/rc-manifest.json"
+            node scripts/ci/staging.mjs logs
+          fi
