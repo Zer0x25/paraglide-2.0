@@ -44,6 +44,7 @@ jobs:
       tag: ${{ steps.rc.outputs.tag }}
       commit: ${{ steps.rc.outputs.commit }}
       image_base: ${{ steps.rc.outputs.image_base }}
+      manifest_exists: ${{ steps.manifest.outputs.present }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -56,9 +57,26 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RC_TAG: ${{ inputs.rc_tag || github.event.release.tag_name }}
         run: node scripts/ci/candidate.mjs resolve
+      - name: Verificar manifiesto previo para reintentar sin repetir CI
+        id: manifest
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RC_TAG: ${{ steps.rc.outputs.tag }}
+          RC_COMMIT: ${{ steps.rc.outputs.commit }}
+          RC_MANIFEST: ${{ runner.temp }}/rc-manifest.json
+        run: |
+          exists=$(gh release view "$RC_TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '[.assets[].name] | index("rc-manifest.json") != null')
+          if [ "$exists" = "true" ]; then
+            gh release download "$RC_TAG" --repo "$GITHUB_REPOSITORY" --pattern rc-manifest.json --dir "$RUNNER_TEMP" --clobber
+            node scripts/ci/candidate.mjs verify
+            echo 'present=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'present=false' >> "$GITHUB_OUTPUT"
+          fi
 
   validate:
     name: Validación completa de la candidata
+    if: needs.resolve.outputs.manifest_exists != 'true'
     needs: resolve
     uses: ./.github/workflows/ci.yml
     with:
@@ -68,6 +86,7 @@ jobs:
   images:
     name: Construir una vez y registrar imágenes
     needs: [resolve, validate]
+    if: always() && needs.resolve.result == 'success' && (needs.validate.result == 'success' || needs.validate.result == 'skipped')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -207,10 +226,7 @@ jobs:
       - name: Preparar herramientas de pruebas
         run: |
           npm ci --no-audit --prefer-offline --loglevel=error
-          if ! ldconfig -p 2>/dev/null | grep -q 'libatk-1.0.so.0'; then
-            npx playwright install-deps chromium
-          fi
-          npx playwright install chromium
+          docker pull mcr.microsoft.com/playwright:v1.62.1-noble
       - name: Login GHCR
         uses: docker/login-action@v3
         with:
@@ -220,7 +236,60 @@ jobs:
       - name: Preparar esquema y arrancar la RC por digest
         run: node scripts/ci/staging.mjs deploy
       - name: Integración HTTP y E2E contra staging
-        run: node scripts/ci/staging.mjs test 2>&1 | tee "$RUNNER_TEMP/staging-tests.log"
+        env:
+          STAGING_TEST_ENV: ${{ runner.temp }}/staging-test.env
+        run: |
+          set -o pipefail
+          node --input-type=module <<'NODE'
+          import { chmodSync, readFileSync, writeFileSync } from 'node:fs';
+          import { homedir } from 'node:os';
+          import { join } from 'node:path';
+
+          const state = join(homedir(), '.local/state/paraglide-staging/credentials.json');
+          const credentials = JSON.parse(readFileSync(state, 'utf8'));
+          const values = {
+            CI: 'true',
+            PROD_URL: 'http://localhost:3200',
+            WEB_BASE_URL: 'http://localhost:3200',
+            ADMIN_EMAIL: credentials.adminEmail,
+            ADMIN_PASSWORD: credentials.adminPassword,
+            EXPECTED_COMMIT: process.env.RC_COMMIT,
+            HEADLESS: 'true',
+          };
+          if (Object.values(values).some((value) => /[\r\n]/.test(value))) {
+            throw new Error('Una variable de pruebas contiene saltos de línea.');
+          }
+          writeFileSync(
+            process.env.STAGING_TEST_ENV,
+            `${Object.entries(values).map(([key, value]) => `${key}=${value}`).join('\n')}\n`,
+            { mode: 0o600 },
+          );
+          chmodSync(process.env.STAGING_TEST_ENV, 0o600);
+
+          const api = await fetch('http://127.0.0.1:3201/api/public/health');
+          const health = await api.json();
+          if (!api.ok || health.status !== 'ok' || health.commit !== process.env.RC_COMMIT) {
+            throw new Error('Staging no ejecuta el commit exacto de la RC.');
+          }
+          const web = await fetch('http://127.0.0.1:3200/login');
+          if (!web.ok) throw new Error('La Web de staging no está lista.');
+          NODE
+
+          docker run --rm --init --ipc=host --network host \
+            --volume "$GITHUB_WORKSPACE:/workspace" \
+            --workdir /workspace \
+            --env-file "$STAGING_TEST_ENV" \
+            mcr.microsoft.com/playwright:v1.62.1-noble \
+            bash -euo pipefail -c 'npm run test:staging && npm run test:e2e' \
+            2>&1 | tee "$RUNNER_TEMP/staging-tests.log"
+
+          node --input-type=module <<'NODE'
+          const api = await fetch('http://127.0.0.1:3201/api/public/health');
+          const health = await api.json();
+          if (!api.ok || health.status !== 'ok' || health.commit !== process.env.RC_COMMIT) {
+            throw new Error('La RC dejó de estar lista o cambió el commit durante las pruebas.');
+          }
+          NODE
       - name: Guardar evidencia de aprobación técnica
         run: |
           node scripts/ci/candidate.mjs verified

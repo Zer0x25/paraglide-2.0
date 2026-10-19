@@ -50,9 +50,9 @@ una solicitud nueva puede reemplazar otra que todavía no comenzó.
 
 - Runner Linux con las etiquetas existentes `self-hosted` y `srv-hp-vm`.
 - Docker, Compose v2 con soporte de `--wait` y acceso al daemon.
-- Node 22 se configura en el workflow. Este instala las bibliotecas nativas de
-  Chromium con `npx playwright install-deps chromium` solo si faltan, y descarga
-  el navegador usando la caché local del runner.
+- Node 22 se configura en el workflow. Las pruebas HTTP y E2E corren en la imagen
+  oficial de Playwright fijada a la versión del proyecto, así que no requieren
+  bibliotecas de Chromium instaladas en el host.
 - Puertos de staging disponibles: Web `3200`, API `3201`, DB `5680`. Todos
   escuchan solo en loopback. El proyecto Compose es `paraglide-staging`.
 - Las credenciales se generan con aleatoriedad criptográfica y se conservan con
