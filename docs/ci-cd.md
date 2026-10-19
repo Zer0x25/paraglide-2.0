@@ -48,9 +48,12 @@ modifica a mano `.release-please-manifest.json` para simular una publicación.
    y que coincide con la versión del commit. Si su contenido ya tiene evidencia
    de CI verificable, no repite tipos, lint y unitarios. Sin esa evidencia,
    valida la candidata completa antes de construir imágenes.
-4. Se construyen API y Web para `linux/amd64`, con caché y sin emulación QEMU.
-   No se mueve `latest`. Los digests y el commit quedan en `rc-manifest.json`,
-   adjunto a la prerelease antes del despliegue.
+4. Se construyen API y Web en paralelo, en runners independientes, para
+   `linux/amd64`, con cachés separadas y sin emulación QEMU. Cada job conserva
+   su digest en un artefacto de esta ejecución durante 14 días. Solo cuando
+   ambos terminan bien se publica `rc-manifest.json` con los dos digests y el
+   commit; si uno falla, no se publica el manifiesto ni se despliega staging.
+   No se mueve `latest`. Un reintento con manifiesto previo omite ambos builds.
 5. El runner descarga esas imágenes, prepara el esquema y los datos mínimos de
    staging antes de iniciar la aplicación. Verifica el commit reportado por la
    API y ejecuta las suites HTTP 01–07 más Playwright contra staging.
@@ -62,6 +65,12 @@ publicar otra RC. Para reintentar una RC existente, ejecutar `RC → Staging` de
 Actions con su `rc_tag`; reutiliza las imágenes del manifiesto registrado.
 Publicar manualmente una prerelease también activa el flujo, con las mismas
 comprobaciones. No editar ni mover tags RC ya publicados.
+
+Los reintentos manuales aparecen como `Reintento manual de RC vX.Y.Z-rc.N`.
+El tag indicado elige el código de aplicación, las imágenes y las pruebas;
+la rama seleccionada en el formulario solo elige la definición del workflow.
+Reintentar una RC publicada no valida código nuevo de un PR. El resumen de
+resolución indica siempre el tag, el commit candidato y el evento que lo lanzó.
 
 La concurrencia serializa cada ciclo completo de RC para evitar despliegues
 durante las pruebas de otra candidata. GitHub conserva una ejecución pendiente;
@@ -83,6 +92,11 @@ del contenido seleccionado; si no puede verificarla, ejecuta CI completo.
 - Node 22 se configura en el workflow. Las pruebas HTTP y E2E corren en la imagen
   oficial de Playwright fijada a la versión del proyecto, así que no requieren
   bibliotecas de Chromium instaladas en el host.
+- El contenedor de pruebas usa el UID/GID del runner y un HOME/cache temporal
+  escribible. Así los resultados se pueden limpiar en el checkout siguiente.
+  Antes del checkout se recupera la propiedad de archivos de root dejados por
+  ejecuciones antiguas, únicamente en `test-results/` y
+  `apps/web/test-results/`, sin seguir enlaces ni cambiar el resto del repositorio.
 - Puertos de staging disponibles: Web `3200`, API `3201`, DB `5680`. Todos
   escuchan solo en loopback. El proyecto Compose es `paraglide-staging`.
 - Las credenciales se generan con aleatoriedad criptográfica y se conservan con
