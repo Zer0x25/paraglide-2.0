@@ -5,6 +5,13 @@ based on [Conventional Commits](https://www.conventionalcommits.org/) and this
 file is maintained automatically by
 [release-please](https://github.com/googleapis/release-please).
 
+## [0.11.1-rc.2](https://github.com/Zer0x25/paraglide-2.0/compare/v0.11.1-rc.1...v0.11.1-rc.2) (2026-10-19)
+
+
+### Miscellaneous Chores
+
+* **ci:** reutilizar imágenes RC y probar staging con Playwright ([#73](https://github.com/Zer0x25/paraglide-2.0/issues/73)) ([bd614ef](https://github.com/Zer0x25/paraglide-2.0/commit/bd614ef3a87c8bf3ab721444a1de83bd6f8f6249))
+
 ## [0.11.1-rc.1](https://github.com/Zer0x25/paraglide-2.0/compare/v0.11.0...v0.11.1-rc.1) (2026-10-19)
 
 
