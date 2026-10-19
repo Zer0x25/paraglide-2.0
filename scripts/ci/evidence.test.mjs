@@ -194,6 +194,29 @@ test('reutiliza suites por módulos de un CI exitoso sobre exactamente el mismo 
   }
 });
 
+test('un commit de documentación sobre un PR ya validado no repite sus suites', () => {
+  const f = fixture();
+  try {
+    f.write('README.md', 'documentation update');
+    const head = f.commit();
+    assert.equal(findEvidence({ ...remote(f), ref: head, allowReleaseMetadata: false }).runId, 17);
+  } finally {
+    f.close();
+  }
+});
+
+test('un PR normal no usa la excepción de versiones reservada a la validación de release', () => {
+  const f = fixture();
+  try {
+    f.bump();
+    const head = f.commit();
+    assert.equal(findEvidence({ ...remote(f), ref: head, allowReleaseMetadata: false }), null);
+    assert.equal(findEvidence({ ...remote(f), ref: head, allowReleaseMetadata: true }).runId, 17);
+  } finally {
+    f.close();
+  }
+});
+
 for (const changes of [
   { run: { conclusion: 'failure' } },
   { run: { status: 'in_progress' } },
@@ -280,7 +303,7 @@ test('sin artefactos, con evidencia expirada o sin acceso a Actions se vuelve a 
   }
 });
 
-test('el PR normal no reutiliza CI; el PR de release sin evidencia exige suites completas', () => {
+test('sin evidencia, el PR normal mantiene selección por módulos y la release exige suites completas', () => {
   const f = fixture();
   try {
     f.bump();

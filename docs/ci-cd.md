@@ -20,6 +20,11 @@ archivo. Omite documentación y solo normaliza los campos de versión que cambia
 Release Please. Un cambio de dependencias o de definición de CI invalida la
 evidencia anterior.
 
+Un commit posterior que solo cambia documentación sobre un PR ya aprobado
+reutiliza la evidencia del mismo contenido. En un PR normal no se ignoran
+cambios de versión para esta comparación: esa excepción exige la validación de
+metadatos del PR de release o una comprobación manual explícita.
+
 ## Publicar una RC
 
 Release Please crea o actualiza un PR con versión y changelog. Su configuración

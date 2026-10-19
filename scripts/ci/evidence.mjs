@@ -45,7 +45,7 @@ function normalizeVersion(value) {
 
 // Ignore only release versions and documentation. Scripts, workflows, dependency
 // versions/integrities, file modes and all other tracked contents remain significant.
-export function codeFingerprint(ref = 'HEAD', cwd = process.cwd()) {
+export function codeFingerprint(ref = 'HEAD', cwd = process.cwd(), normalizeRelease = true) {
   const commit = git(['rev-parse', '--verify', `${ref}^{commit}`], cwd);
   const entries = git(['ls-tree', '-rz', '--full-tree', commit], cwd).split('\0').filter(Boolean);
   const hash = createHash('sha256');
@@ -57,13 +57,15 @@ export function codeFingerprint(ref = 'HEAD', cwd = process.cwd()) {
     let contents = oid;
     if (packages.includes(path) || path === 'package-lock.json' || path === manifestPath) {
       const value = jsonAt(commit, path, cwd);
-      if (path === manifestPath) {
-        if (typeof value['.'] === 'string') value['.'] = '<release-version>';
-      } else {
-        normalizeVersion(value);
-        // Release Please's node updater changes the root lock entry only. Keep
-        // every workspace/dependency entry intact, including its version.
-        if (path === 'package-lock.json') normalizeVersion(value.packages?.['']);
+      if (normalizeRelease) {
+        if (path === manifestPath) {
+          if (typeof value['.'] === 'string') value['.'] = '<release-version>';
+        } else {
+          normalizeVersion(value);
+          // Release Please's node updater changes the root lock entry only. Keep
+          // every workspace/dependency entry intact, including its version.
+          if (path === 'package-lock.json') normalizeVersion(value.packages?.['']);
+        }
       }
       contents = JSON.stringify(canonical(value));
     }
@@ -160,6 +162,7 @@ export function findEvidence({
   api = ghApi,
   download = downloadArtifact,
   warn = console.warn,
+  allowReleaseMetadata = true,
 }) {
   const fingerprint = codeFingerprint(ref, cwd);
   let artifacts;
@@ -208,6 +211,13 @@ export function findEvidence({
       // Never trust the fingerprint claimed by an artifact alone. Recompute it
       // from the source of that successful PR run, including its CI definition.
       if (codeFingerprint(evidence.commit, cwd) !== fingerprint) continue;
+      // Ordinary PR updates may reuse documentation-only changes, but version
+      // changes get the release-specific validation or execute suites again.
+      if (
+        !allowReleaseMetadata &&
+        codeFingerprint(evidence.commit, cwd, false) !== codeFingerprint(ref, cwd, false)
+      )
+        continue;
       return { runId: run.id, url: run.html_url, fingerprint };
     } catch {
       warn(`Evidencia ${artifact.id} no disponible o no verificable; se probará otra fuente.`);
@@ -248,12 +258,11 @@ function cli(command) {
     throw new Error('Commit de RC inválido.');
   if (command === 'lookup') validateReleaseVersions(ref);
   const fingerprint = codeFingerprint(ref);
-  let reusable = command === 'lookup';
-  if (
-    command === 'plan' &&
-    process.env.CI_EVENT === 'workflow_dispatch' &&
-    process.env.CI_REUSE === 'true'
-  ) {
+  let reusable =
+    command === 'lookup' || (command === 'plan' && process.env.CI_EVENT === 'pull_request');
+  const manualReuse =
+    process.env.CI_EVENT === 'workflow_dispatch' && process.env.CI_REUSE === 'true';
+  if (command === 'plan' && manualReuse) {
     validateReleaseVersions(ref);
     reusable = true;
   }
@@ -269,7 +278,13 @@ function cli(command) {
       reusable = releaseMetadataOnly(process.env.CI_BASE_SHA);
     }
   } else if (command !== 'lookup') throw new Error(`Comando desconocido: ${command}`);
-  const evidence = reusable ? findEvidence({ repository, ref }) : null;
+  const evidence = reusable
+    ? findEvidence({
+        repository,
+        ref,
+        allowReleaseMetadata: command === 'lookup' || release || manualReuse,
+      })
+    : null;
   output({
     fingerprint,
     reused: Boolean(evidence),
