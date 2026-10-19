@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   DEFAULT_TIMEZONE,
   dateKeyLocal,
@@ -152,12 +152,12 @@ describe('Single Source of Truth: Date & Time Canonical Tests', () => {
     });
 
     it('detecta como pasada una hora de hoy que ya ocurrió', () => {
-      const hoyYmd = dateKeyLocal(new Date());
-      // Hora temprana 00:01
-      const ahora = new Date();
-      // Si la hora actual es posterior a 01:00 AM, 00:01 debe ser pasado
-      if (ahora.getHours() >= 2) {
-        expect(esFechaHoraPasada(hoyYmd, '00:01')).toBe(true);
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-01-15T15:00:00.000Z'));
+      try {
+        expect(esFechaHoraPasada('2026-01-15', '00:01')).toBe(true);
+      } finally {
+        vi.useRealTimers();
       }
     });
 
