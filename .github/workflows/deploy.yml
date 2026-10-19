@@ -194,7 +194,27 @@ jobs:
       RC_TAG: ${{ needs.resolve.outputs.tag }}
       RC_COMMIT: ${{ needs.resolve.outputs.commit }}
     steps:
+      - name: Recuperar permisos de resultados de ejecuciones anteriores
+        working-directory: ${{ runner.temp }}
+        run: |
+          # Playwright antes escribía como root en el checkout persistente.
+          # Recuperar solo sus directorios de resultados, sin seguir enlaces.
+          echo "Usuario del runner: $(id -u):$(id -g)"
+          docker run --rm --network none --user 0:0 \
+            --mount "type=bind,source=$GITHUB_WORKSPACE,target=/workspace" \
+            --entrypoint bash \
+            mcr.microsoft.com/playwright:v1.62.1-noble \
+            -euo pipefail -c '
+              for directory in /workspace/test-results /workspace/apps/web/test-results; do
+                if [ -d "$directory" ] && [ ! -L "$directory" ]; then
+                  find "$directory" -xdev -user 0 \
+                    -print \
+                    -exec chown -h -- "$1:$2" {} +
+                fi
+              done
+            ' -- "$(id -u)" "$(id -g)"
       - uses: actions/checkout@v4
+        id: checkout
         with:
           ref: ${{ needs.resolve.outputs.commit }}
           persist-credentials: false
@@ -203,6 +223,7 @@ jobs:
           echo "RC_MANIFEST=$RUNNER_TEMP/rc-manifest.json" >> "$GITHUB_ENV"
           echo "RC_VERIFICATION=$RUNNER_TEMP/staging-verification.json" >> "$GITHUB_ENV"
       - uses: actions/setup-node@v4
+        id: node
         with:
           node-version: '22'
           cache: npm
@@ -288,11 +309,14 @@ jobs:
           NODE
 
           docker run --rm --init --ipc=host --network host \
+            --user "$(id -u):$(id -g)" \
             --volume "$GITHUB_WORKSPACE:/workspace" \
             --workdir /workspace \
             --env-file "$STAGING_TEST_ENV" \
+            --env HOME=/tmp/playwright-home \
+            --env npm_config_cache=/tmp/npm-cache \
             mcr.microsoft.com/playwright:v1.62.1-noble \
-            bash -euo pipefail -c 'npm run test:staging && npm run test:e2e' \
+            bash -euo pipefail -c 'mkdir -p "$HOME"; npm run test:staging && npm run test:e2e' \
             2>&1 | tee "$RUNNER_TEMP/staging-tests.log"
 
           node --input-type=module <<'NODE'
@@ -338,7 +362,7 @@ jobs:
             });
             core.info(`Publicada ${name} en ${tag}.`);
       - name: Diagnóstico si falla staging
-        if: failure()
+        if: failure() && steps.checkout.outcome == 'success' && steps.node.outcome == 'success'
         run: node scripts/ci/staging.mjs logs
       - name: Conservar resultados de pruebas
         if: always()

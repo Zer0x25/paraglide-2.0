@@ -4,6 +4,12 @@ Este documento mantiene el estado de ejecución, trazabilidad de sesiones, evide
 
 ---
 
+## 1.5 Recuperación del checkout persistente de staging (2026-10-19)
+
+- **Incidente:** la RC `v0.11.1-rc.3` reutilizó correctamente CI y publicó sus imágenes, pero el runner self-hosted falló limpiando el checkout antes de desplegar. El contenedor Playwright escribía resultados como root; se reprodujo localmente la denegación de borrado por el usuario del runner.
+- **Cambio:** recuperación de propiedad limitada a resultados antiguos con UID 0 antes de checkout; pruebas con UID/GID del runner y HOME/cache temporal. El diagnóstico de aplicación solo corre con checkout y Node preparados.
+- **Verificación:** prueba local de reproducción/recuperación y validación del workflow; gate y comprobación real del despliegue registrados en el PR del arreglo. Se reutiliza la RC publicada por digest, sin mover tags ni reconstruir imágenes.
+
 ## 1. Estado Global del Monorepo
 
 | Dimensión | Valor / Estado | Notas |

@@ -83,6 +83,11 @@ del contenido seleccionado; si no puede verificarla, ejecuta CI completo.
 - Node 22 se configura en el workflow. Las pruebas HTTP y E2E corren en la imagen
   oficial de Playwright fijada a la versión del proyecto, así que no requieren
   bibliotecas de Chromium instaladas en el host.
+- El contenedor de pruebas usa el UID/GID del runner y un HOME/cache temporal
+  escribible. Así los resultados se pueden limpiar en el checkout siguiente.
+  Antes del checkout se recupera la propiedad de archivos de root dejados por
+  ejecuciones antiguas, únicamente en `test-results/` y
+  `apps/web/test-results/`, sin seguir enlaces ni cambiar el resto del repositorio.
 - Puertos de staging disponibles: Web `3200`, API `3201`, DB `5680`. Todos
   escuchan solo en loopback. El proyecto Compose es `paraglide-staging`.
 - Las credenciales se generan con aleatoriedad criptográfica y se conservan con
