@@ -190,33 +190,29 @@ npm run dev
 
 ---
 
-## 🚢 Despliegue Continuo (CI/CD)
+## 🚢 Integración y releases candidatas
 
-El proyecto utiliza un pipeline automatizado en [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) que sigue el principio de **Build en CI y Deploy por Pull** (sin compilar en el servidor de producción):
+El flujo usa ramas cortas y PR hacia `main`. CI ejecuta tipos, lint y pruebas
+según los módulos afectados, con una sola instalación de dependencias. Un cambio
+de documentación deja el check disponible sin ejecutar suites.
 
 ```mermaid
-sequenceDiagram
-    participant Git as GitHub (Push to main)
-    participant CI as GitHub Actions (Ubuntu)
-    participant GHCR as GitHub Container Registry
-    participant Server as Homelab Runner
-
-    Git->>CI: Dispara deploy.yml
-    CI->>CI: Ejecuta Tests (API + Web con Vitest)
-    CI->>GHCR: Compila y publica imágenes Docker (sha-<hash> y latest)
-    CI->>Server: Notifica al runner homelab
-    Server->>GHCR: docker compose pull api web
-    Server->>Server: docker compose up -d --no-build
-    Server->>Server: npx prisma db push (en contenedor API)
-    Server->>CI: Health Check HTTP (/api/public/health) OK
+flowchart LR
+    PR[PR con CI obligatorio] --> Main[main]
+    Main --> ReleasePR[PR de Release Please]
+    ReleasePR --> RC[Merge: publicar vX.Y.Z-rc.N]
+    RC --> Build[Validación completa e imágenes]
+    Build --> Staging[Staging por digest + integración y E2E]
+    Staging --> Evidence[Manifiesto y evidencia en la prerelease]
 ```
 
-* **Rollback Instantáneo**: Permite revertir a cualquier versión anterior apuntando a los tags inmutables de GHCR:
-  ```bash
-  API_IMAGE=ghcr.io/zer0x25/paraglide-2.0-api:sha-<hash> \
-  WEB_IMAGE=ghcr.io/zer0x25/paraglide-2.0-web:sha-<hash> \
-  docker compose up -d --no-build
-  ```
+Solo una RC publicada construye imágenes. El servidor descarga las referencias
+por digest y prepara el esquema antes de iniciar la candidata. Cada reintento
+reutiliza el manifiesto registrado en la prerelease. Las RC no actualizan `latest`
+y no hay despliegue automático a producción.
+
+La promoción a Stable se definirá después: deberá usar las mismas imágenes que
+pasaron staging. Ver [operación de RC y configuración inicial](docs/ci-cd.md).
 
 ---
 

@@ -26,6 +26,17 @@ Este documento mantiene el estado de ejecución, trazabilidad de sesiones, evide
 
 ---
 
+## 1.2 CI por PR y RC hacia staging (2026-10-18)
+
+- **Flujo:** CI solo en PR, dispatch y validación reutilizable; una instalación de dependencias por job, suites por módulos, cancelación de ejecuciones anteriores y check `CI Quality Gate ✅` que falla directamente ante errores. Markdown, incluido el anidado, no dispara suites.
+- **RC:** Release Please prepara prereleases `vX.Y.Z-rc.N`. El merge de su PR publica la candidata y llama al workflow RC explícitamente; el PR del bot recibe CI por dispatch sin PAT adicional. Se verifica tag, versión y pertenencia a `main` antes de validar y construir API/Web para amd64.
+- **Staging:** imágenes por digest guardadas en `rc-manifest.json`, reutilizadas en reintentos. Esquema, índices y usuario se preparan antes del arranque; proyecto/red/DB propios y puertos loopback `3200`, `3201`, `5680`. Credenciales aleatorias persistentes fuera del checkout. Solo una ejecución con todas las pruebas aprobadas adjunta `staging-verification.json`.
+- **E2E:** los tests reales usan credenciales del entorno. La suite premium reutiliza una sesión por worker para respetar ADR 013 y el límite de login; su comprobación de acceso público utiliza un contexto explícitamente anónimo. Se estabilizan selectores semánticos y el identificador del fixture de piloto para repetir pruebas sin colisiones.
+- **Evidencia local:** Node 22; `npm run check:quick` aprobado (API 408, Web 307, MCP 16: 731 tests), `npm run test:ci` (6 tests), typecheck Web y lint de los cambios, Actionlint 1.7.7, schema oficial de Release Please, Compose y filtros de rutas comprobados. Despliegue aislado en el entorno cloud con imágenes ya publicadas del mismo código de aplicación (`ab62ac8`): 7/7 suites HTTP y 22/22 E2E (43.9 s), sin reintentos en la ejecución final. Open-Meteo se accedió mediante el proxy y CA del entorno en un override temporal no versionado.
+- **Límite y siguiente paso:** no se publicó una RC real ni se desplegó producción. El flujo productivo automático anterior se elimina; Stable y su promoción se definirán después. La integración respondió 403 al consultar la protección administrativa de `main`; la regla requerida y prerrequisitos del runner quedan documentados en `docs/ci-cd.md`.
+
+---
+
 ## 2. Última Sesión de Trabajo: Corrección de Fallo de Build Docker en API (Prisma Engines ECONNRESET) y Release v0.10.4
 
 - **Fecha:** 2026-10-14

@@ -8,6 +8,9 @@
       "include-component-in-tag": false,
       "include-v-in-tag": true,
       "draft": false,
+      "versioning": "prerelease",
+      "prerelease-type": "rc.1",
+      "prerelease": true,
       "changelog-sections": [
         { "type": "feat", "section": "Features" },
         { "type": "fix", "section": "Bug Fixes" },
