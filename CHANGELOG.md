@@ -5,6 +5,13 @@ based on [Conventional Commits](https://www.conventionalcommits.org/) and this
 file is maintained automatically by
 [release-please](https://github.com/googleapis/release-please).
 
+## [0.11.1-rc.4](https://github.com/Zer0x25/paraglide-2.0/compare/v0.11.1-rc.3...v0.11.1-rc.4) (2026-10-19)
+
+
+### Bug Fixes
+
+* **ci:** recuperar staging y construir imágenes RC en paralelo ([#77](https://github.com/Zer0x25/paraglide-2.0/issues/77)) ([c110568](https://github.com/Zer0x25/paraglide-2.0/commit/c1105686b1d2dd8465b16668094072a6b5d4054d))
+
 ## [0.11.1-rc.3](https://github.com/Zer0x25/paraglide-2.0/compare/v0.11.1-rc.2...v0.11.1-rc.3) (2026-10-19)
 
 
