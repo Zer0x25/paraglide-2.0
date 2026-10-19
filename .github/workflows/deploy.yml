@@ -20,6 +20,7 @@ permissions:
   contents: read
   packages: write
   pull-requests: read
+  actions: read
 
 # Serializa toda la RC para que sus pruebas no coincidan con otro despliegue.
 concurrency:
@@ -45,6 +46,7 @@ jobs:
       commit: ${{ steps.rc.outputs.commit }}
       image_base: ${{ steps.rc.outputs.image_base }}
       manifest_exists: ${{ steps.manifest.outputs.present }}
+      ci_reused: ${{ steps.evidence.outputs.reused }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -74,9 +76,17 @@ jobs:
             echo 'present=false' >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Verificar CI previo del contenido de la candidata
+        if: steps.manifest.outputs.present != 'true'
+        id: evidence
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CI_REF: ${{ steps.rc.outputs.commit }}
+        run: node scripts/ci/evidence.mjs lookup
+
   validate:
     name: Validación completa de la candidata
-    if: needs.resolve.outputs.manifest_exists != 'true'
+    if: needs.resolve.outputs.manifest_exists != 'true' && needs.resolve.outputs.ci_reused != 'true'
     needs: resolve
     uses: ./.github/workflows/ci.yml
     with:
