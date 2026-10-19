@@ -9,6 +9,8 @@ Este documento mantiene el estado de ejecución, trazabilidad de sesiones, evide
 - **Incidente:** la RC `v0.11.1-rc.3` reutilizó correctamente CI y publicó sus imágenes, pero el runner self-hosted falló limpiando el checkout antes de desplegar. El contenedor Playwright escribía resultados como root; se reprodujo localmente la denegación de borrado por el usuario del runner.
 - **Cambio:** recuperación de propiedad limitada a resultados antiguos con UID 0 antes de checkout; pruebas con UID/GID del runner y HOME/cache temporal. El diagnóstico de aplicación solo corre con checkout y Node preparados.
 - **Verificación:** prueba local de reproducción/recuperación y validación del workflow; gate y comprobación real del despliegue registrados en el PR del arreglo. Se reutiliza la RC publicada por digest, sin mover tags ni reconstruir imágenes.
+- **Evidencia real:** CI #164 y reintento manual RC → Staging #48 en verde. El reintento fue una comprobación operativa de permisos y despliegue de la RC3 existente; no una validación del código de aplicación nuevo del PR. Publicó `staging-verification.json` para el commit `7e78fe0`.
+- **Construcciones paralelas:** API/Web pasan a una matriz con runners y cachés independientes. El manifiesto se publica en un job posterior solo si ambas imágenes terminan correctamente. Staging depende de ese manifiesto; con uno previo verificado se omite toda la matriz. Los reintentos manuales muestran el tag en el título y el commit probado en el resumen. La primera ejecución real de ambos builds en paralelo corresponde a la siguiente RC nueva.
 
 ## 1. Estado Global del Monorepo
 

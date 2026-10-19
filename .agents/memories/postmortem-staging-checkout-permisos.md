@@ -5,3 +5,5 @@
 - Regla: todo contenedor de herramientas que escriba en un bind mount del runner debe usar su UID/GID. Verificar también que el host pueda borrar los resultados, además del éxito de las pruebas.
 
 La recuperación se prueba sobre la RC existente con su manifiesto por digest; no requiere cambiar el tag ni reconstruir imágenes. La confirmación en el runner real queda en el PR del arreglo.
+
+El reintento manual #48 terminó correctamente usando la definición del workflow del PR y el código inmutable de RC3. Fue una comprobación operativa; no evidencia sobre código nuevo de la aplicación. Los reintentos ahora identifican el tag en su título y el commit candidato en el resumen para distinguir ambos contextos.

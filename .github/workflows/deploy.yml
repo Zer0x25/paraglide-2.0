@@ -1,4 +1,5 @@
 name: RC → Staging
+run-name: "${{ github.event_name == 'workflow_dispatch' && 'Reintento manual de RC' || 'Publicar RC' }} ${{ inputs.rc_tag || github.event.release.tag_name }}"
 
 on:
   workflow_call:
@@ -10,7 +11,7 @@ on:
   workflow_dispatch:
     inputs:
       rc_tag:
-        description: 'RC publicada que se quiere desplegar o reintentar (vX.Y.Z-rc.N)'
+        description: 'RC publicada a reintentar (vX.Y.Z-rc.N); despliega ese tag, no el código de la rama seleccionada'
         required: true
         type: string
   release:
@@ -59,6 +60,18 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RC_TAG: ${{ inputs.rc_tag || github.event.release.tag_name }}
         run: node scripts/ci/candidate.mjs resolve
+      - name: Identificar el código que se desplegará
+        env:
+          RC_TAG: ${{ steps.rc.outputs.tag }}
+          RC_COMMIT: ${{ steps.rc.outputs.commit }}
+          TRIGGER: ${{ github.event_name }}
+        run: |
+          {
+            echo "Candidata: $RC_TAG"
+            echo "Commit de aplicación: $RC_COMMIT"
+            echo "Evento: $TRIGGER"
+            echo 'Las imágenes y los tests corresponden a esta RC. La rama seleccionada aporta la definición del workflow.'
+          } >> "$GITHUB_STEP_SUMMARY"
       - name: Verificar manifiesto previo para reintentar sin repetir CI
         id: manifest
         env:
@@ -94,46 +107,34 @@ jobs:
       full: true
 
   images:
-    name: Construir una vez y registrar imágenes
+    name: Construir ${{ matrix.service }}
     needs: [resolve, validate]
-    if: always() && needs.resolve.result == 'success' && (needs.validate.result == 'success' || needs.validate.result == 'skipped')
+    if: always() && needs.resolve.result == 'success' && needs.resolve.outputs.manifest_exists != 'true' && (needs.validate.result == 'success' || needs.validate.result == 'skipped')
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    strategy:
+      # Una imagen fallida no cancela la otra, pero impide publicar el manifiesto.
+      fail-fast: false
+      matrix:
+        service: [api, web]
     permissions:
-      contents: write
+      contents: read
       packages: write
-    env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      RC_TAG: ${{ needs.resolve.outputs.tag }}
-      RC_COMMIT: ${{ needs.resolve.outputs.commit }}
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ needs.resolve.outputs.commit }}
           persist-credentials: false
-      - name: Preparar ruta del manifiesto
-        run: echo "RC_MANIFEST=$RUNNER_TEMP/rc-manifest.json" >> "$GITHUB_ENV"
-      - name: Comprobar si la candidata ya tiene imágenes registradas
-        id: existing
-        run: |
-          EXISTS=$(gh release view "$RC_TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '[.assets[].name] | index("rc-manifest.json") != null')
-          echo "exists=$EXISTS" >> "$GITHUB_OUTPUT"
-          if [ "$EXISTS" = "true" ]; then
-            gh release download "$RC_TAG" --repo "$GITHUB_REPOSITORY" --pattern rc-manifest.json --dir "$RUNNER_TEMP"
-            node scripts/ci/candidate.mjs verify
-          fi
       - name: Configurar Buildx nativo amd64
-        if: steps.existing.outputs.exists != 'true'
         uses: docker/setup-buildx-action@v3
       - name: Login GHCR
-        if: steps.existing.outputs.exists != 'true'
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Construir API
-        if: steps.existing.outputs.exists != 'true'
+        if: matrix.service == 'api'
         id: api
         uses: docker/build-push-action@v6
         with:
@@ -150,7 +151,7 @@ jobs:
           cache-from: type=gha,scope=api
           cache-to: type=gha,mode=max,scope=api
       - name: Construir Web
-        if: steps.existing.outputs.exists != 'true'
+        if: matrix.service == 'web'
         id: web
         uses: docker/build-push-action@v6
         with:
@@ -168,20 +169,69 @@ jobs:
             NEXT_PUBLIC_GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID || vars.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '' }}
           cache-from: type=gha,scope=web
           cache-to: type=gha,mode=max,scope=web
-      - name: Registrar manifiesto inmutable en la prerelease
-        if: steps.existing.outputs.exists != 'true'
+      - name: Guardar digest de la imagen construida
         env:
-          API_DIGEST: ${{ steps.api.outputs.digest }}
-          WEB_DIGEST: ${{ steps.web.outputs.digest }}
+          IMAGE_SERVICE: ${{ matrix.service }}
+          IMAGE_DIGEST: ${{ steps.api.outputs.digest || steps.web.outputs.digest }}
         run: |
+          [[ "$IMAGE_DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]]
+          printf '%s\n' "$IMAGE_DIGEST" > "$RUNNER_TEMP/$IMAGE_SERVICE.digest"
+      - name: Conservar digest para el manifiesto
+        uses: actions/upload-artifact@v4
+        with:
+          name: rc-digest-${{ github.run_id }}-${{ matrix.service }}
+          path: ${{ runner.temp }}/${{ matrix.service }}.digest
+          if-no-files-found: error
+          # Mantener el digest del otro job al reintentar solo el que falló.
+          overwrite: true
+          retention-days: 14
+
+  manifest:
+    name: Registrar las dos imágenes de la RC
+    needs: [resolve, images]
+    # Con manifiesto previo se omite toda la matriz, pero se verifica otra vez antes de desplegar.
+    if: always() && needs.resolve.result == 'success' && (needs.images.result == 'success' || (needs.images.result == 'skipped' && needs.resolve.outputs.manifest_exists == 'true'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      RC_TAG: ${{ needs.resolve.outputs.tag }}
+      RC_COMMIT: ${{ needs.resolve.outputs.commit }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve.outputs.commit }}
+          persist-credentials: false
+      - name: Preparar ruta del manifiesto
+        run: echo "RC_MANIFEST=$RUNNER_TEMP/rc-manifest.json" >> "$GITHUB_ENV"
+      - name: Verificar manifiesto ya publicado
+        if: needs.resolve.outputs.manifest_exists == 'true'
+        run: |
+          gh release download "$RC_TAG" --repo "$GITHUB_REPOSITORY" --pattern rc-manifest.json --dir "$RUNNER_TEMP" --clobber
+          node scripts/ci/candidate.mjs verify
+      - name: Reunir digests de esta ejecución
+        if: needs.resolve.outputs.manifest_exists != 'true'
+        uses: actions/download-artifact@v4
+        with:
+          pattern: rc-digest-${{ github.run_id }}-*
+          path: ${{ runner.temp }}/rc-digests
+          merge-multiple: true
+      - name: Registrar manifiesto inmutable en la prerelease
+        if: needs.resolve.outputs.manifest_exists != 'true'
+        run: |
+          API_DIGEST=$(cat "$RUNNER_TEMP/rc-digests/api.digest")
+          WEB_DIGEST=$(cat "$RUNNER_TEMP/rc-digests/web.digest")
+          export API_DIGEST WEB_DIGEST
           node scripts/ci/candidate.mjs create
           gh release upload "$RC_TAG" "$RC_MANIFEST" --repo "$GITHUB_REPOSITORY"
 
   staging:
-    name: Desplegar y probar staging
-    needs: [resolve, images]
+    name: Desplegar y probar ${{ needs.resolve.outputs.tag }} en staging
+    needs: [resolve, manifest]
     # `validate` se omite cuando ya existe un manifiesto verificado; no omitir staging por esa dependencia transitiva.
-    if: always() && needs.resolve.result == 'success' && needs.images.result == 'success'
+    if: always() && needs.resolve.result == 'success' && needs.manifest.result == 'success'
     runs-on: [self-hosted, srv-hp-vm]
     timeout-minutes: 40
     environment:
