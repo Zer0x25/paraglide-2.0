@@ -33,7 +33,7 @@ Para balancear rigor técnico con agilidad operativa, las tareas se clasifican e
 
 - **Root `.env` único** (dotenvx): Cargado por `apps/web/next.config.ts`, `apps/api/src/config.ts` y `apps/mcp/src/config.ts`. No existe `apps/web/.env`.
 - **Dev (Local)**: Web `:3000`, API `:3001`, DB Postgres `:5679` (`docker compose -f docker-compose.dev-db.yml up -d`, `parapente_dev_db`).
-- **Staging (Preproducción)**: Web `:3200`, API `:3201`, DB Postgres `:5680` (RC por digest; ver `docs/ci-cd.md`, `parapente_db_staging`).
+- **Staging (Preproducción)**: Web `:3200`, API `:3201`, DB Postgres `:5680` (RC por digest; ver `docs/ci-cd.md`). DB `parapente_staging_db` en el contenedor `parapente_postgres_staging`.
 - **Producción (Host/Caddy)**: Web `:3100`, API `:3101`, DB Postgres `:5678` (`parapente_postgres` en `docker-compose.yml`).
 - 🚨 **PROHIBIDO tocar el puerto 5678**: Es la DB de producción. Scripts destructivos o tests jamás deben apuntar a este puerto.
 - **Node.js**: Versión **22** (imágenes Docker alpine/slim). Verificar con `node --version` si hay paridad de entornos.
@@ -61,6 +61,8 @@ Para balancear rigor técnico con agilidad operativa, las tareas se clasifican e
 - `npm run test:e2e`: Pruebas Playwright E2E en `apps/web` (vouchers, deslinde, reagendamiento).
 
 ### Staging y Producción (Operaciones)
+
+- **Flujo automático vigente:** CI por PR; evidencia reutilizada en el PR de release y la RC; builds API/Web paralelos; HTTP/E2E en GitHub con DB temporal. Solo después de aprobar, `srv-hp-vm` descarga y despliega los mismos digests en staging, con comprobación de salud/commit y sin repetir suites. Ver [`docs/ci-cd.md`](docs/ci-cd.md). La promoción a Stable/producción sigue pendiente de definir.
 - `npm run test:staging` / `test:staging:quick` / `test:staging:stress`: Suites contra Staging (`:3200`).
 - `npm run test:prod:all`: Ejecución completa de suites contra producción.
 - `npm run staging:up` / `staging:down`: Gestión del stack de Staging con `.env.staging`; el workflow RC prepara el esquema y las credenciales.

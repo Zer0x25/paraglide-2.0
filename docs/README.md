@@ -53,6 +53,13 @@ Registro ordenado de las decisiones técnicas y arquitectónicas que guían el d
 
 ---
 
+## 🚢 CI, releases y operación
+
+* [`docs/ci-cd.md`](./ci-cd.md): Guía operativa vigente. PR con CI reutilizable → RC con builds API/Web paralelos → HTTP/E2E en GitHub → despliegue por digest en la VM. Incluye reintentos, evidencias, acceso al staging local y el alcance pendiente de Stable.
+* [`STATE.md`](../STATE.md): Última RC y ejecución confirmadas; el historial conserva los diseños anteriores como registros de sesión.
+
+---
+
 ## 📂 Auditorías y Certificaciones Históricas
 
 * [`docs/auditorias/certificacion-rutas-e2e.md`](./auditorias/certificacion-rutas-e2e.md): Certificación y verificación E2E de las 19 rutas operativas del sistema *(100% Certificado en Producción)*.
@@ -78,7 +85,7 @@ Definiciones en [`.github/agents/`](../.github/agents) (espejo en [`.agents/agen
 | [`auditor-adr`](../.github/agents/auditor-adr.agent.md) | Diff contra ADRs 004-015 | **Solo lectura** | ninguno (informe) |
 | [`web-ui-guardrails`](../.github/agents/web-ui-guardrails.agent.md) | `apps/web` (Next.js 16 + PWA) | Escritura | `test:web` + `lint` |
 | [`e2e-flake-guard`](../.github/agents/e2e-flake-guard.agent.md) | `apps/web/tests` (Playwright) | Escritura | `test:e2e` con `--repeat-each=3` |
-| [`release-ops`](../.github/agents/release-ops.agent.md) | Staging, prod, CI, `release-please` | Escritura | `check:quick` + `test:staging:quick` |
+| [`release-ops`](../.github/agents/release-ops.agent.md) | Staging, prod, CI, `release-please` | Escritura | `check:quick` + evidencia RC en GitHub y salud del despliegue |
 | [`mcp-server-dev`](../.github/agents/mcp-server-dev.agent.md) | `apps/mcp` | Escritura | `test:mcp` |
 
 > Los agentes heredan las reglas de [`AGENTS.md`](../AGENTS.md). Ninguno puede escribir en el puerto **5678** (DB de producción).

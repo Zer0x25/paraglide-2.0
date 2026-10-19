@@ -201,18 +201,26 @@ flowchart LR
     PR[PR con CI obligatorio] --> Main[main]
     Main --> ReleasePR[PR de Release Please]
     ReleasePR --> RC[Merge: publicar vX.Y.Z-rc.N]
-    RC --> Build[Validación completa e imágenes]
-    Build --> Staging[Staging por digest + integración y E2E]
-    Staging --> Evidence[Manifiesto y evidencia en la prerelease]
+    RC --> Reuse["Verificar evidencia de CI; ejecutar suites si falta"]
+    Reuse --> API[Build API]
+    Reuse --> Web[Build Web]
+    API --> Manifest[Manifiesto con ambos digests]
+    Web --> Manifest
+    Manifest --> Tests[GitHub: DB temporal + HTTP y E2E]
+    Tests -->|Aprobadas| VM[VM: descargar digests, desplegar y comprobar salud]
+    Tests -->|Fallidas| Stop[VM conserva su versión actual]
 ```
 
-Solo una RC publicada construye imágenes. El servidor descarga las referencias
-por digest y prepara el esquema antes de iniciar la candidata. Cada reintento
-reutiliza el manifiesto registrado en la prerelease. Las RC no actualizan `latest`
-y no hay despliegue automático a producción.
+Solo una RC publicada construye imágenes, con API y Web en paralelo. Las pruebas
+HTTP/E2E se ejecutan en servidores de GitHub. Después de aprobarlas, el runner
+`srv-hp-vm` descarga los mismos digests y actualiza el staging local
+(Web `3200`, API `3201`); solo comprueba arranque y commit, sin repetir las suites.
+Un reintento reutiliza las imágenes, las vuelve a probar en GitHub y habilita
+el despliegue local si pasan. Las RC no actualizan `latest` ni producción.
 
 La promoción a Stable se definirá después: deberá usar las mismas imágenes que
-pasaron staging. Ver [operación de RC y configuración inicial](docs/ci-cd.md).
+aprobaron HTTP/E2E en GitHub. Ver [operación de RC y configuración inicial](docs/ci-cd.md),
+incluidos los manifiestos, reintentos, evidencias y acceso al staging local.
 
 ---
 
@@ -240,7 +248,7 @@ pasaron staging. Ver [operación de RC y configuración inicial](docs/ci-cd.md).
 | Script | Descripción |
 |--------|-------------|
 | `npm run dev` | Inicia Web (`:3000`) y API (`:3001`) concurrentemente con base de datos local `:5679` |
-| `npm run check:quick` | Verificación rápida integral de tipos (`tsc`), lint (`eslint`), formato y tests unitarios |
+| `npm run check:quick` | Build de shared, tipos del monorepo y tests unitarios; lint y formato tienen comandos separados |
 | `npm run build:shared` | Compila `@parapente/shared` (`dist/`) con tsup |
 | `npm run build` | Compila paquete compartido, API y Frontend para producción |
 | `npm run test` | Ejecuta la suite completa de CI (`build:shared` → `test:api` → `test:web` → `test:mcp`) |
@@ -248,9 +256,9 @@ pasaron staging. Ver [operación de RC y configuración inicial](docs/ci-cd.md).
 | `npm run test:web` | Ejecuta las pruebas de componentes y vistas web con Vitest |
 | `npm run test:mcp` | Ejecuta las pruebas unitarias del servidor MCP con Vitest |
 | `npm run test:e2e` | Ejecuta pruebas End-to-End locales con Playwright |
-| `npm run staging:up` | Levanta el stack de preproducción Docker completo (`web :3200`, `api :3201`, `db :5680`) |
-| `npm run staging:seed` | Sincroniza esquema de base de datos y ejecuta seed en Staging |
-| `npm run test:staging` | Ejecuta la suite E2E completa de 11 fases contra Staging (`http://localhost:3200`) |
+| `npm run test:ci` | Valida los contratos y la reutilización de evidencia del pipeline |
+| `npm run staging:up` | Descarga y levanta staging por digest (`web :3200`, `api :3201`, `db :5680`); requiere `.env.staging` preparado según la guía de RC |
+| `npm run test:staging` | Ejecuta las siete suites HTTP/navegador (01–07); uso manual local o automático en el entorno temporal de GitHub |
 | `npm run test:staging:mvp` | Suite Fase 10 de estrés y combinaciones MVP contra Staging (`:3200`) o Prod (`test:mvp:prod`) |
 | `npm run test:staging:reagenda` | Suite de estrés para re-agendamiento dinámico, concurrencia y validación de `version` |
 | `npm run test:prod` | Ejecuta la suite E2E completa de 11 pasos contra producción (`https://parapente.zer0x.org`) |
@@ -262,6 +270,7 @@ pasaron staging. Ver [operación de RC y configuración inicial](docs/ci-cd.md).
 ## 📚 Documentación Adicional
 
 - [Portal de Documentación](docs/README.md) — Índice maestro de arquitectura, guías de diseño y hojas de ruta.
+- [CI, Release Candidates y staging](docs/ci-cd.md) — Flujo operativo vigente, pruebas en GitHub y despliegue de imágenes aprobadas en la VM.
 - [Architecture Decision Records (ADRs)](docs/adr/README.md) — Registro detallado de decisiones de diseño y arquitectura (ADR 001 al 013).
 - [Guía para Agentes AI](AGENTS.md) — Reglas, guardrails y contexto para asistentes de desarrollo.
 

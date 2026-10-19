@@ -1,5 +1,18 @@
 # CI por PR y staging por Release Candidate
 
+## Dónde se ejecuta cada paso
+
+| Paso | Máquina | Resultado |
+| :-- | :-- | :-- |
+| CI del PR | GitHub (`ubuntu-latest`) | Tipos/lint/unitarios por módulos, o comprobación ligera de evidencia/documentación |
+| Build API y Web | Dos runners de GitHub en paralelo | Imágenes RC en GHCR y manifiesto por digest |
+| HTTP 01–07 y Playwright E2E | GitHub (`ubuntu-24.04`) | Aprobación de imágenes con DB temporal; se elimina al terminar |
+| Despliegue de staging | VM, runner `srv-hp-vm-runner` | Descarga de digests aprobados, preparación del esquema y comprobación de salud/commit |
+
+La VM no ejecuta las suites del workflow ni compila imágenes. Staging queda
+encendido para pruebas manuales después del despliegue; producción sigue con
+su versión anterior hasta que se defina y ejecute una promoción a Stable.
+
 ## Trabajo diario
 
 1. Crear una rama corta desde `main` y abrir un PR.
@@ -12,6 +25,10 @@
 CI corre por `pull_request`, sin una segunda ejecución por push. Los nuevos
 commits cancelan las validaciones anteriores del mismo PR. Un fallo de detección,
 tipos, lint o pruebas falla el propio check, y una cancelación no lo aprueba.
+El nombre `CI Quality Gate ✅` se conserva aunque reutilice evidencia: consultar
+el resumen y los pasos ejecutados para distinguir comprobaciones de suites.
+Un PR exclusivamente documental mantiene el check sin instalar dependencias ni
+construir imágenes ni ejecutar HTTP/E2E.
 
 Al aprobar las suites, CI conserva durante 30 días un artefacto con la huella
 del contenido probado y las suites ejecutadas. Esa huella incluye código,
@@ -95,6 +112,34 @@ El dispatch manual de CI sigue disponible para diagnósticos: por defecto ejecut
 las suites completas. La opción explícita `reuse` permite comprobar la evidencia
 del contenido seleccionado; si no puede verificarla, ejecuta CI completo.
 
+## Evidencias y recuperación de fallos
+
+| Evidencia | Qué acredita | Dónde se guarda |
+| :-- | :-- | :-- |
+| `ci-evidence-<huella>` | Contenido y suites aprobadas en un PR | Artefacto de CI durante 30 días |
+| `rc-manifest.json` | Tag, commit y digests API/Web | Prerelease |
+| `rc-verification.json` | HTTP/E2E aprobados en un runner de GitHub | Prerelease y artefacto `verified-rc-<run_id>` |
+| `staging-deployment.json` | Despliegue y salud/commit en la VM | Prerelease |
+
+Los artefactos de digests, aprobación para la VM y resultados de pruebas duran
+14 días. Las evidencias adjuntas a la prerelease permanecen. La VM consume la
+aprobación del artefacto de su misma ejecución; un JSON histórico en la release
+no sustituye ese paso. `staging-verification.json`, presente en RC anteriores,
+pertenece al flujo histórico que probaba directamente en la VM.
+
+- **Fallo de CI:** corregir el PR; no publicar una candidata sin validación.
+- **Fallo de un build:** usar `Re-run failed jobs`; conserva el digest del otro
+  build dentro del mismo run mientras exista su artefacto. No se publica el
+  manifiesto completo ni se despliega con una sola imagen.
+- **Fallo de HTTP/E2E:** revisar logs/capturas en `rc-test-results-<tag>`. La VM
+  no empieza su job. Un cambio de código exige un PR y una RC nuevos.
+- **Fallo del despliegue local:** revisar el job de VM y su diagnóstico. No hay
+  rollback automático. Se puede reintentar ese job sin repetir las pruebas si
+  conserva el artefacto aprobado de la misma ejecución.
+- **Artefacto expirado o ausente:** reintentar el workflow completo con el mismo
+  `rc_tag`. El manifiesto publicado evita reconstruir imágenes, pero las pruebas
+  se vuelven a ejecutar en GitHub para generar una aprobación nueva.
+
 ## Preparación del runner de staging
 
 - Runner Linux con las etiquetas existentes `self-hosted` y `srv-hp-vm`.
@@ -150,6 +195,7 @@ producción por push, tag, marcadores de commit y merge de release. No se public
 Stable ni se modifica la instalación productiva con este flujo.
 
 La promoción futura deberá comprobar `rc-verification.json`, la evidencia del
-despliegue local y los digests de `rc-manifest.json`, sin construir imágenes nuevas. También habrá que
+despliegue local y los digests de `rc-manifest.json`, sin construir imágenes
+nuevas. También habrá que
 definir aprobación, metadatos de versión final, backups, cambios de esquema y
 recuperación. No se presupone que revertir una imagen revierta la base de datos.
