@@ -4,6 +4,13 @@ Este documento mantiene el estado de ejecución, trazabilidad de sesiones, evide
 
 ---
 
+## 1.6 Pruebas de imágenes en GitHub antes del despliegue local (2026-10-19)
+
+- **Objetivo:** descargar y actualizar la RC en la VM únicamente después de aprobar HTTP/E2E en servidores de GitHub.
+- **Flujo:** las imágenes por digest se prueban en `ubuntu-24.04` con DB y credenciales temporales; se publica `rc-verification.json` y un artefacto de aprobación. El job self-hosted requiere éxito de pruebas y verifica aprobación, run, commit y ambos digests antes de descargar imágenes. Después despliega y comprueba salud/commit, sin instalar npm ni repetir E2E.
+- **Aislamiento:** limpieza de contenedores y volúmenes solo en el runner efímero de GitHub. Staging local conserva credenciales y DB propias; checkout separado `rc-deploy/`. `staging-deployment.json` registra el despliegue local sin atribuirle pruebas ejecutadas en otra máquina.
+- **Validación:** Actionlint, 32 combinaciones de estados del bloqueo de VM y siete escenarios de aprobación/digests verificados. Gate, CI y prueba real de la migración quedan enlazados en el PR.
+
 ## 1.5 Recuperación del checkout persistente de staging (2026-10-19)
 
 - **Incidente:** la RC `v0.11.1-rc.3` reutilizó correctamente CI y publicó sus imágenes, pero el runner self-hosted falló limpiando el checkout antes de desplegar. El contenedor Playwright escribía resultados como root; se reprodujo localmente la denegación de borrado por el usuario del runner.
