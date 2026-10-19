@@ -2,6 +2,13 @@
 
 Este documento mantiene el estado de ejecución, trazabilidad de sesiones, evidencia de calidad y bitácora de aprendizaje continuo del proyecto **Paraglide**.
 
+## Estado vigente de CI y despliegue (2026-10-19)
+
+- **Última RC confirmada:** `v0.11.1-rc.5`, commit `2b2ca2a`, publicada tras fusionar #79 y #80. [Release Please #61](https://github.com/Zer0x25/paraglide-2.0/actions/runs/39205972360) terminó correctamente: API/Web en paralelo, validación completa de CI omitida por evidencia, HTTP/E2E en GitHub y despliegue posterior en `srv-hp-vm-runner`.
+- **Orden comprobado:** las pruebas en GitHub finalizaron a las 05:50:39 UTC; la VM inició su job a las 05:50:42 UTC. Las evidencias actuales son `rc-manifest.json`, `rc-verification.json` y `staging-deployment.json` en la prerelease. La VM solo despliega y comprueba salud/commit.
+- **Operación vigente:** [docs/ci-cd.md](docs/ci-cd.md). README, índice documental y guía `release-ops` sincronizados con este flujo. Los registros de sesiones siguientes conservan el historial, incluidos dispatches, pruebas locales y evidencias que ya fueron reemplazados; no son instrucciones operativas actuales.
+- **Siguiente decisión pendiente:** definir promoción a Stable/producción con los digests aprobados, sin reconstruir imágenes. No hay despliegue automático a producción ni actualización de `latest`.
+
 ---
 
 ## 1.6 Pruebas de imágenes en GitHub antes del despliegue local (2026-10-19)
@@ -9,7 +16,7 @@ Este documento mantiene el estado de ejecución, trazabilidad de sesiones, evide
 - **Objetivo:** descargar y actualizar la RC en la VM únicamente después de aprobar HTTP/E2E en servidores de GitHub.
 - **Flujo:** las imágenes por digest se prueban en `ubuntu-24.04` con DB y credenciales temporales; se publica `rc-verification.json` y un artefacto de aprobación. El job self-hosted requiere éxito de pruebas y verifica aprobación, run, commit y ambos digests antes de descargar imágenes. Después despliega y comprueba salud/commit, sin instalar npm ni repetir E2E.
 - **Aislamiento:** limpieza de contenedores y volúmenes solo en el runner efímero de GitHub. Staging local conserva credenciales y DB propias; checkout separado `rc-deploy/`. `staging-deployment.json` registra el despliegue local sin atribuirle pruebas ejecutadas en otra máquina.
-- **Validación:** Actionlint, 32 combinaciones de estados del bloqueo de VM y siete escenarios de aprobación/digests verificados. Gate, CI y prueba real de la migración quedan enlazados en el PR.
+- **Validación:** Actionlint, 32 combinaciones de estados del bloqueo de VM y siete escenarios de aprobación/digests verificados. [PR #79](https://github.com/Zer0x25/paraglide-2.0/pull/79) fusionado; [migración RC4 #49](https://github.com/Zer0x25/paraglide-2.0/actions/runs/39205370389) y publicación automática RC5 #61 en verde. Gate local: 731 tests y 32 contratos del pipeline aprobados.
 
 ## 1.5 Recuperación del checkout persistente de staging (2026-10-19)
 
@@ -17,7 +24,7 @@ Este documento mantiene el estado de ejecución, trazabilidad de sesiones, evide
 - **Cambio:** recuperación de propiedad limitada a resultados antiguos con UID 0 antes de checkout; pruebas con UID/GID del runner y HOME/cache temporal. El diagnóstico de aplicación solo corre con checkout y Node preparados.
 - **Verificación:** prueba local de reproducción/recuperación y validación del workflow; gate y comprobación real del despliegue registrados en el PR del arreglo. Se reutiliza la RC publicada por digest, sin mover tags ni reconstruir imágenes.
 - **Evidencia real:** CI #164 y reintento manual RC → Staging #48 en verde. El reintento fue una comprobación operativa de permisos y despliegue de la RC3 existente; no una validación del código de aplicación nuevo del PR. Publicó `staging-verification.json` para el commit `7e78fe0`.
-- **Construcciones paralelas:** API/Web pasan a una matriz con runners y cachés independientes. El manifiesto se publica en un job posterior solo si ambas imágenes terminan correctamente. Staging depende de ese manifiesto; con uno previo verificado se omite toda la matriz. Los reintentos manuales muestran el tag en el título y el commit probado en el resumen. La primera ejecución real de ambos builds en paralelo corresponde a la siguiente RC nueva.
+- **Construcciones paralelas:** API/Web pasan a una matriz con runners y cachés independientes. El manifiesto se publica en un job posterior solo si ambas imágenes terminan correctamente. Staging depende de ese manifiesto; con uno previo verificado se omite toda la matriz. Los reintentos manuales muestran el tag en el título y el commit probado en el resumen. Paralelismo confirmado en RC4, [Release Please #59](https://github.com/Zer0x25/paraglide-2.0/actions/runs/39201589415), y RC5 #61.
 
 ## 1. Estado Global del Monorepo
 
@@ -41,7 +48,9 @@ Este documento mantiene el estado de ejecución, trazabilidad de sesiones, evide
 
 ---
 
-## 1.2 CI por PR y RC hacia staging (2026-10-18)
+## 1.2 Histórico: diseño inicial de CI por PR y RC hacia staging (2026-10-18)
+
+Este diseño inicial fue sustituido por las sesiones 1.4 y 1.6; consultar el estado vigente y `docs/ci-cd.md` para operar.
 
 - **Flujo:** CI solo en PR, dispatch y validación reutilizable; una instalación de dependencias por job, suites por módulos, cancelación de ejecuciones anteriores y check `CI Quality Gate ✅` que falla directamente ante errores. Markdown, incluido el anidado, no dispara suites.
 - **RC:** Release Please prepara prereleases `vX.Y.Z-rc.N`. El merge de su PR publica la candidata y llama al workflow RC explícitamente; el PR del bot recibe CI por dispatch sin PAT adicional. Se verifica tag, versión y pertenencia a `main` antes de validar y construir API/Web para amd64.
@@ -209,16 +218,15 @@ Este documento mantiene el estado de ejecución, trazabilidad de sesiones, evide
 
 ## 3. Tareas en Curso (WIP) y Backlog Inmediato
 
-### En Curso (WIP)
+### Trabajo completado (histórico)
 - [x] Remediación y verificación de los 9 hallazgos de severidad ALTA (A-01 a A-09) fusionada en `main` (#61).
 - [x] Plan de remediación inmediata de vulnerabilidades críticas C-01 a C-08 y desfase horario de bloques A-01 (`fix(security,sre)`).
 - [x] Suite de pruebas automatizadas de antirregresión integrada en monorepo.
 - [x] Quality Gate `npm run check:quick` verificado al 100% (591 tests pasando).
-- [x] Pull Request abierto hacia `main`: [#60 (fix(security,sre): remediate critical vulnerabilities C-01 to C-08 and add anti-regression suite)](https://github.com/Zer0x25/paraglide-2.0/pull/60).
+- [x] [PR #60](https://github.com/Zer0x25/paraglide-2.0/pull/60) fusionado en `main` el 2026-10-14.
 
 ### Siguiente Acción Prioritaria (Next Action)
-- [ ] **Revisión y Mergeo de PR #60**: Esperar checks de CI y fusionar hacia `main`.
-- [ ] **Revisión de Release PR**: Monitorear el PR automático de `release-please` generado en GitHub tras la fusión para el próximo release.
+- [ ] **Promoción a Stable:** definir aprobación, versión final y despliegue de los mismos digests aprobados de la RC, con preparación de backup/esquema y recuperación.
 - [ ] **Hardening Operacional Pendiente**:
   - Script cron de backup automatizado para Postgres en Docker (`pg_dump` con rotación).
   - Configuración de alertas en Caddy / healthchecks hacia canal de monitoreo o webhook.
