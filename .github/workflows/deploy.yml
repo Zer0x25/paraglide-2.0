@@ -170,6 +170,8 @@ jobs:
   staging:
     name: Desplegar y probar staging
     needs: [resolve, images]
+    # `validate` se omite cuando ya existe un manifiesto verificado; no omitir staging por esa dependencia transitiva.
+    if: always() && needs.resolve.result == 'success' && needs.images.result == 'success'
     runs-on: [self-hosted, srv-hp-vm]
     timeout-minutes: 40
     environment:
