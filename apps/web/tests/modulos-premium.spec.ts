@@ -1,31 +1,27 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './helpers/live-auth';
 
 test.describe.serial('Módulos Premium y Pantalla TV en Staging (E2E Premium)', () => {
-  test.beforeEach(async ({ page }) => {
-    // Autenticación administrativa real en Staging
-    await page.goto('/login');
-    await page.waitForLoadState('domcontentloaded');
-
-    await page.fill('input[name="email"]', 'admin@parapente.com');
-    await page.fill('input[name="password"]', 'admin123');
-    await page.click('button[type="submit"]');
-
-    await page.waitForURL((url) => url.pathname === '/', { timeout: 15000 });
-    await expect(page.getByRole('heading', { name: 'Panel de Control' })).toBeVisible({
-      timeout: 10000,
-    });
-  });
-
   test('1. Pantalla Sala / TV FIDS (/pantalla): control de acceso, modal de enlaces admin y activación', async ({
     page,
+    browser,
   }) => {
     await page.goto('/pantalla');
     await page.waitForLoadState('domcontentloaded');
 
-    // Por seguridad, sin token muestra la vista de acceso restringido
-    await expect(page.getByRole('heading', { name: /Enlace no disponible/i })).toBeVisible({
-      timeout: 10000,
+    // El administrador puede abrir el tablero; una sesión anónima sin token no.
+    const anonymous = await browser.newContext({
+      baseURL: new URL(page.url()).origin,
+      storageState: { cookies: [], origins: [] },
     });
+    try {
+      const anonymousPage = await anonymous.newPage();
+      await anonymousPage.goto('/pantalla');
+      await expect(
+        anonymousPage.getByRole('heading', { name: /Enlace no disponible/i }),
+      ).toBeVisible({ timeout: 10000 });
+    } finally {
+      await anonymous.close();
+    }
 
     // Como administrador autenticado, está visible el botón de enlaces de acceso
     const btnEnlaces = page.getByRole('button', { name: /Enlaces de acceso/i });

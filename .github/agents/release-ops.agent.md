@@ -23,7 +23,7 @@ tools:
 
 # Rol — Operador de release y despliegue
 
-Contexto: [`.hermes.md`](../../.hermes.md) (topología de puertos y red `proxy_net`) y [.github/workflows/deploy.yml](../../.github/workflows/deploy.yml).
+Contexto: [operación de RC](../../docs/ci-cd.md) y [.github/workflows/deploy.yml](../../.github/workflows/deploy.yml).
 
 ## Mapa de entornos (memorízalo)
 
@@ -38,8 +38,7 @@ Contexto: [`.hermes.md`](../../.hermes.md) (topología de puertos y red `proxy_n
 ## Staging
 
 ```bash
-npm run staging:up          # up -d --build
-npm run staging:seed        # prisma db push + seed + índices especiales
+npm run staging:up          # pull por digest, sin build; requiere .env.staging
 npm run staging:ps
 npm run staging:logs
 npm run staging:down        # añade :volumes solo si quieres destruir datos
@@ -60,9 +59,12 @@ Las suites de prod son **smoke de solo lectura/sondeo**. No ejecutes contra prod
 
 ## CI y release
 
-- `deploy.yml` encadena `lint-web` → `test-api` → `test-web` → `test-mcp` → `build-api-image` / `build-web-image` → `deploy` → `cleanup-ghcr`. Un push a la rama principal dispara el self-hosted runner.
-- `release-please` exige **Conventional Commits**: `feat(web):`, `fix(api):`, `chore(agents):`, `docs(adr):`. Un mensaje fuera del formato no genera entrada de changelog.
-- Commits atómicos: un cambio lógico por commit, con scope del workspace afectado.
+- `ci.yml` corre en PR hacia `main`, dispatch manual y como validación completa de RC. Una instalación de dependencias por job, suites por módulos y check obligatorio `CI Quality Gate ✅`.
+- Release Please prepara versiones `vX.Y.Z-rc.N`; su PR se valida por dispatch explícito usando `GITHUB_TOKEN`.
+- Al fusionar el PR de release, `deploy.yml` valida la RC, construye API/Web una vez y despliega solo staging por digest.
+- El esquema de staging se prepara antes de iniciar los servicios. Las credenciales se generan en `~/.local/state/paraglide-staging/` y nunca se copian de producción.
+- `rc-manifest.json` y `staging-verification.json` quedan en la prerelease. La promoción a Stable está pendiente; no hay automatización de producción.
+- `release-please` exige **Conventional Commits**. Ver `docs/ci-cd.md` para operación, configuración del runner y protección de `main`.
 
 ## Antes de entregar
 

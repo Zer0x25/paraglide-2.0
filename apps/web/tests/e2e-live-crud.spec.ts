@@ -12,8 +12,8 @@ test.describe.serial('Flujos CRUD en Vivo contra Staging (E2E Live CRUD)', () =>
     await page.goto('/login');
     await page.waitForLoadState('domcontentloaded');
 
-    await page.fill('input[name="email"]', 'admin@parapente.com');
-    await page.fill('input[name="password"]', 'admin123');
+    await page.fill('input[name="email"]', process.env.ADMIN_EMAIL ?? 'admin@parapente.com');
+    await page.fill('input[name="password"]', process.env.ADMIN_PASSWORD ?? 'admin123');
     await page.click('button[type="submit"]');
 
     await page.waitForURL((url) => url.pathname === '/', { timeout: 15000 });
@@ -34,7 +34,7 @@ test.describe.serial('Flujos CRUD en Vivo contra Staging (E2E Live CRUD)', () =>
     });
 
     await page.locator('input[required]').fill(pilotoNombre);
-    await page.fill('input[placeholder="Ej: 12.345.678-9"]', '12.345.678-9');
+    await page.fill('input[placeholder="Ej: 12.345.678-9"]', `E2E-${Date.now()}`);
     await page.fill('input[type="email"]', `piloto.${uniqueSuffix}@parapente.com`);
     await page.fill('input[type="tel"]', '+56911223344');
 

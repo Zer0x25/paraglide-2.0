@@ -22,3 +22,6 @@ backups/
 
 # Artefactos de ejecución de tests
 apps/web/test-output.txt
+/test-results/
+/apps/web/test-results/
+/apps/web/playwright-report/

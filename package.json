@@ -52,12 +52,11 @@
     "test:reservas:prod": "PROD_URL=https://parapente.zer0x.org tsx scripts/test-reservas-pasajeros-stress.ts",
     "test:staging:reservas": "PROD_URL=http://localhost:3200 tsx scripts/test-reservas-pasajeros-stress.ts",
     "deploy:status": "bash scripts/deploy-status.sh",
-    "staging:up": "docker compose -f docker-compose.staging.yml up -d --build",
-    "staging:down": "docker compose -f docker-compose.staging.yml down",
-    "staging:down:volumes": "docker compose -f docker-compose.staging.yml down -v",
-    "staging:logs": "docker compose -f docker-compose.staging.yml logs -f",
-    "staging:ps": "docker compose -f docker-compose.staging.yml ps",
-    "staging:seed": "docker compose -f docker-compose.staging.yml exec api npx prisma db push --schema=apps/api/prisma/schema.prisma --skip-generate --accept-data-loss && docker compose -f docker-compose.staging.yml exec api npx tsx apps/api/prisma/seed.ts && docker compose -f docker-compose.staging.yml exec api npx tsx apps/api/scripts/indexes-especiales.ts",
+    "staging:up": "docker compose --env-file .env.staging -f docker-compose.staging.yml up -d --no-build --wait",
+    "staging:down": "docker compose --env-file .env.staging -f docker-compose.staging.yml down",
+    "staging:down:volumes": "docker compose --env-file .env.staging -f docker-compose.staging.yml down -v",
+    "staging:logs": "docker compose --env-file .env.staging -f docker-compose.staging.yml logs -f",
+    "staging:ps": "docker compose --env-file .env.staging -f docker-compose.staging.yml ps",
     "test:staging": "tsx scripts/test-staging.ts --all",
     "test:staging:quick": "tsx scripts/test-staging.ts --suite=01,02",
     "test:staging:stress": "tsx scripts/test-staging.ts --suite=05",
@@ -81,7 +80,8 @@
     "format": "node scripts/format.mjs",
     "format:check": "node scripts/format.mjs --check",
     "check:quick": "npm run build:shared && npm run typecheck && npm run test:api && npm run test:web && npm run test:mcp",
-    "check": "npm run test && npm run build"
+    "check": "npm run test && npm run build",
+    "test:ci": "node --test scripts/ci/*.test.mjs"
   },
   "devDependencies": {
     "concurrently": "^9.2.4",

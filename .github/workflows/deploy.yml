@@ -1,351 +1,215 @@
-name: Deploy to Homelab
+name: RC → Staging
 
 on:
   workflow_call:
     inputs:
-      build_images:
-        description: 'Construir y subir imágenes Docker a GHCR'
-        required: false
-        type: boolean
-        default: true
-      deploy_to_vm:
-        description: 'Desplegar en VM de Homelab (self-hosted runner)'
-        required: false
-        type: boolean
-        default: true
-      platforms:
-        description: 'Plataformas Docker'
-        required: false
+      rc_tag:
+        description: Tag de una prerelease RC publicada
+        required: true
         type: string
-        default: 'linux/amd64'
-  push:
-    branches:
-      - main
-    tags:
-      - 'v*.*.*'
-    paths-ignore:
-      - 'docs/**'
-      - 'memories/**'
-      - '**/*.md'
-      - '.agents/**'
-      - '.gitignore'
-      - 'LICENSE'
   workflow_dispatch:
     inputs:
-      build_images:
-        description: 'Construir y subir imágenes Docker a GHCR'
+      rc_tag:
+        description: 'RC publicada que se quiere desplegar o reintentar (vX.Y.Z-rc.N)'
         required: true
-        type: boolean
-        default: true
-      deploy_to_vm:
-        description: 'Desplegar en VM de Homelab (self-hosted runner)'
-        required: true
-        type: boolean
-        default: true
-      platforms:
-        description: 'Plataformas Docker (linux/amd64 para lab rápido, linux/amd64,linux/arm64 para prod)'
-        required: true
-        default: 'linux/amd64'
-        type: choice
-        options:
-          - 'linux/amd64'
-          - 'linux/amd64,linux/arm64'
-          - 'linux/arm64'
+        type: string
+  release:
+    types: [published]
 
-# Evita que dos pushes corran el deploy en paralelo sobre el mismo runner
-# self-hosted (comparten contenedores/imágenes y se pisan entre sí).
-concurrency:
-  group: deploy-homelab
-  cancel-in-progress: false
-
-# packages:write permite publicar las imágenes en GHCR desde CI;
-# contents:read es lo único que necesita el checkout.
 permissions:
   contents: read
   packages: write
+  pull-requests: read
+
+# Serializa toda la RC para que sus pruebas no coincidan con otro despliegue.
+concurrency:
+  group: rc-staging
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
   VITE_CONFIG_NATIVE_IGNORE_WARNING: 'true'
-  BUILD_PLATFORMS: ${{ inputs.platforms || (startsWith(github.ref, 'refs/tags/v') && 'linux/amd64,linux/arm64' || 'linux/amd64') }}
 
 jobs:
-  plan:
-    name: Determinar Acciones (Build / Deploy)
+  resolve:
+    name: Verificar origen de la RC
+    if: github.event_name != 'release' || github.event.release.prerelease
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
-      should_build: ${{ steps.decide.outputs.should_build }}
-      should_deploy: ${{ steps.decide.outputs.should_deploy }}
-    steps:
-      - name: Evaluar Flags de Ejecución
-        id: decide
-        run: |
-          # Si fue invocado via workflow_call (ej: release-please) o workflow_dispatch, inputs tiene valor
-          if [ -n "${{ inputs.build_images }}" ]; then
-            SHOULD_BUILD="${{ inputs.build_images }}"
-            SHOULD_DEPLOY="${{ inputs.deploy_to_vm }}"
-          elif [[ "${{ github.ref }}" =~ ^refs/tags/v ]]; then
-            # Releases formales compilan y despliegan siempre
-            SHOULD_BUILD="true"
-            SHOULD_DEPLOY="true"
-          else
-            # Push a main sin inputs: solo compila/despliega si el commit incluye la etiqueta [deploy] o [build-image]
-            COMMIT_MSG="${{ github.event.head_commit.message }}"
-            if echo "$COMMIT_MSG" | grep -iqE '\[deploy\]|\[build-image\]'; then
-              SHOULD_BUILD="true"
-            else
-              SHOULD_BUILD="false"
-            fi
-            if echo "$COMMIT_MSG" | grep -iq '\[deploy\]'; then
-              SHOULD_DEPLOY="true"
-            else
-              SHOULD_DEPLOY="false"
-            fi
-          fi
-          echo "should_build=$SHOULD_BUILD" >> $GITHUB_OUTPUT
-          echo "should_deploy=$SHOULD_DEPLOY" >> $GITHUB_OUTPUT
-          echo "### 📋 Plan de Ejecución (CD)" >> $GITHUB_STEP_SUMMARY
-          echo "| Acción | Ejecutar | Causa / Origen |" >> $GITHUB_STEP_SUMMARY
-          echo "|---|---|---|" >> $GITHUB_STEP_SUMMARY
-          echo "| 🐳 Construir Imágenes Docker | **$SHOULD_BUILD** | Evento: \`${{ github.event_name }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| 🚀 Desplegar a la VM | **$SHOULD_DEPLOY** | Ref: \`${{ github.ref_name }}\` |" >> $GITHUB_STEP_SUMMARY
-
-  build-api-image:
-    name: Build & Push API Image (GHCR)
-    runs-on: ubuntu-latest
-    needs: [plan]
-    if: needs.plan.outputs.should_build == 'true'
+      tag: ${{ steps.rc.outputs.tag }}
+      commit: ${{ steps.rc.outputs.commit }}
+      image_base: ${{ steps.rc.outputs.image_base }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verificar prerelease, tag, versión y pertenencia a main
+        id: rc
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RC_TAG: ${{ inputs.rc_tag || github.event.release.tag_name }}
+        run: node scripts/ci/candidate.mjs resolve
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+  validate:
+    name: Validación completa de la candidata
+    needs: resolve
+    uses: ./.github/workflows/ci.yml
+    with:
+      ref: ${{ needs.resolve.outputs.commit }}
+      full: true
 
-      - name: Set up Docker Buildx
+  images:
+    name: Construir una vez y registrar imágenes
+    needs: [resolve, validate]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      packages: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      RC_TAG: ${{ needs.resolve.outputs.tag }}
+      RC_COMMIT: ${{ needs.resolve.outputs.commit }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve.outputs.commit }}
+          persist-credentials: false
+      - name: Preparar ruta del manifiesto
+        run: echo "RC_MANIFEST=$RUNNER_TEMP/rc-manifest.json" >> "$GITHUB_ENV"
+      - name: Comprobar si la candidata ya tiene imágenes registradas
+        id: existing
+        run: |
+          EXISTS=$(gh release view "$RC_TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '[.assets[].name] | index("rc-manifest.json") != null')
+          echo "exists=$EXISTS" >> "$GITHUB_OUTPUT"
+          if [ "$EXISTS" = "true" ]; then
+            gh release download "$RC_TAG" --repo "$GITHUB_REPOSITORY" --pattern rc-manifest.json --dir "$RUNNER_TEMP"
+            node scripts/ci/candidate.mjs verify
+          fi
+      - name: Configurar Buildx nativo amd64
+        if: steps.existing.outputs.exists != 'true'
         uses: docker/setup-buildx-action@v3
-
-      - name: Login to GHCR
+      - name: Login GHCR
+        if: steps.existing.outputs.exists != 'true'
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
-      # Tags: sha-<corto> (inmutable, permite rollback) + latest (puntero móvil).
-      # El job `deploy` usa `sha-${GITHUB_SHA:0:7}` para tirar de la imagen exacta.
-      - name: Docker metadata (api)
-        id: meta-api
-        uses: docker/metadata-action@v5
-        with:
-          images: ghcr.io/zer0x25/paraglide-2.0-api
-          tags: |
-            type=sha,prefix=sha-,format=short
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=raw,value=latest
-
-      - name: Build & push API image
+      - name: Construir API
+        if: steps.existing.outputs.exists != 'true'
+        id: api
         uses: docker/build-push-action@v6
         with:
           context: .
           file: apps/api/Dockerfile
-          platforms: ${{ env.BUILD_PLATFORMS }}
+          platforms: linux/amd64
           push: true
-          tags: ${{ steps.meta-api.outputs.tags }}
-          labels: ${{ steps.meta-api.outputs.labels }}
-          build-args: |
-            GIT_COMMIT_SHA=${{ github.sha }}
+          tags: ${{ needs.resolve.outputs.image_base }}-api:${{ needs.resolve.outputs.tag }}
+          labels: |
+            org.opencontainers.image.revision=${{ needs.resolve.outputs.commit }}
+            org.opencontainers.image.version=${{ needs.resolve.outputs.tag }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+          build-args: GIT_COMMIT_SHA=${{ needs.resolve.outputs.commit }}
           cache-from: type=gha,scope=api
           cache-to: type=gha,mode=max,scope=api
-
-  build-web-image:
-    name: Build & Push Web Image (GHCR)
-    runs-on: ubuntu-latest
-    needs: [plan]
-    if: needs.plan.outputs.should_build == 'true'
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Login to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Docker metadata (web)
-        id: meta-web
-        uses: docker/metadata-action@v5
-        with:
-          images: ghcr.io/zer0x25/paraglide-2.0-web
-          tags: |
-            type=sha,prefix=sha-,format=short
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=raw,value=latest
-
-      - name: Build & push Web image
+      - name: Construir Web
+        if: steps.existing.outputs.exists != 'true'
+        id: web
         uses: docker/build-push-action@v6
         with:
           context: .
           file: apps/web/Dockerfile
-          platforms: ${{ env.BUILD_PLATFORMS }}
+          platforms: linux/amd64
           push: true
-          tags: ${{ steps.meta-web.outputs.tags }}
-          labels: ${{ steps.meta-web.outputs.labels }}
-          # En producción Next reescribe /api/* al API interno del compose.
+          tags: ${{ needs.resolve.outputs.image_base }}-web:${{ needs.resolve.outputs.tag }}
+          labels: |
+            org.opencontainers.image.revision=${{ needs.resolve.outputs.commit }}
+            org.opencontainers.image.version=${{ needs.resolve.outputs.tag }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
           build-args: |
             INTERNAL_API_URL=http://api:3001
             NEXT_PUBLIC_GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID || vars.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '' }}
           cache-from: type=gha,scope=web
           cache-to: type=gha,mode=max,scope=web
+      - name: Registrar manifiesto inmutable en la prerelease
+        if: steps.existing.outputs.exists != 'true'
+        env:
+          API_DIGEST: ${{ steps.api.outputs.digest }}
+          WEB_DIGEST: ${{ steps.web.outputs.digest }}
+        run: |
+          node scripts/ci/candidate.mjs create
+          gh release upload "$RC_TAG" "$RC_MANIFEST" --repo "$GITHUB_REPOSITORY"
 
-  deploy:
-    name: Deploy to VM (Self-Hosted)
+  staging:
+    name: Desplegar y probar staging
+    needs: [resolve, images]
     runs-on: [self-hosted, srv-hp-vm]
-    needs: [plan, build-api-image, build-web-image]
-    if: always() && needs.plan.outputs.should_deploy == 'true' && (needs.build-api-image.result == 'success' || needs.build-api-image.result == 'skipped') && (needs.build-web-image.result == 'success' || needs.build-web-image.result == 'skipped')
+    timeout-minutes: 40
+    environment:
+      name: staging
+    permissions:
+      contents: write
+      packages: read
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      RC_TAG: ${{ needs.resolve.outputs.tag }}
+      RC_COMMIT: ${{ needs.resolve.outputs.commit }}
     steps:
-      - name: Login to GHCR
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve.outputs.commit }}
+          persist-credentials: false
+      - name: Preparar rutas de evidencia
+        run: |
+          echo "RC_MANIFEST=$RUNNER_TEMP/rc-manifest.json" >> "$GITHUB_ENV"
+          echo "RC_VERIFICATION=$RUNNER_TEMP/staging-verification.json" >> "$GITHUB_ENV"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Descargar y verificar el manifiesto
+        run: |
+          gh release download "$RC_TAG" --repo "$GITHUB_REPOSITORY" --pattern rc-manifest.json --dir "$RUNNER_TEMP" --clobber
+          node scripts/ci/candidate.mjs verify
+      - name: Preparar herramientas de pruebas
+        run: |
+          npm ci --no-audit --prefer-offline --loglevel=error
+          npx playwright install chromium
+      - name: Login GHCR
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Pull images & restart (no build)
-        # El servidor ya NO compila: solo baja las imágenes inmutables que CI
-        # acaba de publicar (tag sha-<corto>) y recrea los contenedores.
-        env:
-          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
-          NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+      - name: Preparar esquema y arrancar la RC por digest
+        run: node scripts/ci/staging.mjs deploy
+      - name: Integración HTTP y E2E contra staging
+        run: node scripts/ci/staging.mjs test 2>&1 | tee "$RUNNER_TEMP/staging-tests.log"
+      - name: Guardar evidencia de aprobación técnica
         run: |
-          TARGET_DIR="/home/zer0x/server.lab/repos/paraglide-2.0"
-          [ ! -d "$TARGET_DIR" ] && TARGET_DIR="/home/zer0x/server.lab/repos/paraglide"
-          cd "$TARGET_DIR"
-          git fetch origin main
-          git reset --hard origin/main
-          export IMAGE_TAG="sha-${GITHUB_SHA:0:7}"
-          export API_IMAGE="ghcr.io/zer0x25/paraglide-2.0-api:${IMAGE_TAG}"
-          export WEB_IMAGE="ghcr.io/zer0x25/paraglide-2.0-web:${IMAGE_TAG}"
-          export GOOGLE_CLIENT_ID="${GOOGLE_CLIENT_ID}"
-          export NEXT_PUBLIC_GOOGLE_CLIENT_ID="${NEXT_PUBLIC_GOOGLE_CLIENT_ID}"
-          # Persistir para futuros `docker compose up` manuales sin pasar por Actions
-          grep -q "^GOOGLE_CLIENT_ID=" .env 2>/dev/null && sed -i "s/^GOOGLE_CLIENT_ID=.*/GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}/" .env || echo "GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}" >> .env
-          grep -q "^NEXT_PUBLIC_GOOGLE_CLIENT_ID=" .env 2>/dev/null && sed -i "s/^NEXT_PUBLIC_GOOGLE_CLIENT_ID=.*/NEXT_PUBLIC_GOOGLE_CLIENT_ID=${NEXT_PUBLIC_GOOGLE_CLIENT_ID}/" .env || echo "NEXT_PUBLIC_GOOGLE_CLIENT_ID=${NEXT_PUBLIC_GOOGLE_CLIENT_ID}" >> .env
-          echo "📥 Descargando imágenes pre-compiladas desde GHCR sin detener PostgreSQL..."
-          docker compose pull api web
-          docker compose up -d --remove-orphans db
-          docker compose up -d --no-build --force-recreate --no-deps api web
-          docker image prune -af --filter "until=2h"
-
-      - name: Apply database schema (prisma db push)
-        run: |
-          TARGET_DIR="/home/zer0x/server.lab/repos/paraglide-2.0"
-          [ ! -d "$TARGET_DIR" ] && TARGET_DIR="/home/zer0x/server.lab/repos/paraglide"
-          cd "$TARGET_DIR"
-          echo "🔄 Aplicando prisma db push contra la BD de produccion..."
-          docker compose exec -T api sh -c "npx prisma db push --schema=apps/api/prisma/schema.prisma --skip-generate && npx tsx apps/api/scripts/indexes-especiales.ts" || {
-            echo "❌ db push o restauración de índices especiales falló. Revisa el drift del esquema antes de continuar (ver ADR 015)."
-            exit 1
-          }
-          echo "✅ Esquema de BD e índices parciales sincronizados atómicamente."
-
-      - name: Seed prod defaults (reglas/tarifas/promoción, idempotente)
-        run: |
-          TARGET_DIR="/home/zer0x/server.lab/repos/paraglide-2.0"
-          [ ! -d "$TARGET_DIR" ] && TARGET_DIR="/home/zer0x/server.lab/repos/paraglide"
-          cd "$TARGET_DIR"
-          echo "🌱 Sembrando defaults de producción (si faltan)..."
-          docker compose exec -T api sh -c "npx tsx apps/api/prisma/seed.prod.ts" || {
-            echo "⚠️ seed prod no aplicado (se puede re-ejecutar manualmente)."
-          }
-
-      - name: Apply special indexes (BRIN, pg_trgm, partials)
-        run: |
-          TARGET_DIR="/home/zer0x/server.lab/repos/paraglide-2.0"
-          [ ! -d "$TARGET_DIR" ] && TARGET_DIR="/home/zer0x/server.lab/repos/paraglide"
-          cd "$TARGET_DIR"
-          docker compose exec -T api sh -c "npx tsx apps/api/scripts/indexes-especiales.ts" || {
-            echo "⚠️ Índices especiales no aplicados (se puede re-ejecutar el script)."
-          }
-
-      - name: Post-Deploy Health Check & Auto-Verification
-        run: |
-          echo "🩺 Esperando readiness de los servicios (hasta 90s)..."
-          for i in $(seq 1 30); do
-            WEB_OK=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3100/login 2>/dev/null || echo "000")
-            API_OK=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3101/api/public/health 2>/dev/null || echo "000")
-            if [ "$WEB_OK" = "200" ] && [ "$API_OK" = "200" ]; then
-              echo "🟢 Web HTTP $WEB_OK + API HTTP $API_OK listos."
-              break
-            fi
-            echo "⏳ Esperando servicios... (web=$WEB_OK api=$API_OK) [intento $i/30]"
-            sleep 3
-          done
-
-          for CONTAINER in parapente_web parapente_api parapente_postgres; do
-            STATUS=$(docker inspect --format '{{.State.Status}}' "$CONTAINER" 2>/dev/null || echo "not_found")
-            if [ "$STATUS" != "running" ]; then
-              echo "❌ Error: Container $CONTAINER is not running (Status: $STATUS)"
-              docker logs --tail 40 "$CONTAINER" 2>/dev/null || true
-              exit 1
-            fi
-            echo "🟢 Container $CONTAINER is running."
-          done
-
-          WEB_OK=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3100/login 2>/dev/null || echo "000")
-          API_OK=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3101/api/public/health 2>/dev/null || echo "000")
-          if [ "$WEB_OK" != "200" ] || [ "$API_OK" != "200" ]; then
-            echo "❌ Health check final falló: web=$WEB_OK api=$API_OK"
-            docker logs --tail 40 parapente_api 2>/dev/null || true
-            exit 1
-          fi
-
-          echo "🎉 All health checks PASSED successfully!"
-
-      - name: Generate Deployment Step Summary
+          node scripts/ci/candidate.mjs verified
+          gh release upload "$RC_TAG" "$RC_VERIFICATION" --repo "$GITHUB_REPOSITORY" --clobber
+          echo "RC $RC_TAG validada en staging. Stable requiere una promoción posterior de estas mismas imágenes." >> "$GITHUB_STEP_SUMMARY"
+          cat "$RC_MANIFEST" >> "$GITHUB_STEP_SUMMARY"
+      - name: Diagnóstico si falla staging
+        if: failure()
+        run: node scripts/ci/staging.mjs logs
+      - name: Conservar resultados de pruebas
         if: always()
-        run: |
-          SHORT_SHA="${GITHUB_SHA:0:7}"
-          HEALTH_JSON=$(curl -s http://localhost:3101/api/public/health 2>/dev/null || echo '{"status":"unreachable"}')
-          echo "## 🚀 Despliegue en Homelab" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Parámetro | Detalle |" >> $GITHUB_STEP_SUMMARY
-          echo "| :--- | :--- |" >> $GITHUB_STEP_SUMMARY
-          echo "| **🌐 URL Producción** | [https://parapente.zer0x.org](https://parapente.zer0x.org) |" >> $GITHUB_STEP_SUMMARY
-          echo "| **📦 Commit** | \`$SHORT_SHA\` (\`${{ github.ref_name }}\`) |" >> $GITHUB_STEP_SUMMARY
-          echo "| **🐳 Imagen API** | \`ghcr.io/zer0x25/paraglide-2.0-api:sha-$SHORT_SHA\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| **🐳 Imagen Web** | \`ghcr.io/zer0x25/paraglide-2.0-web:sha-$SHORT_SHA\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| **📡 API Health** | \`$HEALTH_JSON\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| **⏱️ Fecha** | $(date -u +'%Y-%m-%d %H:%M:%S UTC') |" >> $GITHUB_STEP_SUMMARY
-
-      - name: Cleanup old Docker images (keep <= 2h)
-        if: always()
-        run: |
-          echo "🧹 Limpiando imágenes antiguas (> 2h) sin contenedor activo..."
-          docker image prune -af --filter "until=2h"
-
-  cleanup-ghcr:
-    name: Prune Old GHCR Images
-    runs-on: ubuntu-latest
-    needs: [build-api-image, build-web-image]
-    if: success()
-    permissions:
-      packages: write
-    steps:
-      - name: Prune old GHCR images (API & Web)
-        uses: dataaxiom/ghcr-cleanup-action@v1
+        uses: actions/upload-artifact@v4
         with:
-          packages: 'paraglide-2.0-api,paraglide-2.0-web'
-          keep-n-tagged: 3
-          exclude-tags: 'latest'
-          delete-untagged: true
-          delete-partial-images: true
-          token: ${{ secrets.GITHUB_TOKEN }}
+          name: staging-results-${{ needs.resolve.outputs.tag }}
+          path: |
+            ${{ runner.temp }}/staging-tests.log
+            test-results/
+            apps/web/test-results/
+          if-no-files-found: ignore
+          retention-days: 14

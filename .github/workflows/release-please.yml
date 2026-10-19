@@ -11,6 +11,11 @@ permissions:
   pull-requests: write
   issues: write
   packages: write
+  actions: write
+
+concurrency:
+  group: release-please-main
+  cancel-in-progress: false
 
 jobs:
   release-please:
@@ -27,13 +32,26 @@ jobs:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 
-  deploy-on-release:
-    name: Despliegue Automático de Release
+      # GITHUB_TOKEN no dispara pull_request al crear/actualizar el PR del bot.
+      # workflow_dispatch sí se ejecuta y deja el check sobre la cabeza del PR.
+      - name: Validar el PR de release sin un token personal
+        if: steps.release.outputs.prs_created == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_PRS: ${{ steps.release.outputs.prs }}
+        run: |
+          node <<'JS'
+          const { execFileSync } = require('node:child_process');
+          for (const pr of JSON.parse(process.env.RELEASE_PRS)) {
+            execFileSync('gh', ['workflow', 'run', 'ci.yml', '--repo', process.env.GITHUB_REPOSITORY, '--ref', pr.headBranchName], { stdio: 'inherit' });
+          }
+          JS
+
+  stage-rc:
+    name: Publicar RC en staging
     needs: release-please
     if: ${{ needs.release-please.outputs.releases_created == 'true' }}
     uses: ./.github/workflows/deploy.yml
     with:
-      build_images: true
-      deploy_to_vm: true
-      platforms: 'linux/amd64'
+      rc_tag: ${{ needs.release-please.outputs.tag_name }}
     secrets: inherit

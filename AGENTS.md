@@ -33,7 +33,7 @@ Para balancear rigor técnico con agilidad operativa, las tareas se clasifican e
 
 - **Root `.env` único** (dotenvx): Cargado por `apps/web/next.config.ts`, `apps/api/src/config.ts` y `apps/mcp/src/config.ts`. No existe `apps/web/.env`.
 - **Dev (Local)**: Web `:3000`, API `:3001`, DB Postgres `:5679` (`docker compose -f docker-compose.dev-db.yml up -d`, `parapente_dev_db`).
-- **Staging (Preproducción)**: Web `:3200`, API `:3201`, DB Postgres `:5680` (`docker compose -f docker-compose.staging.yml up -d --build`, `parapente_db_staging`).
+- **Staging (Preproducción)**: Web `:3200`, API `:3201`, DB Postgres `:5680` (RC por digest; ver `docs/ci-cd.md`, `parapente_db_staging`).
 - **Producción (Host/Caddy)**: Web `:3100`, API `:3101`, DB Postgres `:5678` (`parapente_postgres` en `docker-compose.yml`).
 - 🚨 **PROHIBIDO tocar el puerto 5678**: Es la DB de producción. Scripts destructivos o tests jamás deben apuntar a este puerto.
 - **Node.js**: Versión **22** (imágenes Docker alpine/slim). Verificar con `node --version` si hay paridad de entornos.
@@ -63,7 +63,7 @@ Para balancear rigor técnico con agilidad operativa, las tareas se clasifican e
 ### Staging y Producción (Operaciones)
 - `npm run test:staging` / `test:staging:quick` / `test:staging:stress`: Suites contra Staging (`:3200`).
 - `npm run test:prod:all`: Ejecución completa de suites contra producción.
-- `npm run staging:up` / `staging:down` / `staging:seed`: Gestión del stack de Staging.
+- `npm run staging:up` / `staging:down`: Gestión del stack de Staging con `.env.staging`; el workflow RC prepara el esquema y las credenciales.
 - `npm run deploy:status`: Diagnóstico de despliegue HTTP y estado de contenedores en VM.
 
 ---

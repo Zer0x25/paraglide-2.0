@@ -25,8 +25,8 @@ test.describe.serial('Experiencia y Responsive Móvil 375px (DoD Mobile Viewport
     await page.goto('/login');
     await page.waitForLoadState('domcontentloaded');
 
-    await page.fill('input[name="email"]', 'admin@parapente.com');
-    await page.fill('input[name="password"]', 'admin123');
+    await page.fill('input[name="email"]', process.env.ADMIN_EMAIL ?? 'admin@parapente.com');
+    await page.fill('input[name="password"]', process.env.ADMIN_PASSWORD ?? 'admin123');
     await page.click('button[type="submit"]');
 
     await page.waitForURL((url) => url.pathname === '/', { timeout: 15000 });

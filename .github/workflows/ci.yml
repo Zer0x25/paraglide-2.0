@@ -1,224 +1,122 @@
 name: CI (Integración Continua)
 
 on:
-  push:
-    branches:
-      - main
-      - 'feature/**'
-      - 'fix/**'
-    paths-ignore:
-      - 'docs/**'
-      - 'memories/**'
-      - '**/*.md'
-      - '.agents/**'
-      - '.gitignore'
-      - 'LICENSE'
   pull_request:
-    branches:
-      - main
-    paths-ignore:
-      - 'docs/**'
-      - 'memories/**'
-      - '**/*.md'
-      - '.agents/**'
-      - '.gitignore'
-      - 'LICENSE'
+    branches: [main]
   workflow_dispatch:
+  workflow_call:
+    inputs:
+      ref:
+        type: string
+        default: ''
+      full:
+        type: boolean
+        default: true
 
 permissions:
   contents: read
+  pull-requests: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || inputs.ref || github.ref }}
+  cancel-in-progress: true
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
   VITE_CONFIG_NATIVE_IGNORE_WARNING: 'true'
 
 jobs:
-  detect-changes:
-    name: Detectar Módulos Afectados
-    runs-on: ubuntu-latest
-    if: >-
-      github.event_name == 'pull_request' ||
-      github.event_name == 'workflow_dispatch' ||
-      (!startsWith(github.event.head_commit.message, 'Merge pull request #') &&
-       !contains(github.event.head_commit.message, 'chore(main): release') &&
-       !contains(github.event.head_commit.message, 'release-please--branches'))
-    outputs:
-      shared: ${{ steps.filter.outputs.shared }}
-      api: ${{ steps.filter.outputs.api }}
-      web: ${{ steps.filter.outputs.web }}
-      mcp: ${{ steps.filter.outputs.mcp }}
-      any_code: ${{ steps.filter.outputs.any_code }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Evaluar Rutas Modificadas
-        uses: dorny/paths-filter@v3
-        id: filter
-        with:
-          filters: |
-            shared:
-              - 'packages/shared/**'
-              - 'package.json'
-              - 'package-lock.json'
-            api:
-              - 'apps/api/**'
-              - 'packages/shared/**'
-              - 'package.json'
-              - 'package-lock.json'
-            web:
-              - 'apps/web/**'
-              - 'packages/shared/**'
-              - 'package.json'
-              - 'package-lock.json'
-            mcp:
-              - 'apps/mcp/**'
-              - 'packages/shared/**'
-              - 'package.json'
-              - 'package-lock.json'
-            any_code:
-              - 'apps/**'
-              - 'packages/**'
-              - 'package.json'
-              - 'package-lock.json'
-              - 'tsconfig.base.json'
-
-  typecheck-and-lint:
-    name: Typecheck & Lint
-    runs-on: ubuntu-latest
-    needs: [detect-changes]
-    if: ${{ github.event_name == 'workflow_dispatch' || needs.detect-changes.outputs.any_code == 'true' }}
-    env:
-      WEB_CHANGED: ${{ needs.detect-changes.outputs.web }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci --no-audit --prefer-offline --loglevel=error
-
-      - name: Generate Prisma Client
-        run: npx prisma generate --schema=apps/api/prisma/schema.prisma
-
-      - name: Build shared (tipos @parapente/shared)
-        run: npm run build:shared
-
-      - name: TypeScript Monorepo Typecheck
-        run: npm run typecheck
-
-      - name: ESLint (Web)
-        if: ${{ github.event_name == 'workflow_dispatch' || env.WEB_CHANGED == 'true' }}
-        run: npm run lint 2>&1 | tee /tmp/eslint.log; exit ${PIPESTATUS[0]}
-
-      - name: Upload lint logs (on failure)
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: lint-web-logs
-          path: /tmp/eslint.log
-          retention-days: 7
-
-  test-api:
-    name: Tests API (Vitest)
-    runs-on: ubuntu-latest
-    needs: [detect-changes]
-    if: ${{ github.event_name == 'workflow_dispatch' || needs.detect-changes.outputs.api == 'true' }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci --no-audit --prefer-offline --loglevel=error
-
-      - name: Generate Prisma Client
-        run: npx prisma generate --schema=apps/api/prisma/schema.prisma
-
-      - name: Build shared + Run API tests
-        run: |
-          npm run build:shared
-          npm run test:api
-
-  test-web:
-    name: Tests Web (Vitest ${{ matrix.shard }})
-    runs-on: ubuntu-latest
-    needs: [detect-changes]
-    if: ${{ github.event_name == 'workflow_dispatch' || needs.detect-changes.outputs.web == 'true' }}
-    strategy:
-      fail-fast: false
-      matrix:
-        shard: ['1/2', '2/2']
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci --no-audit --prefer-offline --loglevel=error
-
-      - name: Generate Prisma Client
-        run: npx prisma generate --schema=apps/api/prisma/schema.prisma
-
-      - name: Build shared + Run web tests
-        run: |
-          npm run build:shared
-          npm --prefix apps/web test -- --shard=${{ matrix.shard }}
-
-  test-mcp:
-    name: Tests MCP Server (Vitest)
-    runs-on: ubuntu-latest
-    needs: [detect-changes]
-    if: ${{ github.event_name == 'workflow_dispatch' || needs.detect-changes.outputs.mcp == 'true' }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci --no-audit --prefer-offline --loglevel=error
-
-      - name: Build shared + Run MCP tests
-        run: |
-          npm run build:shared
-          npm run test:mcp
-
-  ci-gate:
+  validate:
+    # Mantener este nombre estable: es el check obligatorio de main.
     name: CI Quality Gate ✅
     runs-on: ubuntu-latest
-    needs: [detect-changes, typecheck-and-lint, test-api, test-web, test-mcp]
-    if: always()
+    timeout-minutes: 15
     steps:
-      - name: Evaluar Estado de Módulos
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+          persist-credentials: false
+
+      - name: Detectar módulos afectados
+        if: github.event_name == 'pull_request' && !inputs.full
+        id: changes
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            infrastructure:
+              - 'packages/**/!(*.md)'
+              - 'package*.json'
+              - 'tsconfig*.json'
+              - '.npmrc'
+              - '.dockerignore'
+              - '.github/workflows/**'
+              - '.github/actions/**'
+              - '.github/actionlint.yaml'
+              - 'scripts/**/!(*.md)'
+              - 'docker-compose*.yml'
+              - '**/Dockerfile'
+            api:
+              - 'apps/api/**/!(*.md)'
+            web:
+              - 'apps/web/**/!(*.md)'
+            mcp:
+              - 'apps/mcp/**/!(*.md)'
+
+      - name: Seleccionar validaciones
+        id: scope
         env:
-          RES_DETECT: ${{ needs.detect-changes.result }}
-          RES_TYPECHECK: ${{ needs.typecheck-and-lint.result }}
-          RES_API: ${{ needs.test-api.result }}
-          RES_WEB: ${{ needs.test-web.result }}
-          RES_MCP: ${{ needs.test-mcp.result }}
+          FULL: ${{ inputs.full || github.event_name != 'pull_request' }}
+          INFRASTRUCTURE: ${{ steps.changes.outputs.infrastructure }}
+          API: ${{ steps.changes.outputs.api }}
+          WEB: ${{ steps.changes.outputs.web }}
+          MCP: ${{ steps.changes.outputs.mcp }}
+        run: node scripts/ci/candidate.mjs scope
+
+      - name: Setup Node.js
+        if: steps.scope.outputs.any == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Instalar dependencias una vez
+        if: steps.scope.outputs.any == 'true'
+        run: npm ci --no-audit --prefer-offline --loglevel=error
+
+      - name: Validar contratos del pipeline RC
+        if: steps.scope.outputs.any == 'true'
+        run: npm run test:ci
+
+      - name: Generar cliente Prisma
+        if: steps.scope.outputs.any == 'true'
+        run: npx prisma generate --schema=apps/api/prisma/schema.prisma
+
+      - name: Compilar shared y verificar tipos
+        if: steps.scope.outputs.any == 'true'
+        run: npm run build:shared && npm run typecheck
+
+      - name: Lint Web
+        if: steps.scope.outputs.web == 'true'
+        run: npm run lint
+
+      - name: Tests API
+        if: steps.scope.outputs.api == 'true'
+        run: npm run test:api
+
+      - name: Tests Web
+        if: steps.scope.outputs.web == 'true'
+        run: npm run test:web
+
+      - name: Tests MCP
+        if: steps.scope.outputs.mcp == 'true'
+        run: npm run test:mcp
+
+      - name: Resultado
+        env:
+          ANY_CODE: ${{ steps.scope.outputs.any }}
         run: |
-          if [ "$RES_DETECT" = "skipped" ]; then
-            echo "⏭️ Merge de PR o release detectado: el CI ya fue validado en el Pull Request. Omitiendo re-ejecución redundante en main."
-            exit 0
+          if [ "$ANY_CODE" = "true" ]; then
+            echo "Validaciones de los módulos afectados aprobadas." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Cambios de documentación: no requieren instalar dependencias ni ejecutar suites." >> "$GITHUB_STEP_SUMMARY"
           fi
-          RESULTS="$RES_TYPECHECK $RES_API $RES_WEB $RES_MCP"
-          if echo "$RESULTS" | grep -q 'failure'; then
-            echo "❌ Falló al menos una de las suites de prueba ejecutadas."
-            exit 1
-          fi
-          echo "🎉 CI Quality Gate aprobado: todos los módulos afectados pasaron sus pruebas y validaciones con éxito."
