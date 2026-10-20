@@ -93,8 +93,9 @@ export function PantallaHeader({
 
         <button
           onClick={onToggleFullscreen}
-          className="p-3 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-2xl transition border border-slate-700 shadow-sm"
+          className="p-3 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-2xl transition border border-slate-700 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500"
           title="Alternar Pantalla Completa"
+          aria-label="Alternar Pantalla Completa"
         >
           {isFullscreen ? <Minimize size={18} /> : <Maximize size={18} />}
         </button>
