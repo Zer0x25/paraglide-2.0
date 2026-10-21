@@ -24,7 +24,8 @@ Este documento mantiene el estado de ejecución, trazabilidad de sesiones, evide
   - **Gate `check:quick`:** 512 tests unitarios aprobados (API: 189 tests, Web: 307 tests, MCP: 16 tests) + Typecheck monorepo + build de `@parapente/shared` (Código de salida: 0).
   - **Suite Playwright E2E (`test:e2e` contra Staging `:3200`):** 22/22 pruebas aprobadas al 100% (45.7s), cubriendo login, panel principal, CRUD de pilotos y reservas, firma de deslinde, calendario, outbox offline, analíticas y responsive móvil (375px).
   - **CLI Maestro de Staging (`test:staging` contra `:3200` y `:5680`):** 7/7 suites aprobadas al 100% (01-Smoke, 02-Core-Lifecycle, 03-Public-Client, 04-Modules-Admin, 05-Concurrency-Stress, 06-Integrations-Security, 07-Performance-SLO) en 9s.
-  - **Guardrails de Base de Datos:** Producción `:5678` 100% aislado e intocado; Staging inicializado y validado en `:5680` (`parapente_staging_db`).
+  - **Resolución CI & GitHub Actions:** Lockfile `package-lock.json` sincronizado con entorno Node 22/npm 10. `CI Quality Gate ✅` (Run 39691296200) superado con éxito en 2m38s (0 errores, 0 fallos).
+  - **Pull Request & Merge:** PR #86 (`feat(web): migrar apps/web a Vite+ con React Router v7 y vite-plugin-pwa`) fusionado exitosamente en `main` mediante squash merge (commit `07436bf`). Rama `feat/vite-migration` eliminada tras el merge.
 
 ---
 
