@@ -11,6 +11,23 @@ Este documento mantiene el estado de ejecución, trazabilidad de sesiones, evide
 
 ---
 
+## 1.7 Migración de apps/web a Vite+ (Vite SPA + React Router v7 + vite-plugin-pwa) (2026-10-21)
+
+- **Objetivo:** Migrar `apps/web` desde Next.js 16 (forzado con `--webpack` por el plugin PWA legacy) a Vite+ (`vp` / Vite SPA + React Router v7 + `vite-plugin-pwa`), dockerizar la aplicación web para Staging y validar toda la suite de pruebas contra el entorno desplegado.
+- **Implementación técnica:**
+  - **Enrutamiento y Shims:** React Router v7 configurado con rutas dinámicas y carga diferida (`lazy()`) para las 20 páginas de la aplicación. Shims de compatibilidad transparentes para `next/link` y `next/navigation` (`useRouter`, `usePathname`, `useSearchParams`, `useParams`).
+  - **PWA & Offline:** Integración de `vite-plugin-pwa` con Workbox precacheando assets y aislando SSE (`/api/eventos` con `NetworkOnly`).
+  - **Herramientas Vite+ (`vp`):** CLI unificada `vp` v1.3.0 (`vite-plus`) integrada en scripts monorepo (`dev`, `build`, `preview`).
+  - **Servidor Web Standalone:** `apps/web/server.mjs` (Node.js sin dependencias externas) que sirve `dist/` estático con fallback a `index.html` y proxy inverso transparente hacia `INTERNAL_API_URL` (`http://api:3001`) con soporte extendido de timeout (120s) para SSE.
+  - **Docker Staging:** `apps/web/Dockerfile` multi-stage con build mediante `npm run build` (`vp build`) y runtime sobre `node:22-slim` (imagen de 82MB).
+- **Evidencia y Validación:**
+  - **Gate `check:quick`:** 512 tests unitarios aprobados (API: 189 tests, Web: 307 tests, MCP: 16 tests) + Typecheck monorepo + build de `@parapente/shared` (Código de salida: 0).
+  - **Suite Playwright E2E (`test:e2e` contra Staging `:3200`):** 22/22 pruebas aprobadas al 100% (45.7s), cubriendo login, panel principal, CRUD de pilotos y reservas, firma de deslinde, calendario, outbox offline, analíticas y responsive móvil (375px).
+  - **CLI Maestro de Staging (`test:staging` contra `:3200` y `:5680`):** 7/7 suites aprobadas al 100% (01-Smoke, 02-Core-Lifecycle, 03-Public-Client, 04-Modules-Admin, 05-Concurrency-Stress, 06-Integrations-Security, 07-Performance-SLO) en 9s.
+  - **Guardrails de Base de Datos:** Producción `:5678` 100% aislado e intocado; Staging inicializado y validado en `:5680` (`parapente_staging_db`).
+
+---
+
 ## 1.6 Pruebas de imágenes en GitHub antes del despliegue local (2026-10-19)
 
 - **Objetivo:** descargar y actualizar la RC en la VM únicamente después de aprobar HTTP/E2E en servidores de GitHub.

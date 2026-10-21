@@ -75,7 +75,10 @@ test.describe.serial('Módulos Premium y Pantalla TV en Staging (E2E Premium)', 
 
     // Semáforo operacional de despegue
     await expect(
-      page.getByText(/PISTA ABIERTA|PISTA EN PRECAUCIÓN|PISTA CERRADA/i).first(),
+      page
+        .locator('main')
+        .getByText(/PISTA ABIERTA|PISTA EN PRECAUCIÓN|PISTA CERRADA/i)
+        .first(),
     ).toBeVisible({
       timeout: 10000,
     });

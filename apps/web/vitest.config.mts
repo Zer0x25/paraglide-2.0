@@ -15,6 +15,8 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(import.meta.dirname, './src'),
+      'next/link': path.resolve(import.meta.dirname, './src/lib/next-compat/link.tsx'),
+      'next/navigation': path.resolve(import.meta.dirname, './src/lib/next-compat/navigation.ts'),
     },
   },
 });
