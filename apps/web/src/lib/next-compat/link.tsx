@@ -10,9 +10,11 @@ export interface NextLinkProps extends Omit<React.AnchorHTMLAttributes<HTMLAncho
 }
 
 export const Link = React.forwardRef<HTMLAnchorElement, NextLinkProps>(function Link(
-  { href, replace, scroll: _scroll, prefetch: _prefetch, children, onClick, ...props },
+  { href, replace, scroll, prefetch, children, onClick, ...props },
   ref,
 ) {
+  void scroll;
+  void prefetch;
   let to = '';
   if (typeof href === 'string') {
     to = href;

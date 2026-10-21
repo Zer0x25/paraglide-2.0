@@ -110,6 +110,7 @@ const server = http.createServer((req, res) => {
 
 // Soporte para WebSockets / upgrade si es necesario
 server.on('upgrade', (req, socket, head) => {
+  void head;
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
   if (url.pathname.startsWith('/api/')) {
     const targetUrl = new URL(url.pathname + url.search, INTERNAL_API_URL);
