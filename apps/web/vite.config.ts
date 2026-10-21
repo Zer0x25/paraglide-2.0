@@ -61,6 +61,18 @@ export default defineConfig({
       },
     },
   },
+  define: {
+    'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development'),
+    'process.env.NEXT_PUBLIC_API_URL': JSON.stringify(process.env.NEXT_PUBLIC_API_URL || '/api'),
+    'process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID': JSON.stringify(
+      process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '',
+    ),
+    'process.env': JSON.stringify({
+      NODE_ENV: process.env.NODE_ENV || 'development',
+      NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || '/api',
+      NEXT_PUBLIC_GOOGLE_CLIENT_ID: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '',
+    }),
+  },
   build: {
     outDir: 'dist',
     sourcemap: true,
