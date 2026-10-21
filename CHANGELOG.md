@@ -5,6 +5,19 @@ based on [Conventional Commits](https://www.conventionalcommits.org/) and this
 file is maintained automatically by
 [release-please](https://github.com/googleapis/release-please).
 
+## [0.12.0-rc.5](https://github.com/Zer0x25/paraglide-2.0/compare/v0.11.1-rc.5...v0.12.0-rc.5) (2026-10-21)
+
+
+### Features
+
+* **web:** migrar apps/web a Vite+ con React Router v7 y vite-plugin-pwa ([#86](https://github.com/Zer0x25/paraglide-2.0/issues/86)) ([07436bf](https://github.com/Zer0x25/paraglide-2.0/commit/07436bfcb30788ad1a86883bbc6926f19007bea1))
+
+
+### Documentation
+
+* **ci:** sincronizar guias con el flujo RC final ([#81](https://github.com/Zer0x25/paraglide-2.0/issues/81)) ([dba1797](https://github.com/Zer0x25/paraglide-2.0/commit/dba1797fd7e7338c6464f62c8029a83bbe23caa7))
+* registrar evidencia de merge de PR 86 en STATE.md ([e12eb9c](https://github.com/Zer0x25/paraglide-2.0/commit/e12eb9cfc536cf4573270347551e2a02e756f18c))
+
 ## [0.11.1-rc.5](https://github.com/Zer0x25/paraglide-2.0/compare/v0.11.1-rc.4...v0.11.1-rc.5) (2026-10-19)
 
 
