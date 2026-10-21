@@ -7,7 +7,7 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 1 : undefined,
+  workers: 1,
   reporter: 'line',
   use: {
     baseURL,
@@ -15,6 +15,7 @@ export default defineConfig({
     screenshot: 'only-on-failure',
     video: 'off',
     trace: 'off',
+    serviceWorkers: 'block',
   },
   projects: [
     {
