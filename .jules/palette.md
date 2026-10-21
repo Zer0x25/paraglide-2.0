@@ -12,3 +12,6 @@
 ## 2026-10-17 - Accessible names include visible labels
 **Learning:** An `aria-label` overrides a button's visible text. If it omits that text, voice-control users may not be able to target the button by the label they see (WCAG 2.5.3, Label in Name).
 **Action:** Make accessible names contain the visible label, update them when button text changes, and omit redundant `aria-label` values when visible text already provides the name.
+## 2024-03-20 - Theme Toggle Button Keyboard Accessibility
+**Learning:** Icon-only utility buttons like ThemeToggle often lack visible keyboard focus states because they do not use standard base Button components, making them invisible to keyboard navigation.
+**Action:** Always add explicit focus-visible utility classes (e.g., focus-visible:ring-2) to custom icon buttons to ensure screen reader and keyboard users can perceive focus.
