@@ -48,7 +48,7 @@ export function ConfigBloqueFormModal({
         <button
           onClick={onClose}
           aria-label="Cerrar modal"
-          className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+          className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded"
         >
           <X size={24} />
         </button>
@@ -171,7 +171,7 @@ export function ConfigBloqueFormModal({
                     onClick={() =>
                       setHorariosForm([...horariosForm, { horaInicio: '', horaFin: '' }])
                     }
-                    className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                    className="text-xs text-blue-600 hover:text-blue-800 font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded px-1 py-0.5"
                   >
                     + Añadir Bloque
                   </button>
@@ -212,7 +212,7 @@ export function ConfigBloqueFormModal({
                             newH.splice(i, 1);
                             setHorariosForm(newH);
                           }}
-                          className="text-red-400 hover:text-red-600"
+                          className="text-red-400 hover:text-red-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 rounded"
                         >
                           <X size={16} />
                         </button>
@@ -228,13 +228,13 @@ export function ConfigBloqueFormModal({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 border rounded-md text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+              className="px-4 py-2 border rounded-md text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
             >
               Cancelar
             </button>
             <button
               type="submit"
-              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
             >
               Guardar Regla
             </button>

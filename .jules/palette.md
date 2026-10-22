@@ -12,3 +12,7 @@
 ## 2026-10-17 - Accessible names include visible labels
 **Learning:** An `aria-label` overrides a button's visible text. If it omits that text, voice-control users may not be able to target the button by the label they see (WCAG 2.5.3, Label in Name).
 **Action:** Make accessible names contain the visible label, update them when button text changes, and omit redundant `aria-label` values when visible text already provides the name.
+
+## 2024-10-22 - Focus States on Custom Action Buttons
+**Learning:** Custom interactive buttons used outside standard component wrappers often lack explicit keyboard focus indicators, making tab-navigation difficult. The app standardizes on Tailwind `focus-visible:outline-none focus-visible:ring-2` for clear keyboard accessibility.
+**Action:** Add `focus-visible:ring` styles to naked action icons and form toggles.
