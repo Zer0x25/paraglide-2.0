@@ -22,10 +22,10 @@ export function ConfigBloqueCard({
   return (
     <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 p-5 flex flex-col relative">
       <div className="absolute top-4 right-4 flex space-x-2">
-        <button onClick={() => onEdit(config)} aria-label="Editar regla" className="text-slate-300 hover:text-blue-500">
+        <button onClick={() => onEdit(config)} aria-label="Editar regla" className="text-slate-300 hover:text-blue-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded">
           <Edit2 size={18} />
         </button>
-        <button onClick={() => onDelete(config.id)} aria-label="Eliminar regla" className="text-slate-300 hover:text-red-500">
+        <button onClick={() => onDelete(config.id)} aria-label="Eliminar regla" className="text-slate-300 hover:text-red-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 rounded">
           <Trash2 size={18} />
         </button>
       </div>
