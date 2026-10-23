@@ -12,3 +12,7 @@
 ## 2026-10-17 - Accessible names include visible labels
 **Learning:** An `aria-label` overrides a button's visible text. If it omits that text, voice-control users may not be able to target the button by the label they see (WCAG 2.5.3, Label in Name).
 **Action:** Make accessible names contain the visible label, update them when button text changes, and omit redundant `aria-label` values when visible text already provides the name.
+
+## 2024-03-20 - Missing Focus States on Custom Icon Buttons
+**Learning:** Custom icon buttons (like action toolbars in Modals or Headers) outside the standard UI components often lack keyboard focus states (`focus-visible`) and `aria-label`s, negatively impacting keyboard and screen reader accessibility.
+**Action:** When auditing new modules, specifically verify that icon-only `button` elements include `aria-label` and `focus-visible:ring-2` with appropriate themed ring colors.
