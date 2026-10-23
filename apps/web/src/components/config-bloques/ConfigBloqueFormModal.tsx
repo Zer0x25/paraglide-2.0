@@ -48,7 +48,7 @@ export function ConfigBloqueFormModal({
         <button
           onClick={onClose}
           aria-label="Cerrar modal"
-          className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+          className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded-md"
         >
           <X size={24} />
         </button>
@@ -212,7 +212,7 @@ export function ConfigBloqueFormModal({
                             newH.splice(i, 1);
                             setHorariosForm(newH);
                           }}
-                          className="text-red-400 hover:text-red-600"
+                          className="text-red-400 hover:text-red-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 rounded-md"
                         >
                           <X size={16} />
                         </button>

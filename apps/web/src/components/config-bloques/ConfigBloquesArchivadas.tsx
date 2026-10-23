@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import { Archive } from 'lucide-react';
 import { etiquetaNumero } from '@parapente/shared';
@@ -24,7 +24,7 @@ export function ConfigBloquesArchivadas({
       <button
         type="button"
         onClick={onToggleMostrar}
-        className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-t-lg"
+        className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-t-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
       >
         <span className="flex items-center space-x-2">
           <Archive size={16} />
@@ -53,7 +53,13 @@ export function ConfigBloquesArchivadas({
               </div>
               {numeros.has(config.id) && (
                 <span className="text-xs text-slate-400 shrink-0 ml-2">
-                  {etiquetaNumero((() => { const n = numeros.get(config.id); if (typeof n === 'number') return { numero: n, archivada: false }; return n ? { numero: n.numero, archivada: n.archivada ?? false } : undefined; })())}
+                  {etiquetaNumero(
+                    (() => {
+                      const n = numeros.get(config.id);
+                      if (typeof n === 'number') return { numero: n, archivada: false };
+                      return n ? { numero: n.numero, archivada: n.archivada ?? false } : undefined;
+                    })(),
+                  )}
                 </span>
               )}
             </div>
