@@ -91,11 +91,11 @@ export function ReservasFilters({
             aria-label="Buscar por titular, RUT, pasajero o código"
             placeholder="Buscar por titular, RUT, pasajero o código..."
             value={searchQuery}
-            onChange={e => onSearchChange(e.target.value)}
+            onChange={(e) => onSearchChange(e.target.value)}
             className="w-full pl-10 pr-9 py-2 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm focus:ring-2 focus:ring-blue-500 outline-none text-slate-900 dark:text-white transition"
           />
           {searchQuery && (
-            <button 
+            <button
               onClick={onClearSearch}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
             >
@@ -111,29 +111,37 @@ export function ReservasFilters({
           <div className="flex items-center space-x-2">
             <button
               type="button"
-              onClick={() => setShowFilters(prev => !prev)}
+              onClick={() => setShowFilters((prev) => !prev)}
               aria-expanded={showFilters}
-              className={`inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl border transition-all cursor-pointer ${
+              className={`inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl border transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
                 showFilters || activeFiltersCount > 0
                   ? 'bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800 font-semibold'
                   : 'bg-slate-50 dark:bg-slate-800/60 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800'
               }`}
             >
-              <Filter size={13} className={activeFiltersCount > 0 ? "text-blue-600 dark:text-blue-400" : "text-slate-400"} />
+              <Filter
+                size={13}
+                className={
+                  activeFiltersCount > 0 ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400'
+                }
+              />
               <span>Filtros</span>
               {activeFiltersCount > 0 && (
                 <span className="bg-blue-600 text-white text-[10px] font-bold px-1.5 py-0.2 rounded-full min-w-[16px] text-center leading-4">
                   {activeFiltersCount}
                 </span>
               )}
-              <ChevronDown size={14} className={`transition-transform duration-200 text-slate-400 ${showFilters ? 'rotate-180 text-blue-500' : ''}`} />
+              <ChevronDown
+                size={14}
+                className={`transition-transform duration-200 text-slate-400 ${showFilters ? 'rotate-180 text-blue-500' : ''}`}
+              />
             </button>
 
             {activeFiltersCount > 0 && (
               <button
                 type="button"
                 onClick={handleResetFilters}
-                className="inline-flex items-center space-x-1 text-xs text-slate-500 hover:text-red-600 dark:text-slate-400 dark:hover:text-red-400 transition-colors cursor-pointer px-2 py-1 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/30"
+                className="inline-flex items-center space-x-1 text-xs text-slate-500 hover:text-red-600 dark:text-slate-400 dark:hover:text-red-400 transition-colors cursor-pointer px-2 py-1 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
                 title="Limpiar filtros activos"
               >
                 <RotateCcw size={12} />
@@ -157,7 +165,7 @@ export function ReservasFilters({
               </label>
               <select
                 value={estadoReservaFilter}
-                onChange={e => setEstadoReservaFilter(e.target.value as EstadoReservaFilter)}
+                onChange={(e) => setEstadoReservaFilter(e.target.value as EstadoReservaFilter)}
                 className="w-full border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-1.5 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 outline-none focus:ring-2 focus:ring-blue-500 font-medium text-xs"
               >
                 <option value="TODOS">Todos los estados</option>
@@ -175,7 +183,9 @@ export function ReservasFilters({
               </label>
               <select
                 value={filtros.estado ?? 'TODOS'}
-                onChange={e => setFiltros({ estado: e.target.value === 'TODOS' ? undefined : e.target.value })}
+                onChange={(e) =>
+                  setFiltros({ estado: e.target.value === 'TODOS' ? undefined : e.target.value })
+                }
                 className="w-full border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-1.5 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 outline-none focus:ring-2 focus:ring-blue-500 text-xs"
               >
                 <option value="TODOS">Todos los pagos</option>
@@ -193,7 +203,7 @@ export function ReservasFilters({
               </label>
               <select
                 value={deslindeFilter}
-                onChange={e => setDeslindeFilter(e.target.value as DeslindeFilter)}
+                onChange={(e) => setDeslindeFilter(e.target.value as DeslindeFilter)}
                 className="w-full border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-1.5 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 outline-none focus:ring-2 focus:ring-blue-500 text-xs"
               >
                 <option value="TODOS">Todos los deslindes</option>
