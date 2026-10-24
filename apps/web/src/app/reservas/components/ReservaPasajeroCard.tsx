@@ -26,7 +26,10 @@ export function ReservaPasajeroCard({
       <input
         type="hidden"
         {...register(`pasajeros.${index}.id` as const, {
-          setValueAs: (v) => (v === '' || v === undefined || v === null || Number.isNaN(Number(v)) ? undefined : Number(v)),
+          setValueAs: (v) =>
+            v === '' || v === undefined || v === null || Number.isNaN(Number(v))
+              ? undefined
+              : Number(v),
         })}
       />
       <input
@@ -40,7 +43,7 @@ export function ReservaPasajeroCard({
         <button
           type="button"
           onClick={() => onRemove(index)}
-          className="absolute top-3 right-3 text-slate-400 hover:text-red-600 cursor-pointer"
+          className="absolute top-3 right-3 text-slate-400 hover:text-red-600 cursor-pointer rounded-lg p-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
           title="Quitar pasajero"
         >
           <X size={18} />
@@ -52,8 +55,7 @@ export function ReservaPasajeroCard({
           <h4 className="text-xs font-bold text-slate-500 uppercase">Pasajero {index + 1}</h4>
           {field.firmaDeslinde ? (
             <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-              ✓ Deslinde firmado
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />✓ Deslinde firmado
             </span>
           ) : (
             <span className="inline-flex items-center text-[11px] font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
@@ -119,7 +121,10 @@ export function ReservaPasajeroCard({
           </label>
           <input
             {...register(`pasajeros.${index}.peso` as const, {
-              setValueAs: (v) => (v === '' || v === undefined || v === null || Number.isNaN(Number(v)) ? null : Number(v)),
+              setValueAs: (v) =>
+                v === '' || v === undefined || v === null || Number.isNaN(Number(v))
+                  ? null
+                  : Number(v),
             })}
             type="number"
             placeholder="75"

@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import { useState, useRef, useEffect } from 'react';
 import { MoreVertical, RotateCcw, Edit2, Trash2 } from 'lucide-react';
@@ -68,7 +68,7 @@ export function ReservaCardMenu({
         aria-haspopup="menu"
         aria-expanded={menuOpen}
         aria-label="Acciones de reserva"
-        className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 p-2 min-w-9 min-h-9 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition cursor-pointer"
+        className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 p-2 min-w-9 min-h-9 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
       >
         <MoreVertical size={16} />
       </button>
@@ -121,8 +121,9 @@ export function ReservaCardMenu({
               Desagendar
             </button>
           )}
-          {estaSinAgendar && !esInmutable && (
-            esEliminable ? (
+          {estaSinAgendar &&
+            !esInmutable &&
+            (esEliminable ? (
               <button
                 type="button"
                 role="menuitem"
@@ -166,16 +167,15 @@ export function ReservaCardMenu({
                         className="font-semibold text-blue-600 dark:text-blue-400 underline underline-offset-2 hover:text-blue-700 dark:hover:text-blue-300 cursor-pointer"
                       >
                         Pagos
-                      </button>
-                      {' '}para poder eliminar.
+                      </button>{' '}
+                      para poder eliminar.
                     </>
                   ) : (
                     motivoNoEliminable
                   )}
                 </p>
               </div>
-            )
-          )}
+            ))}
         </div>
       )}
     </div>
