@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import { Calendar, Edit2, Trash2, Lock } from 'lucide-react';
 import { etiquetaNumero } from '@parapente/shared';
@@ -22,10 +22,18 @@ export function ConfigBloqueCard({
   return (
     <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 p-5 flex flex-col relative">
       <div className="absolute top-4 right-4 flex space-x-2">
-        <button onClick={() => onEdit(config)} aria-label="Editar regla" className="text-slate-300 hover:text-blue-500">
+        <button
+          onClick={() => onEdit(config)}
+          aria-label="Editar regla"
+          className="text-slate-300 hover:text-blue-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded"
+        >
           <Edit2 size={18} />
         </button>
-        <button onClick={() => onDelete(config.id)} aria-label="Eliminar regla" className="text-slate-300 hover:text-red-500">
+        <button
+          onClick={() => onDelete(config.id)}
+          aria-label="Eliminar regla"
+          className="text-slate-300 hover:text-red-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 rounded"
+        >
           <Trash2 size={18} />
         </button>
       </div>
@@ -39,21 +47,28 @@ export function ConfigBloqueCard({
         <h3 className="font-bold text-lg pr-12 text-slate-800 dark:text-white">{config.nombre}</h3>
       </div>
 
-      {numeroItem && (() => {
-        const etiqueta = etiquetaNumero(typeof numeroItem === 'number' ? { numero: numeroItem, archivada: false } : numeroItem ? { numero: numeroItem.numero, archivada: numeroItem.archivada ?? false } : undefined);
-        const archivada = typeof numeroItem === 'object' ? numeroItem?.archivada : false;
-        return (
-          <span
-            className={`inline-flex items-center self-start text-xs font-semibold px-2 py-0.5 rounded-full mb-2 ${
-              archivada
-                ? 'bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300'
-                : 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300'
-            }`}
-          >
-            {etiqueta}
-          </span>
-        );
-      })()}
+      {numeroItem &&
+        (() => {
+          const etiqueta = etiquetaNumero(
+            typeof numeroItem === 'number'
+              ? { numero: numeroItem, archivada: false }
+              : numeroItem
+                ? { numero: numeroItem.numero, archivada: numeroItem.archivada ?? false }
+                : undefined,
+          );
+          const archivada = typeof numeroItem === 'object' ? numeroItem?.archivada : false;
+          return (
+            <span
+              className={`inline-flex items-center self-start text-xs font-semibold px-2 py-0.5 rounded-full mb-2 ${
+                archivada
+                  ? 'bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300'
+                  : 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300'
+              }`}
+            >
+              {etiqueta}
+            </span>
+          );
+        })()}
 
       <div className="text-sm text-slate-600 dark:text-slate-400 mb-4 space-y-1">
         {config.fechaExacta ? (
@@ -67,7 +82,8 @@ export function ConfigBloqueCard({
           </p>
         ) : (
           <p>
-            Aplica: <span className="font-medium text-slate-800 dark:text-white">Indefinidamente</span>
+            Aplica:{' '}
+            <span className="font-medium text-slate-800 dark:text-white">Indefinidamente</span>
           </p>
         )}
       </div>
