@@ -17,3 +17,7 @@
 ## 2024-10-14 - Batch independent DB queries in validateWeightAndConflict
 **Learning:** Found sequential DB queries in `validateWeightAndConflict` where `pasajero`, `piloto` and `vuelo` conflicts were fetched sequentially outside of any database transaction.
 **Action:** Move independent queries into the same `Promise.all()` block to execute them concurrently, reducing network latency by avoiding waterfall patterns.
+
+## 2025-01-20 - Batch independent scheduler background DB operations
+**Learning:** Found sequential execution of DB transactions inside a `for...of` loop in a background job `tickCierreContable`.
+**Action:** Replaced iterative loops with `Promise.all(mappedArray)` to run independent background logic concurrently, significantly dropping total runtime from O(N) to O(1) latency.

@@ -43,18 +43,21 @@ export async function tickCierreContable(): Promise<number> {
       return 0;
     }
 
-    let cerradas = 0;
-    for (const r of pendientes) {
-      try {
-        await cerrarReservaContable(r.id, r.version);
-        cerradas++;
-      } catch (err) {
-        console.warn(
-          `[cierre-contable] No se pudo cerrar reserva #${r.id} (${r.numeroReserva}):`,
-          err,
-        );
-      }
-    }
+    const resultados = await Promise.all(
+      pendientes.map(async (r) => {
+        try {
+          await cerrarReservaContable(r.id, r.version);
+          return true;
+        } catch (err) {
+          console.warn(
+            `[cierre-contable] No se pudo cerrar reserva #${r.id} (${r.numeroReserva}):`,
+            err,
+          );
+          return false;
+        }
+      }),
+    );
+    const cerradas = resultados.filter((res) => res).length;
 
     if (cerradas > 0) {
       console.log(
