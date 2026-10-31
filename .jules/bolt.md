@@ -17,3 +17,7 @@
 ## 2024-10-14 - Batch independent DB queries in validateWeightAndConflict
 **Learning:** Found sequential DB queries in `validateWeightAndConflict` where `pasajero`, `piloto` and `vuelo` conflicts were fetched sequentially outside of any database transaction.
 **Action:** Move independent queries into the same `Promise.all()` block to execute them concurrently, reducing network latency by avoiding waterfall patterns.
+
+## 2025-01-20 - Preserving Array.find() semantics in Map lookups
+**Learning:** When refactoring nested `Array.find()` or `Array.some()` calls inside loops to use a precomputed `Map` for O(1) lookups to avoid O(N * M) complexity, using a simple `.set(key, value)` inside a `.forEach` loop will store the *last* matched element. This changes behavior if multiple elements share the same key, as `.find()` returns the *first* match.
+**Action:** When replacing `.find()` with a Map lookup, always conditionally insert elements into the map only if the key doesn't exist yet: `if (!map.has(key)) map.set(key, value)`. This preserves the exact semantics of `Array.find()`.
