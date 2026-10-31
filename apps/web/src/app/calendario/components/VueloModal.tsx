@@ -156,9 +156,9 @@ export function VueloModal({
     if (resId) {
       const selectedReserva = reservas.find((r) => r.id === resId);
       const groupPassengers = pasajeros.filter((p) => p.reservaId === resId);
-      const existingFlight = vuelos?.find((v) =>
-        groupPassengers.some((gp) => gp.id === v.pasajeroId),
-      );
+
+      const groupPassengerIds = new Set(groupPassengers.map((gp) => gp.id));
+      const existingFlight = vuelos?.find((v) => groupPassengerIds.has(v.pasajeroId));
 
       let defaultFecha = formData.fecha;
       let defaultHora = formData.hora;
@@ -176,9 +176,16 @@ export function VueloModal({
 
       setFormData((prev) => ({ ...prev, fecha: defaultFecha, hora: defaultHora }));
 
+      const vuelosByPasajero = new Map();
+      vuelos?.forEach((v) => {
+        if (groupPassengerIds.has(v.pasajeroId) && !vuelosByPasajero.has(v.pasajeroId)) {
+          vuelosByPasajero.set(v.pasajeroId, v);
+        }
+      });
+
       const autoSelections: Record<number, string> = {};
       groupPassengers.forEach((p: Pasajero) => {
-        const pFlight = vuelos?.find((v: Vuelo) => v.pasajeroId === p.id);
+        const pFlight = vuelosByPasajero.get(p.id);
         if (pFlight) {
           autoSelections[p.id] = String(pFlight.pilotoId);
         }
